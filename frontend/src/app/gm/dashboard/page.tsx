@@ -184,19 +184,7 @@ export default function GMDashboard() {
                         <span>Master Calendar</span>
                     </div>
 
-                    <p className="sidebar-label">Switch Dashboard</p>
-                    <a href="/admin/dashboard" className="nav-item">
-                        <Users size={20} />
-                        <span>Admin</span>
-                    </a>
-                    <a href="/coo/dashboard" className="nav-item">
-                        <Users size={20} />
-                        <span>COO</span>
-                    </a>
-                    <a href="/tl/dashboard" className="nav-item">
-                        <Users size={20} />
-                        <span>Team Leader</span>
-                    </a>
+
 
                     {!isMasterMode && (
                         <>
