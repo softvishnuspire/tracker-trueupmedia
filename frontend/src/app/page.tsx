@@ -68,7 +68,7 @@ export default function Login() {
 
       // Get the user's role from metadata
       let userRole = data.user?.user_metadata?.role;
-      if (userRole === 'tl1') userRole = 'tl'; // Map backend Enum TL1 to frontend role 'tl'
+      if (['tl1', 'tl2', 'team lead', 'TL1', 'TL2', 'TEAM LEAD'].includes(userRole)) userRole = 'tl'; // Map backend roles to frontend role 'tl'
 
       if (userRole && userRole !== selectedRole) {
         setError(`Your account is assigned to the "${userRole}" role. Please select the correct role.`);

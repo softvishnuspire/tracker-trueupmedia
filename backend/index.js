@@ -204,21 +204,35 @@ app.delete('/api/admin/clients/:id', async (req, res) => {
 
 // ─── Admin: Team Management ───
 app.get('/api/admin/team', async (req, res) => {
-    const { data, error } = await supabase.from('users').select('*').in('role', ['TL1', 'TL2']).order('created_at', { ascending: false });
+    const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+    
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+    
+    // Filter in JS to avoid enum-space matching issues in some environments
+    const teamLeads = (data || []).filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role));
+    res.json(teamLeads);
 });
 
 app.post('/api/admin/team', async (req, res) => {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, role_identifier } = req.body;
     if (!name || !email || !password || !role) return res.status(400).json({ error: 'Missing fields' });
 
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email, password, email_confirm: true, user_metadata: { role, name }
+        email, password, email_confirm: true, user_metadata: { role, name, role_identifier }
     });
     if (authError) return res.status(500).json({ error: authError.message });
 
-    const { data, error } = await supabase.from('users').insert([{ user_id: authUser.user.id, name, email, password_hash: 'managed_by_auth', role }]).select();
+    const { data, error } = await supabase.from('users').insert([{ 
+        user_id: authUser.user.id, 
+        name, 
+        email, 
+        password_hash: 'managed_by_auth', 
+        role,
+        role_identifier: role_identifier || role // Fallback to role if identifier not provided
+    }]).select();
     if (error) {
         await supabase.auth.admin.deleteUser(authUser.user.id);
         return res.status(500).json({ error: error.message });
@@ -260,11 +274,13 @@ app.get('/api/admin/stats', async (req, res) => {
 app.get('/api/gm/team-leads', async (req, res) => {
     const { data, error } = await supabase
         .from('users')
-        .select('user_id, name, email, role')
-        .in('role', ['TL1', 'TL2']);
+        .select('user_id, name, email, role, role_identifier');
     
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+    
+    // Filter in JS to avoid enum-space matching issues
+    const teamLeads = (data || []).filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role));
+    res.json(teamLeads);
 });
 
 // ─── Assign Client to Team Lead ───

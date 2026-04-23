@@ -8,7 +8,8 @@ interface TeamMember {
   user_id: string;
   name: string;
   email: string;
-  role: 'TL1' | 'TL2';
+  role: 'TL1' | 'TL2' | 'TEAM LEAD';
+  role_identifier?: string;
   created_at: string;
 }
 
@@ -23,7 +24,8 @@ export default function TeamManagement() {
     name: '',
     email: '',
     password: '',
-    role: 'TL1' as 'TL1' | 'TL2',
+    role: 'TEAM LEAD' as 'TL1' | 'TL2' | 'TEAM LEAD',
+    role_identifier: 'TL1',
   });
 
   const fetchTeam = async () => {
@@ -42,7 +44,7 @@ export default function TeamManagement() {
   }, []);
 
   const handleAddClick = () => {
-    setFormData({ name: '', email: '', password: '', role: 'TL1' });
+    setFormData({ name: '', email: '', password: '', role: 'TEAM LEAD', role_identifier: 'TL1' });
     setShowModal(true);
   };
 
@@ -130,9 +132,16 @@ export default function TeamManagement() {
                   </td>
                   <td>{member.email}</td>
                   <td>
-                    <span className={`type-badge ${member.role === 'TL1' ? 'post' : 'reel'}`} style={{ minWidth: '60px', textAlign: 'center' }}>
-                      {member.role}
-                    </span>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span className="type-badge" style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', minWidth: '100px', textAlign: 'center' }}>
+                        TEAM LEAD
+                      </span>
+                      {member.role_identifier && (
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                          {member.role_identifier}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>{new Date(member.created_at).toLocaleDateString()}</td>
                   <td style={{ textAlign: 'right' }}>
@@ -204,57 +213,20 @@ export default function TeamManagement() {
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Access Role *</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <label style={{ 
-                    flex: 1, 
-                    padding: '12px', 
-                    borderRadius: '10px', 
-                    border: `1px solid ${formData.role === 'TL1' ? '#4f46e5' : '#e2e8f0'}`,
-                    background: formData.role === 'TL1' ? '#f5f3ff' : '#fff',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <input 
-                      type="radio" 
-                      name="role" 
-                      value="TL1" 
-                      checked={formData.role === 'TL1'}
-                      onChange={() => setFormData({...formData, role: 'TL1'})}
-                      style={{ accentColor: '#4f46e5' }}
-                    />
-                    <div>
-                      <p style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Team Lead 1</p>
-                      <p style={{ fontSize: '11px', color: '#64748b' }}>Post Content Specialist</p>
-                    </div>
-                  </label>
-                  <label style={{ 
-                    flex: 1, 
-                    padding: '12px', 
-                    borderRadius: '10px', 
-                    border: `1px solid ${formData.role === 'TL2' ? '#4f46e5' : '#e2e8f0'}`,
-                    background: formData.role === 'TL2' ? '#f5f3ff' : '#fff',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <input 
-                      type="radio" 
-                      name="role" 
-                      value="TL2" 
-                      checked={formData.role === 'TL2'}
-                      onChange={() => setFormData({...formData, role: 'TL2'})}
-                      style={{ accentColor: '#4f46e5' }}
-                    />
-                    <div>
-                      <p style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Team Lead 2</p>
-                      <p style={{ fontSize: '11px', color: '#64748b' }}>Reel Content Specialist</p>
-                    </div>
-                  </label>
+                <label className="form-label">Team Identifier *</label>
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    required
+                    value={formData.role_identifier}
+                    onChange={(e) => setFormData({...formData, role_identifier: e.target.value.toUpperCase()})}
+                    placeholder="e.g. TL1, TL2, TL3"
+                    style={{ width: '100%' }}
+                  />
+                  <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontSize: '11px', fontWeight: 600 }}>ID</div>
                 </div>
+                <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Role will be set to TEAM LEAD automatically.</p>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>

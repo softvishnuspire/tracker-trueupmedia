@@ -312,8 +312,11 @@ export default function GMDashboard() {
                                                     {lead.name?.charAt(0)}
                                                 </div>
                                                 <div>
-                                                    <h3 className="lead-name">{lead.name}</h3>
-                                                    <p className="lead-role">{lead.role}</p>
+                                                    <h3 className="lead-name">
+                                                        {lead.name} 
+                                                        {lead.role_identifier && <span style={{ marginLeft: '8px', fontSize: '12px', color: '#64748b', fontWeight: 500 }}>({lead.role_identifier})</span>}
+                                                    </h3>
+                                                    <p className="lead-role">TEAM LEAD</p>
                                                 </div>
                                             </div>
                                             <button 
