@@ -176,14 +176,16 @@
 
 .loginSection {
   flex: 1.2;
-  padding: 4rem;
+  padding: 2.5rem;
   display: flex;
   flex-direction: column;
   background: var(--surface);
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 .loginHeader {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .loginHeader h2 {
