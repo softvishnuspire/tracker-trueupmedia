@@ -21,7 +21,7 @@ export default function TeamManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -95,8 +95,8 @@ export default function TeamManagement() {
     }
   };
 
-  const filteredTeam = team.filter(m => 
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredTeam = team.filter(m =>
+    m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -117,9 +117,9 @@ export default function TeamManagement() {
         <div className="table-header">
           <div className="search-input-box">
             <Search size={18} className="search-icon" />
-            <input 
-              type="text" 
-              placeholder="Search by name or email..." 
+            <input
+              type="text"
+              placeholder="Search by name or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -165,7 +165,7 @@ export default function TeamManagement() {
                       )}
                     </div>
                   </td>
-                  <td data-label="Joined Date"><span>{new Date(member.created_at).toLocaleDateString()}</span></td>
+                  <td data-label="Joined Date"><span>{member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}</span></td>
                   <td data-label="Actions" style={{ textAlign: 'right' }}>
                     <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
                       <button className="btn-icon" onClick={() => handleEditClick(member)}>
@@ -195,18 +195,18 @@ export default function TeamManagement() {
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">{editingMember ? 'Edit Team Lead' : 'Create Team Lead'}</h3>
-              <button onClick={() => setShowModal(false)} className="modal-close"><X size={20}/></button>
+              <button onClick={() => setShowModal(false)} className="modal-close"><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label className="form-label">Full Name *</label>
                 <div style={{ position: 'relative' }}>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    required 
+                  <input
+                    type="text"
+                    className="form-input"
+                    required
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter full name"
                     style={{ width: '100%' }}
                   />
@@ -214,12 +214,12 @@ export default function TeamManagement() {
               </div>
               <div className="form-group">
                 <label className="form-label">Email Address *</label>
-                <input 
-                  type="email" 
-                  className="form-input" 
+                <input
+                  type="email"
+                  className="form-input"
                   required
                   value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="tl@trueupmedia.com"
                   style={{ width: '100%' }}
                 />
@@ -227,12 +227,12 @@ export default function TeamManagement() {
               <div className="form-group">
                 <label className="form-label">Password {editingMember ? '(Optional)' : '*'}</label>
                 <div style={{ position: 'relative' }}>
-                  <input 
-                    type="password" 
-                    className="form-input" 
+                  <input
+                    type="password"
+                    className="form-input"
                     required={!editingMember}
                     value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder={editingMember ? "Leave blank to keep current" : "Minimum 6 characters"}
                     style={{ width: '100%' }}
                   />
@@ -242,12 +242,12 @@ export default function TeamManagement() {
               <div className="form-group">
                 <label className="form-label">Team Identifier *</label>
                 <div style={{ position: 'relative' }}>
-                  <input 
-                    type="text" 
-                    className="form-input" 
+                  <input
+                    type="text"
+                    className="form-input"
                     required
                     value={formData.role_identifier}
-                    onChange={(e) => setFormData({...formData, role_identifier: e.target.value.toUpperCase()})}
+                    onChange={(e) => setFormData({ ...formData, role_identifier: e.target.value.toUpperCase() })}
                     placeholder="e.g. TL1, TL2, TL3"
                     style={{ width: '100%' }}
                   />

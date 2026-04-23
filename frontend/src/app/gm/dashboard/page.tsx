@@ -470,7 +470,7 @@ export default function GMDashboard() {
                     <div className="dashboard-view">
                         <div className="stats-grid">
                             <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: '#eef2ff', color: '#4f46e5' }}>
+                                <div className="stat-icon-box" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
                                     <Users size={24} />
                                 </div>
                                 <div className="stat-info">
@@ -479,7 +479,7 @@ export default function GMDashboard() {
                                 </div>
                             </div>
                             <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: '#ecfdf5', color: '#10b981' }}>
+                                <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
                                     <UserCircle size={24} />
                                 </div>
                                 <div className="stat-info">
@@ -488,7 +488,7 @@ export default function GMDashboard() {
                                 </div>
                             </div>
                             <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: '#fffbeb', color: '#f59e0b' }}>
+                                <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
                                     <FileText size={24} />
                                 </div>
                                 <div className="stat-info">
