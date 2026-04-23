@@ -37,6 +37,7 @@ import {
 import { gmApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
+import ThemeToggle from '@/components/ThemeToggle';
 import './gm.css';
 
 // Matches actual DB: content_items has id, client_id, title, scheduled_datetime, status, content_type, description
@@ -267,7 +268,7 @@ export default function GMDashboard() {
             <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
                 <div className="logo-container">
                     <img src="/logo.png" alt="TrueUp Media" className="logo-img" />
-                    <span style={{ marginLeft: '4px', color: '#94a3b8', fontSize: '12px', fontWeight: 600 }}>GM</span>
+                    <span style={{ marginLeft: '4px', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 600 }}>GM</span>
                 </div>
 
                 <nav className="flex-1">
@@ -306,7 +307,7 @@ export default function GMDashboard() {
                             <p className="sidebar-label">Clients</p>
                             <div className="client-list">
                                 {clients.length === 0 && (
-                                    <p style={{ fontSize: 12, color: '#94a3b8', padding: '8px 12px' }}>No clients found</p>
+                                    <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 12px' }}>No clients found</p>
                                 )}
                                 {clients.map(c => (
                                     <div
@@ -326,10 +327,12 @@ export default function GMDashboard() {
                 </nav>
 
                 <div className="sidebar-footer">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div className="user-avatar">
-                            <Users size={20} />
-                        </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <p className="sidebar-label" style={{ margin: 0 }}>Appearance</p>
+                        <ThemeToggle style={{ width: '32px', height: '32px', borderRadius: '8px' }} />
+                    </div>
+                    <div className="user-info-box">
+                        <div className="user-avatar" style={{ background: 'var(--accent)', color: 'white' }}>GM</div>
                         <div>
                             <p className="user-name">General Manager</p>
                             <p className="user-role">TrueUp Media</p>
@@ -355,8 +358,8 @@ export default function GMDashboard() {
                     <div className="header-info">
                         <h1 className="page-title">
                             {view === 'dashboard' && 'Dashboard Overview'}
-                            {view === 'client' && 'Client Schedule'}
-                            {view === 'master' && 'Master Schedule'}
+                            {view === 'client' && 'Client Calendar'}
+                            {view === 'master' && 'Master Calendar'}
                             {view === 'teams' && 'Team Management'}
                         </h1>
                         <p className="page-subtitle">
@@ -481,7 +484,7 @@ export default function GMDashboard() {
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', marginTop: '24px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', marginTop: '24px' }} className="responsive-dashboard-grid">
                             <div className="dashboard-card">
                                 <div className="card-header">
                                     <h3 className="card-title">Production Pipeline</h3>
@@ -492,14 +495,14 @@ export default function GMDashboard() {
                                         <div key={status} className="pipeline-item">
                                             <div className="pipeline-info">
                                                 <span className="pipeline-label">{status}</span>
-                                                <span className="pipeline-count" style={{ fontWeight: 800, color: '#1e293b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>
-                                                    {count} <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ {stats.monthlyContent}</span>
+                                                <span className="pipeline-count" style={{ fontWeight: 800, color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px' }}>
+                                                    {count} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {stats.monthlyContent}</span>
                                                 </span>
                                             </div>
                                         </div>
                                     ))}
                                     {Object.keys(stats.statusBreakdown).length === 0 && (
-                                        <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                                        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                                             No content data available for this month.
                                         </div>
                                     )}
@@ -512,7 +515,7 @@ export default function GMDashboard() {
                                 </div>
                                 <div className="quick-actions-list">
                                     <button onClick={() => setView('teams')} className="action-item">
-                                        <div className="action-icon" style={{ background: '#f1f5f9' }}><Users size={18}/></div>
+                                        <div className="action-icon" style={{ background: 'var(--bg-elevated)' }}><Users size={18}/></div>
                                         <div className="action-text">
                                             <p className="action-title">Manage Teams</p>
                                             <p className="action-desc">Assign clients to team leads</p>
@@ -520,7 +523,7 @@ export default function GMDashboard() {
                                         <ChevronRight size={16} />
                                     </button>
                                     <button onClick={() => setView('master')} className="action-item">
-                                        <div className="action-icon" style={{ background: '#f1f5f9' }}><Globe size={18}/></div>
+                                        <div className="action-icon" style={{ background: 'var(--bg-elevated)' }}><Globe size={18}/></div>
                                         <div className="action-text">
                                             <p className="action-title">Master Calendar</p>
                                             <p className="action-desc">View company-wide schedule</p>
@@ -551,7 +554,7 @@ export default function GMDashboard() {
                                                 <div>
                                                     <h3 className="lead-name">
                                                         {lead.name}
-                                                        {lead.role_identifier && <span style={{ marginLeft: '8px', fontSize: '12px', color: '#64748b', fontWeight: 500 }}>({lead.role_identifier})</span>}
+                                                        {lead.role_identifier && <span style={{ marginLeft: '8px', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>({lead.role_identifier})</span>}
                                                     </h3>
                                                     <p className="lead-role">TEAM LEAD</p>
                                                 </div>
@@ -619,7 +622,7 @@ export default function GMDashboard() {
                                                 ))}
                                             </select>
                                         </div>
-                                        <p style={{ fontSize: 12, color: '#64748b' }}>
+                                        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                                             Only showing clients not currently assigned to any team lead.
                                         </p>
                                     </div>
@@ -748,7 +751,7 @@ export default function GMDashboard() {
                                     }}
                                     style={{ 
                                         padding: '12px', borderRadius: '10px', 
-                                        background: '#f8fafc', border: '1px solid #e2e8f0',
+                                        background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                                         display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer'
                                     }}
                                 >
@@ -757,10 +760,10 @@ export default function GMDashboard() {
                                         background: item.content_type === 'Post' ? '#10b981' : '#6366f1' 
                                     }}></div>
                                     <div style={{ flex: 1 }}>
-                                        <p style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+                                        <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                                             {item.clients?.company_name}
                                         </p>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{item.title}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.title}</p>
                                     </div>
                                 </div>
                             ))}
@@ -782,90 +785,69 @@ export default function GMDashboard() {
                                     <span className="meta-dot">•</span>
                                     <span className="meta-client">{activeItem.item.clients?.company_name}</span>
                                 </div>
-                                <h3 className="modal-title">{activeItem.item.title}</h3>
+                                <h3 className="modal-title" style={{ marginTop: '8px' }}>{activeItem.item.title}</h3>
                             </div>
                             <button onClick={() => setIsDetailsOpen(false)} className="modal-close"><X size={20} /></button>
                         </div>
 
                         <div className="detail-grid">
-                            <div className="detail-info">
-                                <div>
+                            <div className="detail-main">
+                                <div className="detail-section">
                                     <label className="detail-label">Description</label>
                                     <p className="detail-text">{activeItem.item.description || 'No description provided.'}</p>
                                 </div>
-                                <div className="detail-dates">
-                                    <div>
-                                        <label className="detail-label">Scheduled For</label>
-                                        <div className="date-display">
-                                            <CalendarIcon size={14} className="date-icon" />
-                                            {format(parseISO(activeItem.item.scheduled_datetime), 'MMM d, yyyy')}
+
+                                <div className="detail-section" style={{ marginTop: '24px' }}>
+                                    <label className="detail-label">Schedule Info</label>
+                                    <div className="detail-dates">
+                                        <div className="date-item">
+                                            <CalendarIcon size={16} />
+                                            <span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'PPP')}</span>
                                         </div>
-                                    </div>
-                                    <div>
-                                        <label className="detail-label">Posting At</label>
-                                        <div className="date-display">
-                                            <Clock size={14} className="date-icon" />
-                                            {format(parseISO(activeItem.item.scheduled_datetime), 'hh:mm a')}
+                                        <div className="date-item">
+                                            <Clock size={16} />
+                                            <span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'p')}</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="detail-workflow">
-                                <label className="detail-label">Workflow Status</label>
-                                <div className="workflow-content">
-                                    {(() => {
-                                        const flows: any = {
-                                            'Reel': ['CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'POSTED'],
-                                            'Post': ['CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED']
-                                        };
-                                        const flow = flows[activeItem.item.content_type];
-                                        const currentIdx = flow.indexOf(activeItem.item.status);
-                                        const nextStatus = flow[currentIdx + 1];
+                            <div className="detail-sidebar">
+                                <label className="detail-label">Current Status</label>
+                                <div className={`status-current ${activeItem.item.status.toLowerCase().replace(' ', '-')}`}>
+                                    {activeItem.item.status === 'Completed' ? <CheckCircle2 size={18} /> : <Clock size={18} />}
+                                    <span>{activeItem.item.status}</span>
+                                </div>
 
-                                        return (
-                                            <>
-                                                <div className="status-current">
-                                                    <p className="status-label">Current</p>
-                                                    <p className="status-value">{activeItem.item.status}</p>
-                                                </div>
-                                                {nextStatus && (
-                                                    <button
-                                                        onClick={() => handleStatusUpdate(nextStatus)}
-                                                        className="btn-advance"
-                                                    >
-                                                        <span>Advance to {nextStatus}</span>
-                                                        <ArrowRight size={18} className="advance-arrow" />
-                                                    </button>
-                                                )}
-                                                {!nextStatus && (
-                                                    <div className="workflow-done">
-                                                        <CheckCircle2 size={18} />
-                                                        Workflow Completed
-                                                    </div>
-                                                )}
-                                            </>
-                                        );
-                                    })()}
+                                <div className="status-workflow" style={{ marginTop: '24px' }}>
+                                    <label className="detail-label">Update Pipeline</label>
+                                    <div className="status-btns">
+                                        {['Pending', 'In Progress', 'Under Review', 'Revision Needed', 'Completed'].map(status => (
+                                            <button
+                                                key={status}
+                                                className={`status-btn-option ${activeItem.item.status === status ? 'active' : ''}`}
+                                                onClick={() => handleStatusUpdate(status)}
+                                            >
+                                                {status}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="activity-log">
-                            <label className="detail-label">Activity Log</label>
-                            <div className="log-list">
-                                {activeItem.history.length === 0 && (
-                                    <p className="log-empty">No activity yet</p>
-                                )}
-                                {activeItem.history.map((log: any) => (
-                                    <div key={log.log_id} className="log-entry">
-                                        <div className="log-status">
-                                            <div className="log-dot"></div>
-                                            <span>{log.new_status}</span>
+                        <div className="detail-footer" style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--border)' }}>
+                            <div className="history-log">
+                                <label className="detail-label">Audit Log</label>
+                                <div className="log-list">
+                                    {activeItem.logs?.map((log: any) => (
+                                        <div key={log.id} className="log-entry">
+                                            <span className="log-status">{log.new_status}</span>
+                                            <span className="log-time">{format(parseISO(log.created_at), 'MMM d, p')}</span>
                                         </div>
-                                        <span className="log-time">{format(parseISO(log.changed_at), 'MMM d, HH:mm')}</span>
-                                    </div>
-                                ))}
+                                    ))}
+                                    {activeItem.logs?.length === 0 && <p className="empty-log">No status changes yet.</p>}
+                                </div>
                             </div>
                         </div>
                     </div>

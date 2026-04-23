@@ -118,10 +118,10 @@ export default function ClientManagement() {
           </div>
         </div>
 
-        {loading ? (
+        {loading && clients.length === 0 ? (
           <div className="loading-bar">Loading clients...</div>
         ) : error ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>{error}</div>
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--danger)' }}>{error}</div>
         ) : (
           <table className="admin-table">
             <thead>
@@ -137,7 +137,7 @@ export default function ClientManagement() {
             <tbody>
               {filteredClients.map((client, index) => (
                 <tr key={client.id || index}>
-                  <td data-label="Company Name" style={{ fontWeight: 700, color: '#0f172a' }}><span>{client.company_name}</span></td>
+                  <td data-label="Company Name" style={{ fontWeight: 700, color: 'var(--text-primary)' }}><span>{client.company_name}</span></td>
                   <td data-label="Contact"><span>{client.phone || '-'}</span></td>
                   <td data-label="Email"><span>{client.email || '-'}</span></td>
                   <td data-label="Address" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span>{client.address || '-'}</span></td>
@@ -159,7 +159,7 @@ export default function ClientManagement() {
               ))}
               {filteredClients.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', fontStyle: 'italic' }}>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                     No clients found matching your search.
                   </td>
                 </tr>

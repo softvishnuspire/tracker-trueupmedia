@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import styles from './page.module.css';
 
@@ -46,6 +46,11 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
+
+  useEffect(() => {
+    // Force dark theme for login page
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }, []);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();

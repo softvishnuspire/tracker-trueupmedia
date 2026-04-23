@@ -52,7 +52,7 @@ export default function AdminDashboard() {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon-box" style={{ background: '#ecfdf5', color: '#059669' }}>
+          <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
             <Calendar size={24} />
           </div>
           <div className="stat-info">
@@ -61,7 +61,7 @@ export default function AdminDashboard() {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon-box" style={{ background: '#fffbeb', color: '#d97706' }}>
+          <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
             <Activity size={24} />
           </div>
           <div className="stat-info">
@@ -74,24 +74,24 @@ export default function AdminDashboard() {
       </div>
 
       <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Pipeline Distribution</h2>
-        <p style={{ color: '#94a3b8', fontSize: '14px' }}>Current status of all content items across the platform</p>
+        <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>Pipeline Distribution</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Current status of all content items across the platform</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
         {Object.entries(stats?.statusSummary || {}).map(([status, count]) => (
-          <div key={status} style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div key={status} style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="type-badge post">{status}</span>
               <div style={{ textAlign: 'right' }}>
-                <span style={{ fontWeight: 800, fontSize: '20px', color: '#4f46e5' }}>{count}</span>
-                <span style={{ color: '#94a3b8', fontSize: '14px', fontWeight: 700 }}> / {stats?.totalItemsThisMonth || 0}</span>
+                <span style={{ fontWeight: 800, fontSize: '20px', color: 'var(--accent)' }}>{count}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '14px', fontWeight: 700 }}> / {stats?.totalItemsThisMonth || 0}</span>
               </div>
             </div>
           </div>
         ))}
         {Object.keys(stats?.statusSummary || {}).length === 0 && (
-          <p style={{ color: '#94a3b8', fontStyle: 'italic', gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>
+          <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>
             No active content items found for this month.
           </p>
         )}

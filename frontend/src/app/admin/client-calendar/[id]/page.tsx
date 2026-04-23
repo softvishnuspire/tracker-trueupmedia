@@ -144,13 +144,13 @@ export default function ClientCalendarPage() {
                 </div>
 
                 <div className="header-controls">
-                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px', marginRight: '8px' }}>
+                    <div style={{ display: 'flex', background: 'var(--bg-elevated)', padding: '4px', borderRadius: '10px', marginRight: '8px' }}>
                         <button 
                             onClick={() => setViewMode('month')}
                             style={{ 
                                 padding: '6px 12px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700,
-                                background: viewMode === 'month' ? 'white' : 'transparent',
-                                color: viewMode === 'month' ? '#4f46e5' : '#64748b',
+                                background: viewMode === 'month' ? 'var(--bg-hover)' : 'transparent',
+                                color: viewMode === 'month' ? 'var(--accent)' : 'var(--text-muted)',
                                 boxShadow: viewMode === 'month' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
                                 cursor: 'pointer'
                             }}
@@ -159,8 +159,8 @@ export default function ClientCalendarPage() {
                             onClick={() => setViewMode('week')}
                             style={{ 
                                 padding: '6px 12px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700,
-                                background: viewMode === 'week' ? 'white' : 'transparent',
-                                color: viewMode === 'week' ? '#4f46e5' : '#64748b',
+                                background: viewMode === 'week' ? 'var(--bg-hover)' : 'transparent',
+                                color: viewMode === 'week' ? 'var(--accent)' : 'var(--text-muted)',
                                 boxShadow: viewMode === 'week' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
                                 cursor: 'pointer'
                             }}
@@ -181,9 +181,6 @@ export default function ClientCalendarPage() {
                             <ChevronRight size={20}/>
                         </button>
                     </div>
-                    <button className="btn-add" onClick={() => setShowAddModal(true)}>
-                        <Plus size={18} /> Schedule Content
-                    </button>
                 </div>
             </header>
 
@@ -208,6 +205,7 @@ export default function ClientCalendarPage() {
                             <div 
                                 key={idx} 
                                 onClick={() => {
+<<<<<<< HEAD
                                     if (dayContent.length > 0) {
                                         if (window.innerWidth <= 768) {
                                             setDailyAgenda({ date: day, items: dayContent });
@@ -218,6 +216,16 @@ export default function ClientCalendarPage() {
                                 }}
                                 className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
                                 style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
+=======
+                                    setFormData({
+                                        ...formData,
+                                        scheduled_datetime: format(day, "yyyy-MM-dd") + 'T10:00'
+                                    });
+                                    setShowAddModal(true);
+                                }}
+                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: 'pointer' }}
+>>>>>>> 7db132e41fb18ffcc1b14ad7525a2b5882605396
                             >
                                 <span className="day-number">{format(day, 'd')}</span>
                                 <div className="day-items desktop-only">
@@ -310,15 +318,15 @@ export default function ClientCalendarPage() {
                                 <div style={{ display: 'flex', gap: '24px' }}>
                                     <div>
                                         <label className="detail-label">Scheduled Date</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
-                                            <CalendarIcon size={14} style={{ color: '#4f46e5' }}/>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            <CalendarIcon size={14} style={{ color: 'var(--accent)' }}/>
                                             {format(parseISO(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}
                                         </div>
                                     </div>
                                     <div>
                                         <label className="detail-label">Posting Time</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
-                                            <Clock size={14} style={{ color: '#4f46e5' }}/>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            <Clock size={14} style={{ color: 'var(--accent)' }}/>
                                             {format(parseISO(selectedItem.item.scheduled_datetime), 'hh:mm a')}
                                         </div>
                                     </div>
@@ -327,17 +335,17 @@ export default function ClientCalendarPage() {
 
                             <div>
                                 <label className="detail-label">Workflow Status</label>
-                                <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
-                                    <p style={{ fontSize: '11px', fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', marginBottom: '4px' }}>Current</p>
-                                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#312e81' }}>{selectedItem.item.status}</p>
+                                <div style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
+                                    <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '4px' }}>Current</p>
+                                    <p style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)' }}>{selectedItem.item.status}</p>
                                 </div>
 
                                 <label className="detail-label">Activity Log</label>
                                 <div className="log-list">
                                     {selectedItem.history.map((log: any) => (
                                         <div key={log.log_id} className="log-entry">
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 700, color: '#1e293b' }}>
-                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#cbd5e1' }}></div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--text-muted)' }}></div>
                                                 <span>{log.new_status}</span>
                                             </div>
                                             <span className="log-time">{format(parseISO(log.changed_at), 'MMM d, HH:mm')}</span>

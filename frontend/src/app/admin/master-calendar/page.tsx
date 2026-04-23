@@ -111,8 +111,8 @@ export default function MasterCalendar() {
                 </div>
 
                 <div className="header-controls">
-                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: '#f8fafc', padding: '4px', borderRadius: '14px', border: '1px solid #e2e8f0', marginRight: '8px' }}>
-                        <div style={{ padding: '0 8px', color: '#94a3b8' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'var(--bg-elevated)', padding: '4px', borderRadius: '14px', border: '1px solid var(--border)', marginRight: '8px' }}>
+                        <div style={{ padding: '0 8px', color: 'var(--text-muted)' }}>
                             <Filter size={14} />
                         </div>
                         <div className="client-dropdown-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -123,7 +123,7 @@ export default function MasterCalendar() {
                                     minWidth: '130px', border: 'none', background: 'transparent', 
                                     boxShadow: 'none', padding: '6px 32px 6px 4px', 
                                     fontSize: '13px', fontWeight: 700, width: 'auto',
-                                    color: '#1e293b', outline: 'none', appearance: 'none',
+                                    color: 'var(--text-primary)', outline: 'none', appearance: 'none',
                                     WebkitAppearance: 'none', cursor: 'pointer'
                                 }}
                             >
@@ -132,9 +132,9 @@ export default function MasterCalendar() {
                                     <option key={c.id} value={c.id}>{c.company_name}</option>
                                 ))}
                             </select>
-                            <ChevronDown size={14} style={{ position: 'absolute', right: '10px', color: '#94a3b8', pointerEvents: 'none' }} />
+                            <ChevronDown size={14} style={{ position: 'absolute', right: '10px', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                         </div>
-                        <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
+                        <div style={{ width: '1px', height: '20px', background: 'var(--border)' }}></div>
                         <div className="client-dropdown-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                             <select 
                                 value={selectedType} 
@@ -143,7 +143,7 @@ export default function MasterCalendar() {
                                     minWidth: '100px', border: 'none', background: 'transparent', 
                                     boxShadow: 'none', padding: '6px 32px 6px 4px', 
                                     fontSize: '13px', fontWeight: 700, width: 'auto',
-                                    color: '#1e293b', outline: 'none', appearance: 'none',
+                                    color: 'var(--text-primary)', outline: 'none', appearance: 'none',
                                     WebkitAppearance: 'none', cursor: 'pointer'
                                 }}
                             >
@@ -151,7 +151,7 @@ export default function MasterCalendar() {
                                 <option value="Post">Posts</option>
                                 <option value="Reel">Reels</option>
                             </select>
-                            <ChevronDown size={14} style={{ position: 'absolute', right: '10px', color: '#94a3b8', pointerEvents: 'none' }} />
+                            <ChevronDown size={14} style={{ position: 'absolute', right: '10px', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                         </div>
                     </div>
 
@@ -293,8 +293,8 @@ export default function MasterCalendar() {
                                     <span className={`type-badge ${selectedItem.item.content_type.toLowerCase()}`}>
                                         {selectedItem.item.content_type}
                                     </span>
-                                    <span style={{ color: '#cbd5e1', fontSize: '12px' }}>•</span>
-                                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#94a3b8' }}>{selectedItem.item.clients?.company_name}</span>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)' }}>{selectedItem.item.clients?.company_name}</span>
                                 </div>
                                 <h3 className="modal-title">{selectedItem.item.title}</h3>
                             </div>
@@ -311,15 +311,15 @@ export default function MasterCalendar() {
                                 <div style={{ display: 'flex', gap: '24px' }}>
                                     <div>
                                         <label className="detail-label">Scheduled Date</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
-                                            <CalendarIcon size={14} style={{ color: '#818cf8' }}/>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            <CalendarIcon size={14} style={{ color: 'var(--accent)' }}/>
                                             {format(parseISO(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}
                                         </div>
                                     </div>
                                     <div>
                                         <label className="detail-label">Posting Time</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
-                                            <Clock size={14} style={{ color: '#818cf8' }}/>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            <Clock size={14} style={{ color: 'var(--accent)' }}/>
                                             {format(parseISO(selectedItem.item.scheduled_datetime), 'hh:mm a')}
                                         </div>
                                     </div>
@@ -328,23 +328,23 @@ export default function MasterCalendar() {
 
                             <div>
                                 <label className="detail-label">Workflow Status</label>
-                                <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
-                                    <p style={{ fontSize: '11px', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', marginBottom: '4px' }}>Current</p>
-                                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#312e81' }}>{selectedItem.item.status}</p>
+                                <div style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
+                                    <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '4px' }}>Current</p>
+                                    <p style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)' }}>{selectedItem.item.status}</p>
                                 </div>
 
                                 <label className="detail-label">Activity Log</label>
                                 <div className="log-list">
                                     {selectedItem.history.map((log: any) => (
                                         <div key={log.log_id} className="log-entry">
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 700, color: '#1e293b' }}>
-                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#cbd5e1' }}></div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--text-muted)' }}></div>
                                                 <span>{log.new_status}</span>
                                             </div>
                                             <span className="log-time">{format(parseISO(log.changed_at), 'MMM d, HH:mm')}</span>
                                         </div>
                                     ))}
-                                    {selectedItem.history.length === 0 && <p style={{ fontSize: '13px', color: '#cbd5e1' }}>No status changes recorded.</p>}
+                                    {selectedItem.history.length === 0 && <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No status changes recorded.</p>}
                                 </div>
                             </div>
                         </div>

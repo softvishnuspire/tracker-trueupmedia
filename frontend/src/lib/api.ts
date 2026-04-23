@@ -49,6 +49,8 @@ export interface TeamMember {
     name: string;
     email: string;
     role: string;
+    role_identifier?: string;
+    created_at: string;
 }
 
 export const adminApi = {
