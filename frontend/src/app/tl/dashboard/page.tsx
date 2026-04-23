@@ -78,7 +78,7 @@ export default function TLDashboard() {
                 const { data: { user } } = await supabase.auth.getUser();
                 
                 if (!user) {
-                    window.location.href = '/login';
+                    window.location.href = '/';
                     return;
                 }
 
