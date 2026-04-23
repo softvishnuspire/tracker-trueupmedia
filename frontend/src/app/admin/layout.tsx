@@ -9,7 +9,9 @@ import {
     Users, 
     Calendar as CalendarIcon, 
     LogOut,
-    UserCircle
+    UserCircle,
+    Menu,
+    X
 } from 'lucide-react';
 import './admin.css';
 
@@ -22,6 +24,7 @@ export default function AdminLayout({
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -60,10 +63,30 @@ export default function AdminLayout({
 
   return (
     <div className="dashboard-container">
-      <aside className="sidebar">
+      <button 
+        className="mobile-menu-toggle" 
+        onClick={() => setSidebarOpen(true)}
+      >
+        <Menu size={24} />
+      </button>
+
+      {sidebarOpen && (
+        <div 
+          className="sidebar-overlay" 
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
         <div className="logo-container">
           <img src="/logo.png" alt="TrueUp Media" className="logo-img" />
           <span style={{ marginLeft: '4px', color: '#94a3b8', fontSize: '12px', fontWeight: 600 }}>Admin</span>
+          <button 
+            className="sidebar-close" 
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav style={{ flex: 1 }}>
@@ -73,6 +96,7 @@ export default function AdminLayout({
               key={item.path} 
               href={item.path}
               className={`nav-item ${pathname === item.path ? 'active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
             >
               {item.icon}
               <span>{item.name}</span>

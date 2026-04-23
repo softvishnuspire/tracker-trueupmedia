@@ -5,12 +5,13 @@ import { adminApi } from '@/lib/api';
 import { Plus, Search, Trash2, X, UserCheck, Shield, Key, Edit2 } from 'lucide-react';
 
 interface TeamMember {
-  user_id: string;
+  id: string;
+  user_id?: string; // Add optional user_id for safety
   name: string;
   email: string;
-  role: 'TL1' | 'TL2' | 'TEAM LEAD';
+  role: string;
   role_identifier?: string;
-  created_at: string;
+  created_at?: string;
 }
 
 export default function TeamManagement() {
@@ -81,7 +82,7 @@ export default function TeamManagement() {
         // Password is optional during edit
         const updatePayload = { ...formData };
         if (!updatePayload.password) delete (updatePayload as any).password;
-        await adminApi.updateTeamMember(editingMember.user_id, updatePayload);
+        await adminApi.updateTeamMember(editingMember.id, updatePayload);
       } else {
         await adminApi.addTeamMember(formData);
       }
@@ -141,18 +142,18 @@ export default function TeamManagement() {
               </tr>
             </thead>
             <tbody>
-              {filteredTeam.map((member) => (
-                <tr key={member.user_id}>
-                  <td style={{ fontWeight: 700, color: '#0f172a' }}>
+              {filteredTeam.map((member, index) => (
+                <tr key={member.id || member.user_id || index}>
+                  <td data-label="Name" style={{ fontWeight: 700, color: '#0f172a' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
                         {member.name.charAt(0)}
                       </div>
-                      {member.name}
+                      <span>{member.name}</span>
                     </div>
                   </td>
-                  <td>{member.email}</td>
-                  <td>
+                  <td data-label="Email"><span>{member.email}</span></td>
+                  <td data-label="Role">
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <span className="type-badge" style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', minWidth: '100px', textAlign: 'center' }}>
                         TEAM LEAD
@@ -164,13 +165,13 @@ export default function TeamManagement() {
                       )}
                     </div>
                   </td>
-                  <td>{new Date(member.created_at).toLocaleDateString()}</td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td data-label="Joined Date"><span>{new Date(member.created_at).toLocaleDateString()}</span></td>
+                  <td data-label="Actions" style={{ textAlign: 'right' }}>
                     <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
                       <button className="btn-icon" onClick={() => handleEditClick(member)}>
                         <Edit2 size={14} />
                       </button>
-                      <button className="btn-icon delete" onClick={() => handleDeleteClick(member.user_id, member.name)}>
+                      <button className="btn-icon delete" onClick={() => handleDeleteClick(member.id, member.name)}>
                         <Trash2 size={14} />
                       </button>
                     </div>

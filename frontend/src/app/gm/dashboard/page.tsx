@@ -1,27 +1,28 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-    format, 
-    startOfMonth, 
-    endOfMonth, 
-    startOfWeek, 
-    endOfWeek, 
-    eachDayOfInterval, 
-    isSameMonth, 
-    isSameDay, 
-    addMonths, 
+import {
+    format,
+    startOfMonth,
+    endOfMonth,
+    startOfWeek,
+    endOfWeek,
+    eachDayOfInterval,
+    isSameMonth,
+    isSameDay,
+    addMonths,
     subMonths,
     parseISO
 } from 'date-fns';
-import { 
-    ChevronLeft, 
-    ChevronRight, 
+import {
+    ChevronLeft,
+    ChevronRight,
     ChevronDown,
-    Plus, 
+    Plus,
     LayoutDashboard,
-    Globe, 
+    Globe,
     Users,
+    UserCircle,
     Clock,
     FileText,
     Video,
@@ -30,7 +31,8 @@ import {
     X,
     ArrowRight,
     LogOut,
-    Filter
+    Filter,
+    Menu
 } from 'lucide-react';
 import { gmApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -57,11 +59,13 @@ export default function GMDashboard() {
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [view, setView] = useState<'client' | 'master' | 'teams'>('client');
-    
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'teams'>('dashboard');
+    const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
     const router = useRouter();
     const supabase = createClient();
-    
+
     // Team leads state
     const [teamLeads, setTeamLeads] = useState<any[]>([]);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -72,7 +76,7 @@ export default function GMDashboard() {
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
     const [activeItem, setActiveItem] = useState<any>(null);
-    
+
     const isMasterMode = view === 'master';
 
     const [formData, setFormData] = useState({
@@ -93,8 +97,10 @@ export default function GMDashboard() {
             fetchClientCalendar();
         } else if (view === 'teams') {
             fetchTeamLeads();
+        } else if (view === 'dashboard') {
+            fetchDashboardStats();
         }
-    }, [selectedClient, selectedType, currentMonth, view]);
+    }, [selectedClient, selectedType, currentMonth, view, clients.length, teamLeads.length]);
 
     const fetchTeamLeads = async () => {
         setLoading(true);
@@ -141,15 +147,43 @@ export default function GMDashboard() {
         } catch (err) { console.error(err); } finally { setLoading(false); }
     };
 
-    const days = viewMode === 'month' 
+    const [stats, setStats] = useState({
+        totalClients: 0,
+        totalTeams: 0,
+        monthlyContent: 0,
+        statusBreakdown: {} as any
+    });
+
+    const fetchDashboardStats = async () => {
+        setLoading(true);
+        try {
+            // Fetch master calendar for the current month to get throughput and status breakdown
+            const res = await gmApi.getMasterCalendar(format(new Date(), 'yyyy-MM'));
+            const data = res.data as ContentItem[];
+            
+            const breakdown = data.reduce((acc: any, item) => {
+                acc[item.status] = (acc[item.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            setStats({
+                totalClients: clients.length,
+                totalTeams: teamLeads.length,
+                monthlyContent: data.length,
+                statusBreakdown: breakdown
+            });
+        } catch (err) { console.error(err); } finally { setLoading(false); }
+    };
+
+    const days = viewMode === 'month'
         ? eachDayOfInterval({
             start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
             end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
-          })
+        })
         : eachDayOfInterval({
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
-          });
+        });
 
     const handlePrev = () => {
         if (viewMode === 'month') setCurrentMonth(subMonths(currentMonth, 1));
@@ -224,8 +258,13 @@ export default function GMDashboard() {
 
     return (
         <div className="dashboard-container">
+            {/* Mobile Sidebar Overlay */}
+            {isSidebarOpen && (
+                <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>
+            )}
+
             {/* Sidebar */}
-            <aside className="sidebar">
+            <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
                 <div className="logo-container">
                     <img src="/logo.png" alt="TrueUp Media" className="logo-img" />
                     <span style={{ marginLeft: '4px', color: '#94a3b8', fontSize: '12px', fontWeight: 600 }}>GM</span>
@@ -234,20 +273,27 @@ export default function GMDashboard() {
                 <nav className="flex-1">
                     <p className="sidebar-label">Navigation</p>
                     <div 
+                        onClick={() => setView('dashboard')}
+                        className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
+                    >
+                        <LayoutDashboard size={20} />
+                        <span>Dashboard Overview</span>
+                    </div>
+                    <div 
                         onClick={() => setView('client')}
                         className={`nav-item ${view === 'client' ? 'active' : ''}`}
                     >
-                        <LayoutDashboard size={20} />
-                        <span>Client Dashboard</span>
+                        <CalendarIcon size={20} />
+                        <span>Client Calendar</span>
                     </div>
-                    <div 
+                    <div
                         onClick={() => setView('master')}
                         className={`nav-item ${view === 'master' ? 'active' : ''}`}
                     >
                         <Globe size={20} />
                         <span>Master Calendar</span>
                     </div>
-                    <div 
+                    <div
                         onClick={() => setView('teams')}
                         className={`nav-item ${view === 'teams' ? 'active' : ''}`}
                     >
@@ -263,7 +309,7 @@ export default function GMDashboard() {
                                     <p style={{ fontSize: 12, color: '#94a3b8', padding: '8px 12px' }}>No clients found</p>
                                 )}
                                 {clients.map(c => (
-                                    <div 
+                                    <div
                                         key={c.id}
                                         onClick={() => setSelectedClient(c.id)}
                                         className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}
@@ -298,12 +344,26 @@ export default function GMDashboard() {
             {/* Main Content */}
             <main className="main-content">
                 <header className="page-header">
-                    <div>
+                    <div className="mobile-header-top">
+                        <button className="menu-toggle" onClick={() => setIsSidebarOpen(true)}>
+                            <Menu size={20} />
+                        </button>
+                        <img src="/logo.png" alt="TrueUp" className="mobile-logo-img" />
+                        <div style={{ width: '40px' }}></div>
+                    </div>
+                    <div className="header-content">
+                    <div className="header-info">
                         <h1 className="page-title">
-                            {view === 'master' ? 'Master Schedule' : view === 'teams' ? 'Team Management' : 'Client Calendar'}
+                            {view === 'dashboard' && 'Dashboard Overview'}
+                            {view === 'client' && 'Client Schedule'}
+                            {view === 'master' && 'Master Schedule'}
+                            {view === 'teams' && 'Team Management'}
                         </h1>
                         <p className="page-subtitle">
-                            {view === 'teams' ? 'Assign clients to team leads and monitor workloads' : 'Review and manage content production flow'}
+                            {view === 'dashboard' && 'Monitor operational health and pipeline metrics'}
+                            {view === 'client' && 'Detailed content planning for individual clients'}
+                            {view === 'master' && 'Review and manage content production flow'}
+                            {view === 'teams' && 'Assign clients and manage team lead performance'}
                         </p>
                     </div>
 
@@ -325,8 +385,8 @@ export default function GMDashboard() {
                         )}
 
                         {view === 'master' && (
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#f8fafc', padding: '4px', borderRadius: '14px', border: '1px solid #e2e8f0', marginRight: '8px' }}>
-                                <div style={{ padding: '0 8px', color: '#94a3b8' }}>
+                            <div className="master-filters-container">
+                                <div className="filter-icon-box">
                                     <Filter size={14} />
                                 </div>
                                 <div className="client-dropdown-wrapper">
@@ -334,7 +394,6 @@ export default function GMDashboard() {
                                         className="client-dropdown"
                                         value={selectedClient}
                                         onChange={(e) => setSelectedClient(e.target.value)}
-                                        style={{ minWidth: '140px', border: 'none', background: 'transparent', boxShadow: 'none', padding: '6px 32px 6px 4px' }}
                                     >
                                         <option value="all">All Clients</option>
                                         {clients.map(c => (
@@ -343,13 +402,12 @@ export default function GMDashboard() {
                                     </select>
                                     <ChevronDown size={14} className="dropdown-chevron" />
                                 </div>
-                                <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
+                                <div className="filter-divider"></div>
                                 <div className="client-dropdown-wrapper">
                                     <select
                                         className="client-dropdown"
                                         value={selectedType}
                                         onChange={(e) => setSelectedType(e.target.value)}
-                                        style={{ minWidth: '140px', border: 'none', background: 'transparent', boxShadow: 'none', padding: '6px 32px 6px 4px' }}
                                     >
                                         <option value="all">All Types</option>
                                         <option value="Post">Posts</option>
@@ -360,35 +418,120 @@ export default function GMDashboard() {
                             </div>
                         )}
 
-                        {view !== 'teams' && (
+                        {view !== 'teams' && view !== 'dashboard' && (
                             <>
                                 <div className="view-mode-toggle">
-                                    <button 
+                                    <button
                                         onClick={() => setViewMode('month')}
                                         className={`view-mode-btn ${viewMode === 'month' ? 'active' : ''}`}
                                     >Month</button>
-                                    <button 
+                                    <button
                                         onClick={() => setViewMode('week')}
                                         className={`view-mode-btn ${viewMode === 'week' ? 'active' : ''}`}
                                     >Week</button>
                                 </div>
 
                                 <div className="month-nav">
-                                    <button onClick={handlePrev} className="month-btn"><ChevronLeft size={20}/></button>
+                                    <button onClick={handlePrev} className="month-btn"><ChevronLeft size={20} /></button>
                                     <span className="month-label">
-                                        {viewMode === 'month' 
+                                        {viewMode === 'month'
                                             ? format(currentMonth, 'MMMM yyyy')
                                             : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                         }
                                     </span>
-                                    <button onClick={handleNext} className="month-btn"><ChevronRight size={20}/></button>
+                                    <button onClick={handleNext} className="month-btn"><ChevronRight size={20} /></button>
                                 </div>
                             </>
                         )}
                     </div>
-                </header>
+                </div>
+            </header>
 
                 {loading && <div className="loading-bar">Loading...</div>}
+
+                {view === 'dashboard' && (
+                    <div className="dashboard-view">
+                        <div className="stats-grid">
+                            <div className="stat-card">
+                                <div className="stat-icon-box" style={{ background: '#eef2ff', color: '#4f46e5' }}>
+                                    <Users size={24} />
+                                </div>
+                                <div className="stat-info">
+                                    <h3>Total Clients</h3>
+                                    <p className="stat-value">{stats.totalClients}</p>
+                                </div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-icon-box" style={{ background: '#ecfdf5', color: '#10b981' }}>
+                                    <UserCircle size={24} />
+                                </div>
+                                <div className="stat-info">
+                                    <h3>Active Teams</h3>
+                                    <p className="stat-value">{stats.totalTeams}</p>
+                                </div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-icon-box" style={{ background: '#fffbeb', color: '#f59e0b' }}>
+                                    <FileText size={24} />
+                                </div>
+                                <div className="stat-info">
+                                    <h3>This Month's Content</h3>
+                                    <p className="stat-value">{stats.monthlyContent}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', marginTop: '24px' }}>
+                            <div className="dashboard-card">
+                                <div className="card-header">
+                                    <h3 className="card-title">Production Pipeline</h3>
+                                    <span className="card-badge">Live Status</span>
+                                </div>
+                                <div className="status-pipeline">
+                                    {Object.entries(stats.statusBreakdown).map(([status, count]: any) => (
+                                        <div key={status} className="pipeline-item">
+                                            <div className="pipeline-info">
+                                                <span className="pipeline-label">{status}</span>
+                                                <span className="pipeline-count" style={{ fontWeight: 800, color: '#1e293b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>
+                                                    {count} <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ {stats.monthlyContent}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {Object.keys(stats.statusBreakdown).length === 0 && (
+                                        <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                                            No content data available for this month.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="dashboard-card">
+                                <div className="card-header">
+                                    <h3 className="card-title">Quick Actions</h3>
+                                </div>
+                                <div className="quick-actions-list">
+                                    <button onClick={() => setView('teams')} className="action-item">
+                                        <div className="action-icon" style={{ background: '#f1f5f9' }}><Users size={18}/></div>
+                                        <div className="action-text">
+                                            <p className="action-title">Manage Teams</p>
+                                            <p className="action-desc">Assign clients to team leads</p>
+                                        </div>
+                                        <ChevronRight size={16} />
+                                    </button>
+                                    <button onClick={() => setView('master')} className="action-item">
+                                        <div className="action-icon" style={{ background: '#f1f5f9' }}><Globe size={18}/></div>
+                                        <div className="action-text">
+                                            <p className="action-title">Master Calendar</p>
+                                            <p className="action-desc">View company-wide schedule</p>
+                                        </div>
+                                        <ChevronRight size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {view === 'teams' ? (
                     <div className="teams-container">
@@ -407,13 +550,13 @@ export default function GMDashboard() {
                                                 </div>
                                                 <div>
                                                     <h3 className="lead-name">
-                                                        {lead.name} 
+                                                        {lead.name}
                                                         {lead.role_identifier && <span style={{ marginLeft: '8px', fontSize: '12px', color: '#64748b', fontWeight: 500 }}>({lead.role_identifier})</span>}
                                                     </h3>
                                                     <p className="lead-role">TEAM LEAD</p>
                                                 </div>
                                             </div>
-                                            <button 
+                                            <button
                                                 className="btn-assign-small"
                                                 onClick={() => {
                                                     setAssignTarget({ teamLead: lead });
@@ -424,7 +567,7 @@ export default function GMDashboard() {
                                                 Assign Client
                                             </button>
                                         </div>
-                                        
+
                                         <div className="assigned-clients">
                                             <p className="assigned-label">Assigned Clients ({lead.clients?.length || 0})</p>
                                             <div className="assigned-list">
@@ -434,7 +577,7 @@ export default function GMDashboard() {
                                                 {lead.clients?.map((c: any) => (
                                                     <div key={c.id} className="assigned-item">
                                                         <span>{c.company_name}</span>
-                                                        <button 
+                                                        <button
                                                             className="btn-unassign"
                                                             onClick={() => handleAssignClient(c.id, '')}
                                                         >
@@ -460,12 +603,12 @@ export default function GMDashboard() {
                                 <div className="modal-content">
                                     <div className="modal-header">
                                         <h3 className="modal-title">Assign Client to {assignTarget.teamLead.name}</h3>
-                                        <button onClick={() => setIsAssignModalOpen(false)} className="modal-close"><X size={20}/></button>
+                                        <button onClick={() => setIsAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
                                     </div>
                                     <div className="modal-form">
                                         <div className="form-group">
                                             <label className="form-label">Select Client</label>
-                                            <select 
+                                            <select
                                                 className="form-input"
                                                 onChange={(e) => handleAssignClient(e.target.value, assignTarget.teamLead.user_id)}
                                                 defaultValue=""
@@ -484,11 +627,14 @@ export default function GMDashboard() {
                             </div>
                         )}
                     </div>
-                ) : (
+                ) : view !== 'dashboard' && (
                     <div className="calendar-card">
                         <div className="calendar-grid" style={{ gridTemplateRows: viewMode === 'week' ? 'auto 1fr' : 'auto' }}>
                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                <div key={day} className="calendar-header-cell">{day}</div>
+                                <div key={day} className="calendar-header-cell">
+                                    <span className="desktop-day">{day}</span>
+                                    <span className="mobile-day">{day.charAt(0)}</span>
+                                </div>
                             ))}
 
                             {days.map((day, idx) => {
@@ -497,26 +643,44 @@ export default function GMDashboard() {
                                     return isSameDay(itemDate, day);
                                 });
                                 return (
-                                    <div 
-                                        key={idx} 
-                                        onClick={() => handleAddClick(day)}
+                                    <div
+                                        key={idx}
+                                        onClick={() => {
+                                            if (dayContent.length > 0) {
+                                                if (window.innerWidth <= 768) {
+                                                    setDailyAgenda({ date: day, items: dayContent });
+                                                } else {
+                                                    handleItemClick(dayContent[0]);
+                                                }
+                                            } else if (view === 'client') {
+                                                handleAddClick(day);
+                                            }
+                                        }}
                                         className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                        style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}
+                                        style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (dayContent.length > 0 || view === 'client') ? 'pointer' : 'default' }}
                                     >
                                         <span className="day-number">{format(day, 'd')}</span>
-                                        <div className="day-items">
+                                        <div className="day-items desktop-only">
                                             {dayContent.map(item => (
-                                                <div 
+                                                <div
                                                     key={item.id}
                                                     onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
                                                     className={`content-item ${item.content_type.toLowerCase()}`}
                                                 >
-                                                    {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
+                                                    {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                     <span className="truncate">
-                                                        {view === 'master' ? `[${item.clients?.company_name?.substring(0,3)}] ` : ''}
+                                                        {view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
                                                         {item.title}
                                                     </span>
                                                 </div>
+                                            ))}
+                                        </div>
+                                        <div className="mobile-day-indicators">
+                                            {dayContent.map(item => (
+                                                <div 
+                                                    key={item.id}
+                                                    className={`mobile-dot ${item.content_type.toLowerCase()}`}
+                                                ></div>
                                             ))}
                                         </div>
                                     </div>
@@ -533,35 +697,74 @@ export default function GMDashboard() {
                     <div className="modal-content">
                         <div className="modal-header">
                             <h3 className="modal-title">Schedule New Content</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="modal-close"><X size={20}/></button>
+                            <button onClick={() => setIsModalOpen(false)} className="modal-close"><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="modal-form">
                             <div className="form-group">
                                 <label className="form-label">Title</label>
-                                <input required className="form-input" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Enter content title..."/>
+                                <input required className="form-input" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} placeholder="Enter content title..." />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Description</label>
-                                <textarea className="form-input" rows={3} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Add some details..."/>
+                                <textarea className="form-input" rows={3} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Add some details..." />
                             </div>
                             <div className="form-row">
                                 <div className="form-group">
                                     <label className="form-label">Type</label>
-                                    <select className="form-input" value={formData.content_type} onChange={e => setFormData({...formData, content_type: e.target.value as any})}>
+                                    <select className="form-input" value={formData.content_type} onChange={e => setFormData({ ...formData, content_type: e.target.value as any })}>
                                         <option value="Post">Post</option>
                                         <option value="Reel">Reel</option>
                                     </select>
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Time</label>
-                                    <input type="time" className="form-input" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})}/>
+                                    <input type="time" className="form-input" value={formData.time} onChange={e => setFormData({ ...formData, time: e.target.value })} />
                                 </div>
                             </div>
                             <button type="submit" className="btn-primary">
-                                <Plus size={18}/>
+                                <Plus size={18} />
                                 Create Content Schedule
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {dailyAgenda && (
+                <div className="modal-overlay" onClick={() => setDailyAgenda(null)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '340px' }}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">{format(dailyAgenda.date, 'MMMM d, yyyy')}</h3>
+                            <button onClick={() => setDailyAgenda(null)} className="modal-close"><X size={20}/></button>
+                        </div>
+                        <div className="agenda-list" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {dailyAgenda.items.map(item => (
+                                <div 
+                                    key={item.id} 
+                                    className={`agenda-item ${item.content_type.toLowerCase()}`}
+                                    onClick={() => {
+                                        setDailyAgenda(null);
+                                        handleItemClick(item);
+                                    }}
+                                    style={{ 
+                                        padding: '12px', borderRadius: '10px', 
+                                        background: '#f8fafc', border: '1px solid #e2e8f0',
+                                        display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer'
+                                    }}
+                                >
+                                    <div style={{ 
+                                        width: '4px', height: '24px', borderRadius: '2px', 
+                                        background: item.content_type === 'Post' ? '#10b981' : '#6366f1' 
+                                    }}></div>
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+                                            {item.clients?.company_name}
+                                        </p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{item.title}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
@@ -581,7 +784,7 @@ export default function GMDashboard() {
                                 </div>
                                 <h3 className="modal-title">{activeItem.item.title}</h3>
                             </div>
-                            <button onClick={() => setIsDetailsOpen(false)} className="modal-close"><X size={20}/></button>
+                            <button onClick={() => setIsDetailsOpen(false)} className="modal-close"><X size={20} /></button>
                         </div>
 
                         <div className="detail-grid">
@@ -594,14 +797,14 @@ export default function GMDashboard() {
                                     <div>
                                         <label className="detail-label">Scheduled For</label>
                                         <div className="date-display">
-                                            <CalendarIcon size={14} className="date-icon"/>
+                                            <CalendarIcon size={14} className="date-icon" />
                                             {format(parseISO(activeItem.item.scheduled_datetime), 'MMM d, yyyy')}
                                         </div>
                                     </div>
                                     <div>
                                         <label className="detail-label">Posting At</label>
                                         <div className="date-display">
-                                            <Clock size={14} className="date-icon"/>
+                                            <Clock size={14} className="date-icon" />
                                             {format(parseISO(activeItem.item.scheduled_datetime), 'hh:mm a')}
                                         </div>
                                     </div>
@@ -627,17 +830,17 @@ export default function GMDashboard() {
                                                     <p className="status-value">{activeItem.item.status}</p>
                                                 </div>
                                                 {nextStatus && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleStatusUpdate(nextStatus)}
                                                         className="btn-advance"
                                                     >
                                                         <span>Advance to {nextStatus}</span>
-                                                        <ArrowRight size={18} className="advance-arrow"/>
+                                                        <ArrowRight size={18} className="advance-arrow" />
                                                     </button>
                                                 )}
                                                 {!nextStatus && (
                                                     <div className="workflow-done">
-                                                        <CheckCircle2 size={18}/>
+                                                        <CheckCircle2 size={18} />
                                                         Workflow Completed
                                                     </div>
                                                 )}

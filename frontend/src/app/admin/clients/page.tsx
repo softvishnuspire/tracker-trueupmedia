@@ -8,10 +8,10 @@ import { Plus, Search, Edit2, Trash2, X, Calendar as CalendarIcon } from 'lucide
 interface Client {
   id: string;
   company_name: string;
-  phone: string;
-  email: string;
-  address: string;
-  is_active: boolean;
+  phone?: string;
+  email?: string;
+  address?: string;
+  is_active?: boolean;
   created_at: string;
 }
 
@@ -135,14 +135,14 @@ export default function ClientManagement() {
               </tr>
             </thead>
             <tbody>
-              {filteredClients.map((client) => (
-                <tr key={client.id}>
-                  <td style={{ fontWeight: 700, color: '#0f172a' }}>{client.company_name}</td>
-                  <td>{client.phone || '-'}</td>
-                  <td>{client.email || '-'}</td>
-                  <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{client.address || '-'}</td>
-                  <td>{new Date(client.created_at).toLocaleDateString()}</td>
-                  <td style={{ textAlign: 'right' }}>
+              {filteredClients.map((client, index) => (
+                <tr key={client.id || index}>
+                  <td data-label="Company Name" style={{ fontWeight: 700, color: '#0f172a' }}><span>{client.company_name}</span></td>
+                  <td data-label="Contact"><span>{client.phone || '-'}</span></td>
+                  <td data-label="Email"><span>{client.email || '-'}</span></td>
+                  <td data-label="Address" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span>{client.address || '-'}</span></td>
+                  <td data-label="Date Added"><span>{new Date(client.created_at).toLocaleDateString()}</span></td>
+                  <td data-label="Actions" style={{ textAlign: 'right' }}>
                     <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
                       <Link href={`/admin/client-calendar/${client.id}`} className="btn-icon">
                         <CalendarIcon size={14} />

@@ -47,6 +47,7 @@ export default function MasterCalendar() {
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
 
     useEffect(() => {
         const fetchClients = async () => {
@@ -188,7 +189,10 @@ export default function MasterCalendar() {
             <div className="calendar-card">
                 <div className="calendar-grid" style={{ gridTemplateRows: viewMode === 'week' ? 'auto 1fr' : 'auto', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                        <div key={day} className="calendar-header-cell">{day}</div>
+                        <div key={day} className="calendar-header-cell">
+                            <span className="desktop-day">{day}</span>
+                            <span className="mobile-day">{day.charAt(0)}</span>
+                        </div>
                     ))}
 
                     {days.map((day, idx) => {
@@ -200,11 +204,20 @@ export default function MasterCalendar() {
                         return (
                             <div 
                                 key={idx} 
+                                onClick={() => {
+                                    if (dayContent.length > 0) {
+                                        if (window.innerWidth <= 768) {
+                                            setDailyAgenda({ date: day, items: dayContent });
+                                        } else {
+                                            handleItemClick(dayContent[0]);
+                                        }
+                                    }
+                                }}
                                 className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}
+                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
                             >
                                 <span className="day-number">{format(day, 'd')}</span>
-                                <div className="day-items">
+                                <div className="day-items desktop-only">
                                     {dayContent.map(item => (
                                         <div 
                                             key={item.id}
@@ -218,11 +231,58 @@ export default function MasterCalendar() {
                                         </div>
                                     ))}
                                 </div>
+                                <div className="mobile-day-indicators">
+                                    {dayContent.map(item => (
+                                        <div 
+                                            key={item.id}
+                                            className={`mobile-dot ${item.content_type.toLowerCase()}`}
+                                        ></div>
+                                    ))}
+                                </div>
                             </div>
                         );
                     })}
                 </div>
             </div>
+
+            {dailyAgenda && (
+                <div className="modal-overlay" onClick={() => setDailyAgenda(null)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '340px' }}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">{format(dailyAgenda.date, 'MMMM d, yyyy')}</h3>
+                            <button onClick={() => setDailyAgenda(null)} className="modal-close"><X size={20}/></button>
+                        </div>
+                        <div className="agenda-list" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {dailyAgenda.items.map(item => (
+                                <div 
+                                    key={item.id} 
+                                    className={`agenda-item ${item.content_type.toLowerCase()}`}
+                                    onClick={() => {
+                                        setDailyAgenda(null);
+                                        handleItemClick(item);
+                                    }}
+                                    style={{ 
+                                        padding: '12px', borderRadius: '10px', 
+                                        background: '#f8fafc', border: '1px solid #e2e8f0',
+                                        display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer'
+                                    }}
+                                >
+                                    <div style={{ 
+                                        width: '4px', height: '24px', borderRadius: '2px', 
+                                        background: item.content_type === 'Post' ? '#10b981' : '#6366f1' 
+                                    }}></div>
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+                                            {item.clients?.company_name}
+                                        </p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{item.title}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {selectedItem && (
                 <div className="modal-overlay">
