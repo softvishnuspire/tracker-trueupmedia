@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
 import { Plus, Search, Trash2, X, Key, Edit2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface TeamMember {
   id: string;
@@ -126,9 +127,7 @@ export default function TeamManagement() {
           </div>
         </div>
 
-        {loading && team.length === 0 ? (
-          <div className="loading-bar">Loading team data...</div>
-        ) : error ? (
+        {error ? (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--danger)' }}>{error}</div>
         ) : (
           <table className="admin-table">
@@ -142,48 +141,69 @@ export default function TeamManagement() {
               </tr>
             </thead>
             <tbody>
-              {filteredTeam.map((member, index) => (
-                <tr key={member.id || member.user_id || index}>
-                  <td data-label="Name" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
-                        {member.name.charAt(0)}
-                      </div>
-                      <span>{member.name}</span>
-                    </div>
-                  </td>
-                  <td data-label="Email"><span>{member.email}</span></td>
-                  <td data-label="Role">
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <span className="type-badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', minWidth: '100px', textAlign: 'center' }}>
-                        TEAM LEAD
-                      </span>
-                      {member.role_identifier && (
-                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                          {member.role_identifier}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td data-label="Joined Date"><span>{member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}</span></td>
-                  <td data-label="Actions" style={{ textAlign: 'right' }}>
-                    <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
-                      <button className="btn-icon" onClick={() => handleEditClick(member)}>
-                        <Edit2 size={14} />
-                      </button>
-                      <button className="btn-icon delete" onClick={() => handleDeleteClick(member.id, member.name)}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredTeam.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    No team members found.
-                  </td>
-                </tr>
+              {loading && team.length === 0 ? (
+                <>
+                  {[1, 2, 3, 4].map((i) => (
+                    <tr key={i}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Skeleton className="h-8 w-8 rounded-full" />
+                          <Skeleton className="h-4 w-24" />
+                        </div>
+                      </td>
+                      <td><Skeleton className="h-4 w-40" /></td>
+                      <td><Skeleton className="h-6 w-24 rounded-full" /></td>
+                      <td><Skeleton className="h-4 w-20" /></td>
+                      <td style={{ textAlign: 'right' }}><Skeleton className="h-8 w-16 ml-auto" /></td>
+                    </tr>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {filteredTeam.map((member, index) => (
+                    <tr key={member.id || member.user_id || index}>
+                      <td data-label="Name" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
+                            {member.name.charAt(0)}
+                          </div>
+                          <span>{member.name}</span>
+                        </div>
+                      </td>
+                      <td data-label="Email"><span>{member.email}</span></td>
+                      <td data-label="Role">
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <span className="type-badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', minWidth: '100px', textAlign: 'center' }}>
+                            TEAM LEAD
+                          </span>
+                          {member.role_identifier && (
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              {member.role_identifier}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td data-label="Joined Date"><span>{member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}</span></td>
+                      <td data-label="Actions" style={{ textAlign: 'right' }}>
+                        <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
+                          <button className="btn-icon" onClick={() => handleEditClick(member)}>
+                            <Edit2 size={14} />
+                          </button>
+                          <button className="btn-icon delete" onClick={() => handleDeleteClick(member.id, member.name)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredTeam.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        No team members found.
+                      </td>
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>

@@ -36,6 +36,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { tlApi, gmApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
+import { Skeleton } from '@/components/ui/skeleton';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
 
 // Reusing interfaces from GM/Admin
@@ -250,33 +251,46 @@ export default function TLDashboard() {
                                 />
                             </div>
                             <div className="client-list-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                {filteredClients.length === 0 && (
-                                    <p style={{ fontSize: 11, color: '#94a3b8', padding: '8px 12px', textAlign: 'center' }}>No clients found</p>
+                                {loading ? (
+                                    <>
+                                        {[1, 2, 3, 4, 5].map((i) => (
+                                            <div key={i} className="nav-item" style={{ padding: '8px 12px' }}>
+                                                <Skeleton className="h-6 w-6 rounded-md mr-3" />
+                                                <Skeleton className="h-4 w-32" />
+                                            </div>
+                                        ))}
+                                    </>
+                                ) : (
+                                    <>
+                                        {filteredClients.length === 0 && (
+                                            <p style={{ fontSize: 11, color: '#94a3b8', padding: '8px 12px', textAlign: 'center' }}>No clients found</p>
+                                        )}
+                                        {filteredClients.map(c => (
+                                            <div 
+                                                key={c.id}
+                                                onClick={() => setSelectedClient(c.id)}
+                                                className={`nav-item ${selectedClient === c.id ? 'active' : ''}`}
+                                                style={{ padding: '8px 12px', fontSize: '13px' }}
+                                            >
+                                                <div style={{ 
+                                                    width: '24px', 
+                                                    height: '24px', 
+                                                    borderRadius: '6px', 
+                                                    background: selectedClient === c.id ? 'var(--accent)' : 'var(--bg-elevated)',
+                                                    color: selectedClient === c.id ? 'white' : 'var(--text-secondary)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '10px',
+                                                    fontWeight: 800
+                                                }}>
+                                                    {c.company_name?.charAt(0) || '?'}
+                                                </div>
+                                                <span className="truncate">{c.company_name}</span>
+                                            </div>
+                                        ))}
+                                    </>
                                 )}
-                                {filteredClients.map(c => (
-                                    <div 
-                                        key={c.id}
-                                        onClick={() => setSelectedClient(c.id)}
-                                        className={`nav-item ${selectedClient === c.id ? 'active' : ''}`}
-                                        style={{ padding: '8px 12px', fontSize: '13px' }}
-                                    >
-                                        <div style={{ 
-                                            width: '24px', 
-                                            height: '24px', 
-                                            borderRadius: '6px', 
-                                            background: selectedClient === c.id ? 'var(--accent)' : 'var(--bg-elevated)',
-                                            color: selectedClient === c.id ? 'white' : 'var(--text-secondary)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '10px',
-                                            fontWeight: 800
-                                        }}>
-                                            {c.company_name?.charAt(0) || '?'}
-                                        </div>
-                                        <span className="truncate">{c.company_name}</span>
-                                    </div>
-                                ))}
                             </div>
                         </>
                     )}
@@ -333,7 +347,7 @@ export default function TLDashboard() {
                     </div>
                 </header>
 
-                {loading && <div className="loading-bar">Updating schedule...</div>}
+                {/* Global loading bar removed in favor of inline skeletons */}
 
                 <div className="calendar-card">
                     <div className="calendar-grid">
@@ -341,36 +355,52 @@ export default function TLDashboard() {
                             <div key={day} className="calendar-header-cell">{day}</div>
                         ))}
 
-                        {days.map((day, idx) => {
-                            const dayContent = calendarData.filter(item => {
-                                const itemDate = parseISO(item.scheduled_datetime);
-                                return isSameDay(itemDate, day);
-                            });
-                            return (
-                                <div 
-                                    key={idx} 
-                                    className={`calendar-day ${!isSameMonth(day, currentMonth) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                >
-                                    <span className="day-number">{format(day, 'd')}</span>
-                                    <div className="day-items">
-                                        {dayContent.map(item => (
-                                            <div 
-                                                key={item.id}
-                                                onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                className={`content-item ${item.content_type.toLowerCase()}`}
-                                                title={item.title}
-                                            >
-                                                {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
-                                                <span className="truncate" style={{ fontSize: '9px' }}>
-                                                    {view === 'master' ? `[${item.clients?.company_name?.substring(0,3)}] ` : ''}
-                                                    {item.title}
-                                                </span>
-                                            </div>
-                                        ))}
+                        {loading ? (
+                            <>
+                                {Array.from({ length: 35 }).map((_, idx) => (
+                                    <div key={idx} className="calendar-day opacity-50" style={{ minHeight: '110px' }}>
+                                        <Skeleton className="h-4 w-4 mb-2" />
+                                        <div className="space-y-1">
+                                            <Skeleton className="h-6 w-full rounded" />
+                                            <Skeleton className="h-6 w-3/4 rounded" />
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                ))}
+                            </>
+                        ) : (
+                            <>
+                                {days.map((day, idx) => {
+                                    const dayContent = calendarData.filter(item => {
+                                        const itemDate = parseISO(item.scheduled_datetime);
+                                        return isSameDay(itemDate, day);
+                                    });
+                                    return (
+                                        <div 
+                                            key={idx} 
+                                            className={`calendar-day ${!isSameMonth(day, currentMonth) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                        >
+                                            <span className="day-number">{format(day, 'd')}</span>
+                                            <div className="day-items">
+                                                {dayContent.map(item => (
+                                                    <div 
+                                                        key={item.id}
+                                                        onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
+                                                        className={`content-item ${item.content_type.toLowerCase()}`}
+                                                        title={item.title}
+                                                    >
+                                                        {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
+                                                        <span className="truncate" style={{ fontSize: '9px' }}>
+                                                            {view === 'master' ? `[${item.clients?.company_name?.substring(0,3)}] ` : ''}
+                                                            {item.title}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </>
+                        )}
                     </div>
                 </div>
             </main>

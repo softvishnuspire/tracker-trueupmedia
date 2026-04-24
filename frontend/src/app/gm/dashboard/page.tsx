@@ -38,6 +38,8 @@ import { gmApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
+import { Skeleton } from '@/components/ui/skeleton';
+import SkeletonCard from '@/components/SkeletonCard';
 import './gm.css';
 
 // Matches actual DB: content_items has id, client_id, title, scheduled_datetime, status, content_type, description
@@ -325,21 +327,31 @@ export default function GMDashboard() {
                         <>
                             <p className="sidebar-label">Clients</p>
                             <div className="client-list">
-                                {clients.length === 0 && (
-                                    <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 12px' }}>No clients found</p>
+                                {clients.length === 0 ? (
+                                    <>
+                                        {[1, 2, 3, 4, 5].map((i) => (
+                                            <div key={i} className="client-item" style={{ opacity: 0.6 }}>
+                                                <Skeleton className="h-8 w-8 rounded-lg" />
+                                                <Skeleton className="h-4 w-24" />
+                                            </div>
+                                        ))}
+                                    </>
+                                ) : (
+                                    <>
+                                        {clients.map(c => (
+                                            <div
+                                                key={c.id}
+                                                onClick={() => setSelectedClient(c.id)}
+                                                className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}
+                                            >
+                                                <div className="client-avatar">
+                                                    {c.company_name?.charAt(0) || '?'}
+                                                </div>
+                                                <span>{c.company_name}</span>
+                                            </div>
+                                        ))}
+                                    </>
                                 )}
-                                {clients.map(c => (
-                                    <div
-                                        key={c.id}
-                                        onClick={() => setSelectedClient(c.id)}
-                                        className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}
-                                    >
-                                        <div className="client-avatar">
-                                            {c.company_name?.charAt(0) || '?'}
-                                        </div>
-                                        <span>{c.company_name}</span>
-                                    </div>
-                                ))}
                             </div>
                         </>
                     )}
@@ -471,38 +483,66 @@ export default function GMDashboard() {
                     </div>
                 </header>
 
-                {loading && <div className="loading-bar">Loading...</div>}
+                {/* Removed global loading bar in favor of inline skeletons */}
 
                 {view === 'dashboard' && (
                     <div className="dashboard-view">
                         <div className="stats-grid">
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
-                                    <Users size={24} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>Total Clients</h3>
-                                    <p className="stat-value">{stats.totalClients}</p>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
-                                    <UserCircle size={24} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>Active Teams</h3>
-                                    <p className="stat-value">{stats.totalTeams}</p>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
-                                    <FileText size={24} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>This Month's Content</h3>
-                                    <p className="stat-value">{stats.monthlyContent}</p>
-                                </div>
-                            </div>
+                            {loading ? (
+                                <>
+                                    <div className="stat-card">
+                                        <Skeleton className="h-12 w-12 rounded-xl" />
+                                        <div className="space-y-2 flex-1">
+                                            <Skeleton className="h-4 w-20" />
+                                            <Skeleton className="h-8 w-12" />
+                                        </div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <Skeleton className="h-12 w-12 rounded-xl" />
+                                        <div className="space-y-2 flex-1">
+                                            <Skeleton className="h-4 w-20" />
+                                            <Skeleton className="h-8 w-12" />
+                                        </div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <Skeleton className="h-12 w-12 rounded-xl" />
+                                        <div className="space-y-2 flex-1">
+                                            <Skeleton className="h-4 w-20" />
+                                            <Skeleton className="h-8 w-12" />
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="stat-card">
+                                        <div className="stat-icon-box" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                                            <Users size={24} />
+                                        </div>
+                                        <div className="stat-info">
+                                            <h3>Total Clients</h3>
+                                            <p className="stat-value">{stats.totalClients}</p>
+                                        </div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
+                                            <UserCircle size={24} />
+                                        </div>
+                                        <div className="stat-info">
+                                            <h3>Active Teams</h3>
+                                            <p className="stat-value">{stats.totalTeams}</p>
+                                        </div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
+                                            <FileText size={24} />
+                                        </div>
+                                        <div className="stat-info">
+                                            <h3>This Month's Content</h3>
+                                            <p className="stat-value">{stats.monthlyContent}</p>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', marginTop: '24px' }} className="responsive-dashboard-grid">
@@ -561,9 +601,29 @@ export default function GMDashboard() {
                     <div className="teams-container">
                         <div className="teams-grid">
                             {loading ? (
-                                <div className="teams-loading-state">
-                                    <div className="spinner"></div>
-                                </div>
+                                <>
+                                    {[1, 2, 3].map((i) => (
+                                        <div key={i} className="team-card">
+                                            <div className="team-card-header">
+                                                <div className="lead-info">
+                                                    <Skeleton className="h-10 w-10 rounded-full" />
+                                                    <div className="space-y-2">
+                                                        <Skeleton className="h-4 w-24" />
+                                                        <Skeleton className="h-3 w-16" />
+                                                    </div>
+                                                </div>
+                                                <Skeleton className="h-8 w-24 rounded-lg" />
+                                            </div>
+                                            <div className="assigned-clients space-y-3" style={{ marginTop: '16px' }}>
+                                                <Skeleton className="h-3 w-32" />
+                                                <div className="flex gap-2">
+                                                    <Skeleton className="h-6 w-20 rounded-full" />
+                                                    <Skeleton className="h-6 w-24 rounded-full" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </>
                             ) : teamLeads.length > 0 ? (
                                 teamLeads.map(lead => (
                                     <div key={lead.user_id} className="team-card">
@@ -661,55 +721,71 @@ export default function GMDashboard() {
                                 </div>
                             ))}
 
-                            {days.map((day, idx) => {
-                                const dayContent = calendarData.filter(item => {
-                                    const itemDate = parseISO(item.scheduled_datetime);
-                                    return isSameDay(itemDate, day);
-                                });
-                                return (
-                                    <div
-                                        key={idx}
-                                        onClick={() => {
-                                            if (dayContent.length > 0) {
-                                                if (window.innerWidth <= 768) {
-                                                    setDailyAgenda({ date: day, items: dayContent });
-                                                } else {
-                                                    handleItemClick(dayContent[0]);
-                                                }
-                                            } else if (view === 'client') {
-                                                handleAddClick(day);
-                                            }
-                                        }}
-                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                        style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (dayContent.length > 0 || view === 'client') ? 'pointer' : 'default' }}
-                                    >
-                                        <span className="day-number">{format(day, 'd')}</span>
-                                        <div className="day-items desktop-only">
-                                            {dayContent.map(item => (
-                                                <div
-                                                    key={item.id}
-                                                    onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                    className={`content-item ${item.content_type.toLowerCase()}`}
-                                                >
-                                                    {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                    <span className="truncate">
-                                                        {view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
-                                                        {item.title}
-                                                    </span>
+                            {loading ? (
+                                <>
+                                    {Array.from({ length: 35 }).map((_, idx) => (
+                                        <div key={idx} className="calendar-day opacity-50" style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}>
+                                            <Skeleton className="h-4 w-4 mb-2" />
+                                            <div className="space-y-1">
+                                                <Skeleton className="h-4 w-full rounded" />
+                                                <Skeleton className="h-4 w-3/4 rounded" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </>
+                            ) : (
+                                <>
+                                    {days.map((day, idx) => {
+                                        const dayContent = calendarData.filter(item => {
+                                            const itemDate = parseISO(item.scheduled_datetime);
+                                            return isSameDay(itemDate, day);
+                                        });
+                                        return (
+                                            <div
+                                                key={idx}
+                                                onClick={() => {
+                                                    if (dayContent.length > 0) {
+                                                        if (window.innerWidth <= 768) {
+                                                            setDailyAgenda({ date: day, items: dayContent });
+                                                        } else {
+                                                            handleItemClick(dayContent[0]);
+                                                        }
+                                                    } else if (view === 'client') {
+                                                        handleAddClick(day);
+                                                    }
+                                                }}
+                                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (dayContent.length > 0 || view === 'client') ? 'pointer' : 'default' }}
+                                            >
+                                                <span className="day-number">{format(day, 'd')}</span>
+                                                <div className="day-items desktop-only">
+                                                    {dayContent.map(item => (
+                                                        <div
+                                                            key={item.id}
+                                                            onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
+                                                            className={`content-item ${item.content_type.toLowerCase()}`}
+                                                        >
+                                                            {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                            <span className="truncate">
+                                                                {view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
+                                                                {item.title}
+                                                            </span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
-                                        </div>
-                                        <div className="mobile-day-indicators">
-                                            {dayContent.map(item => (
-                                                <div
-                                                    key={item.id}
-                                                    className={`mobile-dot ${item.content_type.toLowerCase()}`}
-                                                ></div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                                <div className="mobile-day-indicators">
+                                                    {dayContent.map(item => (
+                                                        <div 
+                                                            key={item.id}
+                                                            className={`mobile-dot ${item.content_type.toLowerCase()}`}
+                                                        ></div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
                         </div>
                     </div>
                 )}

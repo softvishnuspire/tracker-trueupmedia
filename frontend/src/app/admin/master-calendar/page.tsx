@@ -26,6 +26,7 @@ import {
     ChevronDown
 } from 'lucide-react';
 import { gmApi, adminApi } from '@/lib/api';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ContentItem {
     id: string;
@@ -184,7 +185,7 @@ export default function MasterCalendar() {
             </header>
 
 
-            {loading && <div className="loading-bar">Updating calendar...</div>}
+            {/* Loading bar removed in favor of skeletons */}
 
             <div className="calendar-card">
                 <div className="calendar-grid" style={{ gridTemplateRows: viewMode === 'week' ? 'auto 1fr' : 'auto', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
@@ -195,53 +196,69 @@ export default function MasterCalendar() {
                         </div>
                     ))}
 
-                    {days.map((day, idx) => {
-                        const dayContent = calendarData.filter(item => {
-                            const itemDate = parseISO(item.scheduled_datetime);
-                            return isSameDay(itemDate, day);
-                        });
+                    {loading ? (
+                        <>
+                            {Array.from({ length: 35 }).map((_, idx) => (
+                                <div key={idx} className="calendar-day opacity-50" style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}>
+                                    <Skeleton className="h-4 w-4 mb-2" />
+                                    <div className="space-y-1">
+                                        <Skeleton className="h-4 w-full rounded" />
+                                        <Skeleton className="h-4 w-3/4 rounded" />
+                                    </div>
+                                </div>
+                            ))}
+                        </>
+                    ) : (
+                        <>
+                            {days.map((day, idx) => {
+                                const dayContent = calendarData.filter(item => {
+                                    const itemDate = parseISO(item.scheduled_datetime);
+                                    return isSameDay(itemDate, day);
+                                });
 
-                        return (
-                            <div 
-                                key={idx} 
-                                onClick={() => {
-                                    if (dayContent.length > 0) {
-                                        if (window.innerWidth <= 768) {
-                                            setDailyAgenda({ date: day, items: dayContent });
-                                        } else {
-                                            handleItemClick(dayContent[0]);
-                                        }
-                                    }
-                                }}
-                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
-                            >
-                                <span className="day-number">{format(day, 'd')}</span>
-                                <div className="day-items desktop-only">
-                                    {dayContent.map(item => (
-                                        <div 
-                                            key={item.id}
-                                            onClick={() => handleItemClick(item)}
-                                            className={`content-item ${item.content_type.toLowerCase()}`}
-                                        >
-                                            {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
-                                            <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                                [{item.clients?.company_name?.substring(0, 3)}] {item.title}
-                                            </span>
+                                return (
+                                    <div 
+                                        key={idx} 
+                                        onClick={() => {
+                                            if (dayContent.length > 0) {
+                                                if (window.innerWidth <= 768) {
+                                                    setDailyAgenda({ date: day, items: dayContent });
+                                                } else {
+                                                    handleItemClick(dayContent[0]);
+                                                }
+                                            }
+                                        }}
+                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                        style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
+                                    >
+                                        <span className="day-number">{format(day, 'd')}</span>
+                                        <div className="day-items desktop-only">
+                                            {dayContent.map(item => (
+                                                <div 
+                                                    key={item.id}
+                                                    onClick={() => handleItemClick(item)}
+                                                    className={`content-item ${item.content_type.toLowerCase()}`}
+                                                >
+                                                    {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
+                                                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                                        [{item.clients?.company_name?.substring(0, 3)}] {item.title}
+                                                    </span>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                                <div className="mobile-day-indicators">
-                                    {dayContent.map(item => (
-                                        <div 
-                                            key={item.id}
-                                            className={`mobile-dot ${item.content_type.toLowerCase()}`}
-                                        ></div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })}
+                                        <div className="mobile-day-indicators">
+                                            {dayContent.map(item => (
+                                                <div 
+                                                    key={item.id}
+                                                    className={`mobile-dot ${item.content_type.toLowerCase()}`}
+                                                ></div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </>
+                    )}
                 </div>
             </div>
 
