@@ -8,16 +8,11 @@ const app = express();
 
 app.use(compression());
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002'
-].filter(Boolean);
-
 app.use(cors({
   origin: true,
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
@@ -313,90 +308,128 @@ app.post('/api/admin/team', async (req, res) => {
     const { name, email, password, role, role_identifier } = req.body;
     if (!name || !email || !password || !role) return res.status(400).json({ error: 'Missing fields' });
 
-    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email, password, email_confirm: true, user_metadata: { role, name, role_identifier }
-    });
-    if (authError) return res.status(500).json({ error: authError.message });
+    console.log(`[Admin] Creating new user: ${email} (${role})`);
 
-    const { data, error } = await supabase.from('users').insert([{ 
-        user_id: authUser.user.id, 
-        name, 
-        email, 
-        password_hash: password, 
-        role,
-        role_identifier: role_identifier || role // Fallback to role if identifier not provided
-    }]).select();
-    if (error) {
-        await supabase.auth.admin.deleteUser(authUser.user.id);
-        return res.status(500).json({ error: error.message });
+    try {
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+            email, password, email_confirm: true, user_metadata: { role, name, role_identifier }
+        });
+        if (authError) {
+            console.error(`[Admin] Auth creation error for ${email}:`, authError.message);
+            return res.status(500).json({ error: authError.message });
+        }
+
+        const { data, error } = await supabase.from('users').insert([{ 
+            user_id: authUser.user.id, 
+            name, 
+            email, 
+            password_hash: password, 
+            role,
+            role_identifier: role_identifier || role
+        }]).select();
+
+        if (error) {
+            console.error(`[Admin] DB insertion error for ${email}:`, error.message);
+            await supabase.auth.admin.deleteUser(authUser.user.id);
+            return res.status(500).json({ error: error.message });
+        }
+        
+        myCache.del("admin_team");
+        res.json(data[0]);
+    } catch (error) {
+        console.error(`[Admin] Crash during creation of ${email}:`, error);
+        res.status(500).json({ error: error.message });
     }
-    myCache.del("admin_team");
-    res.json(data[0]);
 });
 
 app.put('/api/admin/team/:id', async (req, res) => {
     const { id } = req.params;
     const { name, email, password, role_identifier } = req.body;
 
-    const updateData = {
-        email,
-        user_metadata: { name, role_identifier }
-    };
-    if (password) updateData.password = password;
+    console.log(`[Admin] Update request for ID: ${id}, Email: ${email}`);
 
-    const { error: authError } = await supabase.auth.admin.updateUserById(id, updateData);
-    
-    // If user doesn't exist in Auth, create them!
-    if (authError && authError.message === 'User not found') {
-        const { error: createError } = await supabase.auth.admin.createUser({
+    try {
+        const updateData = {
             email,
-            password: password || 'Trueup@123', // Default if no password provided
-            email_confirm: true,
             user_metadata: { name, role_identifier }
-        });
-        if (createError) return res.status(500).json({ error: createError.message });
-    } else if (authError) {
-        return res.status(500).json({ error: authError.message });
+        };
+        if (password) updateData.password = password;
+
+        const { error: authError } = await supabase.auth.admin.updateUserById(id, updateData);
+        
+        if (authError) {
+            console.warn(`[Admin] Auth update warning for ${id}:`, authError.message);
+            // If user doesn't exist in Auth, create them!
+            if (authError.message.includes('not found')) {
+                console.log(`[Admin] Creating missing auth user for ${email}`);
+                const { error: createError } = await supabase.auth.admin.createUser({
+                    email,
+                    password: password || 'Trueup@123',
+                    email_confirm: true,
+                    user_metadata: { name, role_identifier }
+                });
+                if (createError) return res.status(500).json({ error: createError.message });
+            } else {
+                return res.status(500).json({ error: authError.message });
+            }
+        }
+
+        const updatePayload = { name, email, role_identifier };
+        if (password) updatePayload.password_hash = password;
+
+        const { data, error } = await supabase
+            .from('users')
+            .update(updatePayload)
+            .eq('user_id', id)
+            .select();
+
+        if (error) {
+            console.error(`[Admin] DB update error for ${id}:`, error.message);
+            return res.status(500).json({ error: error.message });
+        }
+        
+        myCache.del("admin_team");
+        res.json(data[0]);
+    } catch (error) {
+        console.error(`[Admin] Crash during update for ${id}:`, error);
+        res.status(500).json({ error: error.message });
     }
-
-    const updatePayload = { name, email, role_identifier };
-    if (password) updatePayload.password_hash = password;
-
-    const { data, error } = await supabase
-        .from('users')
-        .update(updatePayload)
-        .eq('user_id', id)
-        .select();
-
-    if (error) return res.status(500).json({ error: error.message });
-    myCache.del("admin_team");
-    res.json(data[0]);
 });
 
 app.delete('/api/admin/team/:id', async (req, res) => {
     const { id } = req.params;
+    console.log(`[Admin] Delete request for user: ${id}`);
     
-    // 1. Unassign this team lead from any clients they manage
-    const { error: unassignError } = await supabase
-        .from('clients')
-        .update({ team_lead_id: null })
-        .eq('team_lead_id', id);
-    
-    if (unassignError) {
-        console.error('Unassign error:', unassignError.message);
-    }
+    try {
+        // 1. Unassign this team lead from any clients they manage
+        const { error: unassignError } = await supabase
+            .from('clients')
+            .update({ team_lead_id: null })
+            .eq('team_lead_id', id);
 
-    // 2. Attempt to delete from Auth
-    const { error: authError } = await supabase.auth.admin.deleteUser(id);
-    if (authError && authError.message !== 'User not found') {
-        console.error('Auth deletion error:', authError.message);
-    }
+        if (unassignError) {
+            console.error(`[Admin] Unassignment error for ${id}:`, unassignError.message);
+        }
 
-    // 3. Delete from users table
-    const { error } = await supabase.from('users').delete().eq('user_id', id);
-    if (error) return res.status(500).json({ error: error.message });
-    myCache.del("admin_team");
-    res.json({ message: 'Team member removed' });
+        // 2. Delete from Auth (prevents future logins)
+        const { error: authError } = await supabase.auth.admin.deleteUser(id);
+        if (authError && authError.message !== 'User not found') {
+            console.error(`[Admin] Auth deletion error for ${id}:`, authError.message);
+        }
+
+        // 3. Delete from users table
+        const { error: dbError } = await supabase.from('users').delete().eq('user_id', id);
+        if (dbError) {
+            console.error(`[Admin] DB deletion error for ${id}:`, dbError.message);
+            return res.status(500).json({ error: dbError.message });
+        }
+
+        myCache.del("admin_team");
+        res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+        console.error(`[Admin] Crash during deletion of ${id}:`, error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // ─── Admin: Dashboard Stats ───
@@ -634,6 +667,11 @@ app.get('/api/tl/master-calendar', async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
+});
+
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err);
+    res.status(500).json({ error: 'Internal Server Error', message: err.message });
 });
 
 const PORT = process.env.PORT || 3001;
