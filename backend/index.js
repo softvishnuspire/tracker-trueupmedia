@@ -16,15 +16,7 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // If FRONTEND_URL is not set, allow all for now to unblock the deployment.
-    // If it is set, enforce the origin check.
-    if (!process.env.FRONTEND_URL || !origin || allowedOrigins.includes(origin) || origin.includes('onrender.com')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true,
   credentials: true
 }));
 

@@ -6,13 +6,13 @@ import { Plus, Search, Trash2, X, Key, Edit2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface TeamMember {
-  id: string;
+  user_id: string; // This is what Supabase returns
+  id?: string;     // Legacy support
   name: string;
   email: string;
   role: string;
   role_identifier?: string;
   created_at?: string;
-  user_id?: string; // Add optional user_id for safety
 }
 
 export default function TeamManagement() {
@@ -83,7 +83,7 @@ export default function TeamManagement() {
         // Password is optional during edit
         const updatePayload = { ...formData };
         if (!updatePayload.password) delete (updatePayload as any).password;
-        await adminApi.updateTeamMember(editingMember.id, updatePayload);
+        await adminApi.updateTeamMember(editingMember.user_id || editingMember.id!, updatePayload);
       } else {
         await adminApi.addTeamMember(formData);
       }
@@ -161,7 +161,7 @@ export default function TeamManagement() {
               ) : (
                 <>
                   {filteredTeam.map((member, index) => (
-                    <tr key={member.id || member.user_id || index}>
+                    <tr key={member.user_id || member.id || index}>
                       <td data-label="Name" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
@@ -189,7 +189,7 @@ export default function TeamManagement() {
                           <button className="btn-icon" onClick={() => handleEditClick(member)}>
                             <Edit2 size={14} />
                           </button>
-                          <button className="btn-icon delete" onClick={() => handleDeleteClick(member.id, member.name)}>
+                          <button className="btn-icon delete" onClick={() => handleDeleteClick(member.user_id || member.id!, member.name)}>
                             <Trash2 size={14} />
                           </button>
                         </div>
