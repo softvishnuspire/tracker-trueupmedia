@@ -1,19 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { adminApi } from '@/lib/api';
+import { adminApi, TeamMember } from '@/lib/api';
 import { Plus, Search, Trash2, X, Key, Edit2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface TeamMember {
-  user_id: string; // This is what Supabase returns
-  id?: string;     // Legacy support
-  name: string;
-  email: string;
-  role: string;
-  role_identifier?: string;
-  created_at?: string;
-}
 
 export default function TeamManagement() {
   const [team, setTeam] = useState<TeamMember[]>([]);

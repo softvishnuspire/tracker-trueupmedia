@@ -67,7 +67,8 @@ adminBase.interceptors.request.use(async (config) => {
 });
 
 export interface TeamMember {
-    id: string;
+    user_id: string; // The primary key from Supabase 'users' table
+    id?: string;     // Legacy/fallback
     name: string;
     email: string;
     role: string;
