@@ -9,6 +9,13 @@ app.use(cors());
 app.use(compression());
 app.use(express.json());
 
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('❌ CRITICAL ERROR: Missing Supabase Environment Variables!');
+    console.error('Please ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in your environment.');
+    console.error('If deploying to Render, set these in the "Environment" tab of your service.');
+    process.exit(1);
+}
+
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const NodeCache = require("node-cache");
