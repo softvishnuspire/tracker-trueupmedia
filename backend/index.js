@@ -1,13 +1,18 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
+app.use(compression());
 app.use(express.json());
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+const NodeCache = require("node-cache");
+const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 const STATUS_FLOWS = {
     'Reel': [
@@ -30,6 +35,9 @@ const STATUS_FLOWS = {
 
 // ─── GM: Clients ───
 app.get('/api/gm/clients', async (req, res) => {
+    const cached = myCache.get("gm_clients");
+    if (cached) return res.json(cached);
+
     const { data, error } = await supabase
         .from('clients')
         .select('id, company_name')
@@ -37,6 +45,7 @@ app.get('/api/gm/clients', async (req, res) => {
         .eq('is_deleted', false);
     
     if (error) return res.status(500).json({ error: error.message });
+    myCache.set("gm_clients", data);
     res.json(data);
 });
 
@@ -122,28 +131,17 @@ app.delete('/api/gm/content/:id', async (req, res) => {
 
 app.get('/api/gm/content/:id', async (req, res) => {
     const { id } = req.params;
-    const { data: item, error: itemError } = await supabase
-        .from('content_items')
-        .select(`*, clients (company_name)`)
-        .eq('id', id)
-        .single();
+    try {
+        const [itemRes, logsRes] = await Promise.all([
+            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
+        ]);
 
-    if (itemError) return res.status(500).json({ error: itemError.message });
-
-    const { data: logs } = await supabase
-        .from('status_logs')
-        .select(`
-            *,
-            users:changed_by (
-                name,
-                role_identifier
-            )
-        `)
-        .eq('item_id', id)
-        .order('changed_at', { ascending: false });
-
-
-    res.json({ item, history: logs || [] });
+        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        res.json({ item: itemRes.data, history: logsRes.data || [] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.patch('/api/gm/content/:id/status', async (req, res) => {
@@ -206,8 +204,12 @@ app.patch('/api/gm/content/:id/status', async (req, res) => {
 
 // ─── Admin: Client Management ───
 app.get('/api/admin/clients', async (req, res) => {
+    const cached = myCache.get("admin_clients");
+    if (cached) return res.json(cached);
+
     const { data, error } = await supabase.from('clients').select('*').eq('is_deleted', false).order('company_name');
     if (error) return res.status(500).json({ error: error.message });
+    myCache.set("admin_clients", data);
     res.json(data);
 });
 
@@ -216,6 +218,7 @@ app.post('/api/admin/clients', async (req, res) => {
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
     const { data, error } = await supabase.from('clients').insert([{ company_name, phone, email, address, is_active: true, is_deleted: false }]).select();
     if (error) return res.status(500).json({ error: error.message });
+    myCache.del(["gm_clients", "admin_clients"]);
     res.json(data[0]);
 });
 
@@ -224,6 +227,7 @@ app.put('/api/admin/clients/:id', async (req, res) => {
     const { company_name, phone, email, address, is_active } = req.body;
     const { data, error } = await supabase.from('clients').update({ company_name, phone, email, address, is_active }).eq('id', id).select();
     if (error) return res.status(500).json({ error: error.message });
+    myCache.del(["gm_clients", "admin_clients"]);
     res.json(data[0]);
 });
 
@@ -231,11 +235,15 @@ app.delete('/api/admin/clients/:id', async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('clients').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
+    myCache.del(["gm_clients", "admin_clients"]);
     res.json({ message: 'Client removed successfully' });
 });
 
 // ─── Admin: Team Management ───
 app.get('/api/admin/team', async (req, res) => {
+    const cached = myCache.get("admin_team");
+    if (cached) return res.json(cached);
+
     const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -245,6 +253,7 @@ app.get('/api/admin/team', async (req, res) => {
     
     // Filter in JS to avoid enum-space matching issues in some environments
     const teamLeads = (data || []).filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role));
+    myCache.set("admin_team", teamLeads);
     res.json(teamLeads);
 });
 
@@ -269,6 +278,7 @@ app.post('/api/admin/team', async (req, res) => {
         await supabase.auth.admin.deleteUser(authUser.user.id);
         return res.status(500).json({ error: error.message });
     }
+    myCache.del("admin_team");
     res.json(data[0]);
 });
 
@@ -307,6 +317,7 @@ app.put('/api/admin/team/:id', async (req, res) => {
         .select();
 
     if (error) return res.status(500).json({ error: error.message });
+    myCache.del("admin_team");
     res.json(data[0]);
 });
 
@@ -332,14 +343,12 @@ app.delete('/api/admin/team/:id', async (req, res) => {
     // 3. Delete from users table
     const { error } = await supabase.from('users').delete().eq('user_id', id);
     if (error) return res.status(500).json({ error: error.message });
-    
+    myCache.del("admin_team");
     res.json({ message: 'Team member removed' });
 });
 
 // ─── Admin: Dashboard Stats ───
 app.get('/api/admin/stats', async (req, res) => {
-    const { count: clientCount } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('is_deleted', false);
-    
     const now = new Date();
     const year = now.getFullYear();
     const mon = String(now.getMonth() + 1).padStart(2, '0');
@@ -347,15 +356,26 @@ app.get('/api/admin/stats', async (req, res) => {
     const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-    const { count: itemCount } = await supabase.from('content_items').select('*', { count: 'exact', head: true }).gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate);
+    try {
+        const [clientRes, itemRes, statusRes] = await Promise.all([
+            supabase.from('clients').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('is_deleted', false),
+            supabase.from('content_items').select('*', { count: 'exact', head: true }).gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate),
+            supabase.from('content_items').select('status')
+        ]);
 
-    const { data: statusData } = await supabase.from('content_items').select('status');
-    const statusSummary = {};
-    if (statusData) {
-        statusData.forEach(item => { statusSummary[item.status] = (statusSummary[item.status] || 0) + 1; });
+        const statusSummary = {};
+        if (statusRes.data) {
+            statusRes.data.forEach(item => { statusSummary[item.status] = (statusSummary[item.status] || 0) + 1; });
+        }
+
+        res.json({ 
+            totalClients: clientRes.count, 
+            totalItemsThisMonth: itemRes.count, 
+            statusSummary 
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    res.json({ totalClients: clientCount, totalItemsThisMonth: itemCount, statusSummary });
 });
 
 // ─── Team Leads ───
@@ -389,6 +409,10 @@ app.patch('/api/gm/clients/:id/assign', async (req, res) => {
 // ─── Get Clients for a Team Lead ───
 app.get('/api/gm/team-leads/:id/clients', async (req, res) => {
     const { id } = req.params;
+    const cacheKey = `tl_clients_${id}`;
+    const cached = myCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const { data, error } = await supabase
         .from('clients')
         .select('id, company_name')
@@ -397,6 +421,7 @@ app.get('/api/gm/team-leads/:id/clients', async (req, res) => {
         .eq('is_deleted', false);
     
     if (error) return res.status(500).json({ error: error.message });
+    myCache.set(cacheKey, data);
     res.json(data);
 });
 
