@@ -38,6 +38,7 @@ import { useRouter } from 'next/navigation';
 import { tlApi, gmApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
+import NotificationBell from '@/components/NotificationBell';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
 
 // Reusing interfaces from GM/Admin
@@ -204,6 +205,9 @@ export default function TLDashboard() {
 
     return (
         <div className="dashboard-container">
+            <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
+                <NotificationBell />
+            </div>
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>

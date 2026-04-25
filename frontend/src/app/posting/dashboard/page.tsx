@@ -38,6 +38,7 @@ import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
+import NotificationBell from '@/components/NotificationBell';
 
 interface ContentItem {
     id: string;
@@ -174,6 +175,9 @@ export default function PostingDashboard() {
 
     return (
         <div className="dashboard-container">
+            <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
+                <NotificationBell />
+            </div>
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>

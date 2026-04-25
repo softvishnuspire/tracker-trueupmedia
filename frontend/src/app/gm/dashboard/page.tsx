@@ -48,6 +48,7 @@ import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
 import SkeletonCard from '@/components/SkeletonCard';
+import NotificationBell from '@/components/NotificationBell';
 import './gm.css';
 
 // Matches actual DB: content_items has id, client_id, title, scheduled_datetime, status, content_type, description
@@ -354,6 +355,9 @@ export default function GMDashboard() {
 
     return (
         <div className="dashboard-container">
+            <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
+                <NotificationBell />
+            </div>
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>

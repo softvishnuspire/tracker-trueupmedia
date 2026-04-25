@@ -14,6 +14,7 @@ import {
     X
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
+import NotificationBell from '@/components/NotificationBell';
 import './admin.css';
 
 export default function AdminLayout({
@@ -127,6 +128,9 @@ export default function AdminLayout({
       </aside>
 
       <main className="main-content">
+        <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
+          <NotificationBell />
+        </div>
         {children}
       </main>
     </div>

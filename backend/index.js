@@ -34,8 +34,6 @@ const NodeCache = require("node-cache");
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 const authenticateUser = async (req, res, next) => {
-    if (req.method === 'GET') return next();
-
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         console.warn(`⚠️  No token provided for ${req.method} ${req.url}`);
@@ -60,6 +58,8 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api', authenticateUser);
+
+const normalizeRole = (role) => (role || '').toString().trim().toUpperCase().replace(/[_\s]+/g, ' ');
 
 const STATUS_FLOWS = {
     'Reel': [
@@ -891,11 +891,19 @@ app.post('/api/notifications/send', async (req, res) => {
     try {
         const { title, message, type, target } = req.body;
         const sender = req.user; // from authenticateUser
+        const normalizedType = (type || 'INFO').toString().toUpperCase();
+
+        if (!title || !message || !target?.type) {
+            return res.status(400).json({ error: 'title, message and target are required' });
+        }
+        if (!['INFO', 'WARNING', 'URGENT'].includes(normalizedType)) {
+            return res.status(400).json({ error: 'Invalid notification type' });
+        }
 
         // Check sender role
         const { data: senderData, error: senderError } = await supabase
             .from('users')
-            .select('role')
+            .select('role, role_identifier')
             .eq('user_id', sender.id)
             .single();
 
@@ -903,15 +911,50 @@ app.post('/api/notifications/send', async (req, res) => {
             return res.status(401).json({ error: 'Sender role not found' });
         }
 
-        const senderRole = senderData.role;
-        if (senderRole !== 'Admin' && senderRole !== 'General Manager' && senderRole !== 'GM') {
+        const senderRole = normalizeRole(senderData.role);
+        const senderRoleIdentifier = normalizeRole(senderData.role_identifier);
+        const isAdmin = senderRole === 'ADMIN';
+        const isGM = senderRole === 'GENERAL MANAGER' || senderRole === 'GM' || senderRoleIdentifier === 'GM';
+
+        if (!isAdmin && !isGM) {
             return res.status(403).json({ error: 'Unauthorized to send notifications' });
         }
 
-        if (senderRole === 'General Manager' || senderRole === 'GM') {
-            const allowedRoles = ['TEAM LEAD', 'POSTING_TEAM'];
-            if (target.type === 'ROLE' && !allowedRoles.includes(target.value)) {
-                return res.status(403).json({ error: 'GM can only send to specific roles' });
+        const targetType = target.type.toString().toUpperCase();
+        const targetValue = target.value;
+
+        if (isGM) {
+            if (targetType === 'ALL') {
+                return res.status(403).json({ error: 'GM cannot broadcast to all users' });
+            }
+            if (targetType === 'ROLE') {
+                const normalizedTargetRole = normalizeRole(targetValue);
+                const allowedRoles = ['TEAM LEAD', 'POSTING TEAM'];
+                if (!allowedRoles.includes(normalizedTargetRole)) {
+                    return res.status(403).json({ error: 'GM can only notify Team Leads and Posting Team' });
+                }
+            } else if (targetType === 'ROLE_IDENTIFIER') {
+                const normalizedIdentifier = normalizeRole(targetValue);
+                if (!['TL1', 'TL2'].includes(normalizedIdentifier)) {
+                    return res.status(403).json({ error: 'GM can only target TL1 or TL2 role identifiers' });
+                }
+            } else if (targetType === 'USER') {
+                const { data: receiver } = await supabase
+                    .from('users')
+                    .select('role, role_identifier')
+                    .eq('user_id', targetValue)
+                    .single();
+                const receiverRole = normalizeRole(receiver?.role);
+                const receiverIdentifier = normalizeRole(receiver?.role_identifier);
+                const allowedDirectTargets = receiverRole === 'TEAM LEAD'
+                    || receiverRole === 'POSTING TEAM'
+                    || ['TL1', 'TL2'].includes(receiverIdentifier);
+
+                if (!allowedDirectTargets) {
+                    return res.status(403).json({ error: 'GM can only message TL1/TL2/Posting Team users' });
+                }
+            } else {
+                return res.status(400).json({ error: 'Invalid target type' });
             }
         }
 
@@ -921,7 +964,7 @@ app.post('/api/notifications/send', async (req, res) => {
             .insert([{
                 title,
                 message,
-                type: type || 'INFO',
+                type: normalizedType,
                 sender_id: sender.id
             }])
             .select()
@@ -933,16 +976,25 @@ app.post('/api/notifications/send', async (req, res) => {
 
         // Determine Recipients
         let recipientQuery = supabase.from('users').select('user_id');
-        if (target.type === 'ROLE') {
-            recipientQuery = recipientQuery.eq('role', target.value);
-        } else if (target.type === 'USER') {
-            recipientQuery = recipientQuery.eq('user_id', target.value);
-        } else if (target.type === 'ALL') {
+        if (targetType === 'ROLE') {
+            const normalizedTargetRole = normalizeRole(targetValue);
+            if (normalizedTargetRole === 'POSTING TEAM') {
+                recipientQuery = recipientQuery.in('role', ['POSTING TEAM', 'POSTING_TEAM']);
+            } else if (normalizedTargetRole === 'GENERAL MANAGER') {
+                recipientQuery = recipientQuery.in('role', ['GENERAL MANAGER', 'GM']);
+            } else {
+                recipientQuery = recipientQuery.eq('role', normalizedTargetRole);
+            }
+        } else if (targetType === 'ROLE_IDENTIFIER') {
+            recipientQuery = recipientQuery.eq('role_identifier', targetValue);
+        } else if (targetType === 'USER') {
+            recipientQuery = recipientQuery.eq('user_id', targetValue);
+        } else if (targetType === 'ALL') {
             // keep default recipientQuery (all users)
         } else {
             return res.status(400).json({ error: 'Invalid target type' });
         }
-        
+
         const { data: users, error: usersError } = await recipientQuery;
         if (usersError || !users.length) {
             return res.status(400).json({ error: 'No recipients found' });
@@ -978,6 +1030,7 @@ app.get('/api/notifications', async (req, res) => {
             .from('notification_recipients')
             .select('id, is_read, read_at, notification_id, notifications(title, message, type, created_at, sender_id)')
             .eq('user_id', userId)
+            .order('created_at', { ascending: false, referencedTable: 'notifications' });
             // Can't directly order by referenced table in simple query without explicit join sometimes, 
             // but we'll try sorting after fetch if it's small, or use order with referenced table.
             // Supabase JS allows: .order('created_at', { referencedTable: 'notifications', ascending: false })
@@ -987,10 +1040,14 @@ app.get('/api/notifications', async (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
         }
         
-        // Sort descending by created_at of notification
-        data.sort((a, b) => new Date(b.notifications.created_at) - new Date(a.notifications.created_at));
+        // Fallback sorting if referencedTable order is unavailable
+        const sortedData = [...(data || [])].sort((a, b) => {
+            const dateA = a?.notifications?.created_at ? new Date(a.notifications.created_at).getTime() : 0;
+            const dateB = b?.notifications?.created_at ? new Date(b.notifications.created_at).getTime() : 0;
+            return dateB - dateA;
+        });
 
-        res.json(data);
+        res.json(sortedData);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
