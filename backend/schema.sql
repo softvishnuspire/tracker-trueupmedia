@@ -12,6 +12,8 @@ CREATE TABLE public.clients (
   is_active boolean DEFAULT true,
   is_deleted boolean DEFAULT false,
   team_lead_id uuid,
+  posts_per_month integer DEFAULT 0,
+  reels_per_month integer DEFAULT 0,
   CONSTRAINT clients_pkey PRIMARY KEY (id),
   CONSTRAINT clients_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id),
   CONSTRAINT clients_team_lead_id_fkey FOREIGN KEY (team_lead_id) REFERENCES public.users(user_id)

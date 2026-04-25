@@ -12,7 +12,9 @@ async function updateSchema() {
         `ALTER TABLE content_items ALTER COLUMN scheduled_date TYPE TIMESTAMP WITH TIME ZONE;`,
         `ALTER TABLE content_items RENAME COLUMN scheduled_date TO scheduled_datetime;`,
         `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;`,
-        `ALTER TABLE content_items ALTER COLUMN status SET DEFAULT 'CONTENT APPROVED';`
+        `ALTER TABLE content_items ALTER COLUMN status SET DEFAULT 'CONTENT APPROVED';`,
+        `ALTER TABLE clients ADD COLUMN IF NOT EXISTS posts_per_month INTEGER DEFAULT 0;`,
+        `ALTER TABLE clients ADD COLUMN IF NOT EXISTS reels_per_month INTEGER DEFAULT 0;`
     ];
 
     for (const query of queries) {

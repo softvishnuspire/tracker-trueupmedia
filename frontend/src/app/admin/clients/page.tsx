@@ -13,6 +13,8 @@ interface Client {
   email?: string;
   address?: string;
   is_active?: boolean;
+  posts_per_month?: number;
+  reels_per_month?: number;
   created_at: string;
 }
 
@@ -29,6 +31,8 @@ export default function ClientManagement() {
     phone: '',
     email: '',
     address: '',
+    posts_per_month: '',
+    reels_per_month: '',
   });
 
   const fetchClients = async () => {
@@ -48,7 +52,7 @@ export default function ClientManagement() {
 
   const handleAddClick = () => {
     setEditingClient(null);
-    setFormData({ company_name: '', phone: '', email: '', address: '' });
+    setFormData({ company_name: '', phone: '', email: '', address: '', posts_per_month: '', reels_per_month: '' });
     setShowModal(true);
   };
 
@@ -59,6 +63,8 @@ export default function ClientManagement() {
       phone: client.phone || '',
       email: client.email || '',
       address: client.address || '',
+      posts_per_month: client.posts_per_month?.toString() || '0',
+      reels_per_month: client.reels_per_month?.toString() || '0',
     });
     setShowModal(true);
   };
@@ -129,6 +135,8 @@ export default function ClientManagement() {
                 <th>Contact</th>
                 <th>Email</th>
                 <th>Address</th>
+                <th>Posts/mo</th>
+                <th>Reels/mo</th>
                 <th>Date Added</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
@@ -142,6 +150,8 @@ export default function ClientManagement() {
                       <td><Skeleton className="h-4 w-24" /></td>
                       <td><Skeleton className="h-4 w-40" /></td>
                       <td><Skeleton className="h-4 w-48" /></td>
+                      <td><Skeleton className="h-4 w-12" /></td>
+                      <td><Skeleton className="h-4 w-12" /></td>
                       <td><Skeleton className="h-4 w-20" /></td>
                       <td style={{ textAlign: 'right' }}><Skeleton className="h-8 w-24 ml-auto" /></td>
                     </tr>
@@ -155,6 +165,8 @@ export default function ClientManagement() {
                       <td data-label="Contact"><span>{client.phone || '-'}</span></td>
                       <td data-label="Email"><span>{client.email || '-'}</span></td>
                       <td data-label="Address" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span>{client.address || '-'}</span></td>
+                      <td data-label="Posts/mo"><span>{client.posts_per_month || '0'}</span></td>
+                      <td data-label="Reels/mo"><span>{client.reels_per_month || '0'}</span></td>
                       <td data-label="Date Added"><span>{new Date(client.created_at).toLocaleDateString()}</span></td>
                       <td data-label="Actions" style={{ textAlign: 'right' }}>
                         <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
@@ -173,7 +185,7 @@ export default function ClientManagement() {
                   ))}
                   {filteredClients.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                         No clients found matching your search.
                       </td>
                     </tr>
@@ -234,6 +246,32 @@ export default function ClientManagement() {
                   placeholder="Office address, city, country"
                   style={{ resize: 'none' }}
                 />
+              </div>
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Posts Per Month *</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    required 
+                    min="0"
+                    value={formData.posts_per_month}
+                    onChange={(e) => setFormData({...formData, posts_per_month: e.target.value})}
+                    placeholder="e.g. 12"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Reels Per Month *</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    required 
+                    min="0"
+                    value={formData.reels_per_month}
+                    onChange={(e) => setFormData({...formData, reels_per_month: e.target.value})}
+                    placeholder="e.g. 8"
+                  />
+                </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>

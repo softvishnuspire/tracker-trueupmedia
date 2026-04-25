@@ -261,9 +261,18 @@ app.get('/api/admin/clients', async (req, res) => {
 });
 
 app.post('/api/admin/clients', async (req, res) => {
-    const { company_name, phone, email, address } = req.body;
+    const { company_name, phone, email, address, posts_per_month, reels_per_month } = req.body;
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
-    const { data, error } = await supabase.from('clients').insert([{ company_name, phone, email, address, is_active: true, is_deleted: false }]).select();
+    const { data, error } = await supabase.from('clients').insert([{ 
+        company_name, 
+        phone, 
+        email, 
+        address, 
+        posts_per_month: parseInt(posts_per_month) || 0,
+        reels_per_month: parseInt(reels_per_month) || 0,
+        is_active: true, 
+        is_deleted: false 
+    }]).select();
     if (error) return res.status(500).json({ error: error.message });
     myCache.del(["gm_clients", "admin_clients"]);
     res.json(data[0]);
@@ -271,8 +280,16 @@ app.post('/api/admin/clients', async (req, res) => {
 
 app.put('/api/admin/clients/:id', async (req, res) => {
     const { id } = req.params;
-    const { company_name, phone, email, address, is_active } = req.body;
-    const { data, error } = await supabase.from('clients').update({ company_name, phone, email, address, is_active }).eq('id', id).select();
+    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month } = req.body;
+    const { data, error } = await supabase.from('clients').update({ 
+        company_name, 
+        phone, 
+        email, 
+        address, 
+        is_active,
+        posts_per_month: parseInt(posts_per_month) || 0,
+        reels_per_month: parseInt(reels_per_month) || 0
+    }).eq('id', id).select();
     if (error) return res.status(500).json({ error: error.message });
     myCache.del(["gm_clients", "admin_clients"]);
     res.json(data[0]);

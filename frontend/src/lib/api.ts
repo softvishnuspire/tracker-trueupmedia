@@ -24,6 +24,8 @@ export interface Client {
     email?: string;
     address?: string;
     is_active?: boolean;
+    posts_per_month?: number;
+    reels_per_month?: number;
     created_at: string;
 }
 
