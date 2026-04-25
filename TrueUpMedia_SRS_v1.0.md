@@ -9,7 +9,7 @@ Content Management & Scheduling Platform
 Admin & General Manager Access
 
   ---------------------------- -----------------------------------------
-  **Document Version**         1.0
+  **Document Version**         1.0  
 
   **Date**                     April 22, 2026
 
