@@ -1029,18 +1029,14 @@ app.get('/api/notifications', async (req, res) => {
         const { data, error } = await supabase
             .from('notification_recipients')
             .select('id, is_read, read_at, notification_id, notifications(title, message, type, created_at, sender_id)')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false, referencedTable: 'notifications' });
-            // Can't directly order by referenced table in simple query without explicit join sometimes, 
-            // but we'll try sorting after fetch if it's small, or use order with referenced table.
-            // Supabase JS allows: .order('created_at', { referencedTable: 'notifications', ascending: false })
-            // but if it fails, we fallback to frontend sorting. Let's just fetch and sort.
+            .eq('user_id', userId);
         
         if (error) {
+            console.error('Failed to fetch notifications:', error);
             return res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
         }
         
-        // Fallback sorting if referencedTable order is unavailable
+        // Sort by notification created_at descending
         const sortedData = [...(data || [])].sort((a, b) => {
             const dateA = a?.notifications?.created_at ? new Date(a.notifications.created_at).getTime() : 0;
             const dateB = b?.notifications?.created_at ? new Date(b.notifications.created_at).getTime() : 0;
@@ -1049,6 +1045,7 @@ app.get('/api/notifications', async (req, res) => {
 
         res.json(sortedData);
     } catch (err) {
+        console.error('Notification fetch error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -1088,10 +1085,12 @@ app.get('/api/notifications/unread-count', async (req, res) => {
             .eq('is_read', false);
 
         if (error) {
+            console.error('Failed to get unread count:', error);
             return res.status(500).json({ error: 'Failed to get unread count', details: error.message });
         }
         res.json({ count });
     } catch (err) {
+        console.error('Unread count error:', err);
         res.status(500).json({ error: err.message });
     }
 });
