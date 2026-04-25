@@ -24,7 +24,9 @@ import {
     Clock,
     Calendar as CalendarIcon,
     Plus,
-    ArrowLeft
+    ArrowLeft,
+    Edit,
+    Trash2
 } from 'lucide-react';
 import { gmApi, adminApi } from '@/lib/api';
 
@@ -51,6 +53,7 @@ export default function ClientCalendarPage() {
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -112,11 +115,38 @@ export default function ClientCalendarPage() {
         } catch (err) { console.error(err); }
     };
 
+    const handleEditClick = (item: ContentItem) => {
+        setEditingItem(item);
+        setFormData({
+            title: item.title,
+            description: item.description || '',
+            content_type: item.content_type,
+            scheduled_datetime: format(parseISO(item.scheduled_datetime), "yyyy-MM-dd'T'HH:mm"),
+            client_id: item.client_id
+        });
+        setSelectedItem(null);
+        setShowAddModal(true);
+    };
+
+    const handleDeleteContent = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this content item?')) return;
+        try {
+            await gmApi.deleteContent(id);
+            setSelectedItem(null);
+            fetchCalendarData();
+        } catch (err) { console.error(err); alert('Failed to delete content'); }
+    };
+
     const handleAddContent = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await gmApi.addContent(formData);
+            if (editingItem) {
+                await gmApi.updateContent(editingItem.id, formData);
+            } else {
+                await gmApi.addContent(formData);
+            }
             setShowAddModal(false);
+            setEditingItem(null);
             setFormData({
                 title: '',
                 description: '',
@@ -125,7 +155,7 @@ export default function ClientCalendarPage() {
                 client_id: clientId
             });
             fetchCalendarData();
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error(err); alert('Error saving content'); }
     };
 
     if (!client && !loading) return <div className="p-8">Loading client info...</div>;
@@ -290,7 +320,25 @@ export default function ClientCalendarPage() {
                                 </div>
                                 <h3 className="modal-title">{selectedItem.item.title}</h3>
                             </div>
-                            <button onClick={() => setSelectedItem(null)} className="modal-close"><X size={20}/></button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <button 
+                                    onClick={() => handleEditClick(selectedItem.item)} 
+                                    className="btn-icon" 
+                                    title="Edit Content"
+                                    style={{ color: 'var(--accent)' }}
+                                >
+                                    <Edit size={18} />
+                                </button>
+                                <button 
+                                    onClick={() => handleDeleteContent(selectedItem.item.id)} 
+                                    className="btn-icon" 
+                                    title="Delete Content"
+                                    style={{ color: '#ef4444' }}
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                                <button onClick={() => setSelectedItem(null)} className="modal-close"><X size={20}/></button>
+                            </div>
                         </div>
                         
                         <div className="detail-grid">
@@ -348,8 +396,8 @@ export default function ClientCalendarPage() {
                 <div className="modal-overlay">
                     <div className="modal-content">
                         <div className="modal-header">
-                            <h3 className="modal-title">Schedule New Content</h3>
-                            <button onClick={() => setShowAddModal(false)} className="modal-close"><X size={20}/></button>
+                            <h3 className="modal-title">{editingItem ? 'Edit Content' : 'Schedule New Content'}</h3>
+                            <button onClick={() => { setShowAddModal(false); setEditingItem(null); }} className="modal-close"><X size={20}/></button>
                         </div>
                         <form onSubmit={handleAddContent}>
                             <div className="form-group">
@@ -369,6 +417,7 @@ export default function ClientCalendarPage() {
                                     className="form-input"
                                     value={formData.content_type}
                                     onChange={(e) => setFormData({...formData, content_type: e.target.value as 'Post' | 'Reel'})}
+                                    disabled={!!editingItem}
                                 >
                                     <option value="Post">Post</option>
                                     <option value="Reel">Reel</option>
@@ -396,9 +445,9 @@ export default function ClientCalendarPage() {
                                 />
                             </div>
                             <div className="modal-footer">
-                                <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)}>Cancel</button>
+                                <button type="button" className="btn-secondary" onClick={() => { setShowAddModal(false); setEditingItem(null); }}>Cancel</button>
                                 <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }}>
-                                    Schedule
+                                    {editingItem ? 'Update' : 'Schedule'}
                                 </button>
                             </div>
                         </form>

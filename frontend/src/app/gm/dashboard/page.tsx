@@ -32,7 +32,9 @@ import {
     ArrowRight,
     LogOut,
     Filter,
-    Menu
+    Menu,
+    Edit,
+    Trash2
 } from 'lucide-react';
 import { gmApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -219,6 +221,29 @@ export default function GMDashboard() {
             setActiveItem(res.data);
             setIsDetailsOpen(true);
         } catch (err) { console.error(err); }
+    };
+
+    const handleEditClick = (item: ContentItem) => {
+        setEditingItem(item);
+        const dt = parseISO(item.scheduled_datetime);
+        setSelectedDate(dt);
+        setFormData({
+            title: item.title,
+            description: item.description || '',
+            content_type: item.content_type,
+            time: format(dt, 'HH:mm')
+        });
+        setIsDetailsOpen(false);
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteContent = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this content item?')) return;
+        try {
+            await gmApi.deleteContent(id);
+            setIsDetailsOpen(false);
+            if (view === 'master') fetchMasterCalendar(); else fetchClientCalendar();
+        } catch (err) { console.error(err); alert('Failed to delete content'); }
     };
 
     const handleStatusUpdate = async (newStatus: string) => {
@@ -799,8 +824,8 @@ export default function GMDashboard() {
                 <div className="modal-overlay">
                     <div className="modal-content">
                         <div className="modal-header">
-                            <h3 className="modal-title">Schedule New Content</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="modal-close"><X size={20} /></button>
+                            <h3 className="modal-title">{editingItem ? 'Edit Content' : 'Schedule New Content'}</h3>
+                            <button onClick={() => { setIsModalOpen(false); setEditingItem(null); }} className="modal-close"><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="modal-form">
                             <div className="form-group">
@@ -814,7 +839,12 @@ export default function GMDashboard() {
                             <div className="form-row">
                                 <div className="form-group">
                                     <label className="form-label">Type</label>
-                                    <select className="form-input" value={formData.content_type} onChange={e => setFormData({ ...formData, content_type: e.target.value as any })}>
+                                    <select 
+                                        className="form-input" 
+                                        value={formData.content_type} 
+                                        onChange={e => setFormData({ ...formData, content_type: e.target.value as any })}
+                                        disabled={!!editingItem}
+                                    >
                                         <option value="Post">Post</option>
                                         <option value="Reel">Reel</option>
                                     </select>
@@ -825,8 +855,8 @@ export default function GMDashboard() {
                                 </div>
                             </div>
                             <button type="submit" className="btn-primary">
-                                <Plus size={18} />
-                                Create Content Schedule
+                                {editingItem ? <Edit size={18} /> : <Plus size={18} />}
+                                {editingItem ? 'Update Content' : 'Create Content Schedule'}
                             </button>
                         </form>
                     </div>
@@ -887,7 +917,25 @@ export default function GMDashboard() {
                                 </div>
                                 <h3 className="modal-title" style={{ marginTop: '8px' }}>{activeItem.item.title}</h3>
                             </div>
-                            <button onClick={() => setIsDetailsOpen(false)} className="modal-close"><X size={20} /></button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <button 
+                                    onClick={() => handleEditClick(activeItem.item)} 
+                                    className="btn-icon" 
+                                    title="Edit Content"
+                                    style={{ color: 'var(--accent)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                >
+                                    <Edit size={18} />
+                                </button>
+                                <button 
+                                    onClick={() => handleDeleteContent(activeItem.item.id)} 
+                                    className="btn-icon" 
+                                    title="Delete Content"
+                                    style={{ color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                                <button onClick={() => setIsDetailsOpen(false)} className="modal-close"><X size={20} /></button>
+                            </div>
                         </div>
 
                         <div className="detail-grid">
