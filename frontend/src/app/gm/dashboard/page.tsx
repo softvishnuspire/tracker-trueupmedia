@@ -985,7 +985,7 @@ export default function GMDashboard() {
                                                     <p className="status-label">Current</p>
                                                     <p className="status-value">{activeItem.item.status}</p>
                                                 </div>
-                                                {nextStatus && (
+                                                {nextStatus && activeItem.item.status !== 'WAITING FOR POSTING' && (
                                                     <div className="advance-section">
                                                         <div className="note-input-container">
                                                             <label className="detail-label">Add a note (optional)</label>
@@ -1003,6 +1003,26 @@ export default function GMDashboard() {
                                                             <span>Advance to {nextStatus}</span>
                                                             <ArrowRight size={18} className="advance-arrow" />
                                                         </button>
+                                                    </div>
+                                                )}
+                                                {nextStatus && activeItem.item.status === 'WAITING FOR POSTING' && (
+                                                    <div className="workflow-waiting-posting" style={{ 
+                                                        marginTop: '16px', 
+                                                        padding: '16px', 
+                                                        background: 'rgba(59, 130, 246, 0.05)', 
+                                                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                                                        color: '#3b82f6', 
+                                                        borderRadius: '12px', 
+                                                        fontSize: '13px', 
+                                                        display: 'flex', 
+                                                        flexDirection: 'column',
+                                                        alignItems: 'center', 
+                                                        textAlign: 'center',
+                                                        gap: '8px' 
+                                                    }}>
+                                                        <Clock size={20} />
+                                                        <div style={{ fontWeight: 700 }}>Waiting for Posting Team</div>
+                                                        <div style={{ opacity: 0.8, fontSize: '12px' }}>This item has been sent to the posting team queue. They will mark it as posted once published.</div>
                                                     </div>
                                                 )}
                                                 {!nextStatus && (
