@@ -12,7 +12,10 @@ import {
     isSameDay, 
     addMonths, 
     subMonths,
-    parseISO
+    parseISO,
+    isPast,
+    isBefore,
+    startOfDay
 } from 'date-fns';
 import { 
     ChevronLeft, 
@@ -24,7 +27,8 @@ import {
     Calendar as CalendarIcon,
     Filter,
     ChevronDown,
-    Check
+    Check,
+    CalendarClock
 } from 'lucide-react';
 import { gmApi, adminApi } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -37,6 +41,7 @@ interface ContentItem {
     scheduled_datetime: string;
     status: string;
     client_id: string;
+    is_rescheduled?: boolean;
     clients?: { company_name: string };
 }
 
@@ -238,10 +243,11 @@ export default function MasterCalendar() {
                                                 <div 
                                                     key={item.id}
                                                     onClick={() => handleItemClick(item)}
-                                                    className={`content-item ${item.content_type.toLowerCase()}`}
+                                                    className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
                                                 >
                                                     {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                                        {item.is_rescheduled ? '[R] ' : ''}
                                                         [{item.clients?.company_name?.substring(0, 3)}] {item.content_type}
                                                     </span>
                                                 </div>
@@ -251,7 +257,7 @@ export default function MasterCalendar() {
                                             {dayContent.map(item => (
                                                 <div 
                                                     key={item.id}
-                                                    className={`mobile-dot ${item.content_type.toLowerCase()}`}
+                                                    className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
                                                 ></div>
                                             ))}
                                         </div>
@@ -339,6 +345,18 @@ export default function MasterCalendar() {
                                         </div>
                                     </div>
                                 </div>
+                                {(() => {
+                                    const isOverdue = isBefore(parseISO(selectedItem.item.scheduled_datetime), startOfDay(new Date())) && selectedItem.item.status !== 'POSTED';
+                                    if (isOverdue) {
+                                        return (
+                                            <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px' }}>
+                                                <CalendarClock size={18} />
+                                                Overdue - Needs Reschedule
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
 
                             <div>

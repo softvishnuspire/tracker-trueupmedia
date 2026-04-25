@@ -37,6 +37,7 @@ export interface ContentItem {
     scheduled_datetime: string;
     status: string;
     client_id: string;
+    is_rescheduled?: boolean;
     clients?: { company_name: string };
 }
 
@@ -54,6 +55,7 @@ export const gmApi = {
     getTeamLeads: () => api.get('/team-leads'),
     assignClient: (clientId: string, teamLeadId: string) => api.patch(`/clients/${clientId}/assign`, { team_lead_id: teamLeadId }),
     getTeamLeadClients: (teamLeadId: string) => api.get(`/team-leads/${teamLeadId}/clients`),
+    undoStatus: (contentId: string) => api.post(`/content/${contentId}/undo-status`),
 };
 
 const adminBase = axios.create({

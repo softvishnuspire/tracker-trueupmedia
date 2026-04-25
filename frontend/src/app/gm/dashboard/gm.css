@@ -619,6 +619,10 @@
         background: #a855f7 !important;
     }
 
+    .mobile-dot.rescheduled {
+        background: #ef4444 !important;
+    }
+
     /* Aggressively hide all desktop event blocks on mobile */
     .day-items.desktop-only, .content-item {
         display: none !important;
@@ -1148,6 +1152,16 @@
 
 .content-item.reel:hover {
     background: rgba(168, 85, 247, 0.2);
+}
+
+.content-item.rescheduled {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.content-item.rescheduled:hover {
+    background: rgba(239, 68, 68, 0.2);
 }
 
 /* ─── Modals ─── */

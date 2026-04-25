@@ -12,7 +12,10 @@ import {
     isSameDay,
     addMonths,
     subMonths,
-    parseISO
+    parseISO,
+    isPast,
+    isBefore,
+    startOfDay
 } from 'date-fns';
 import {
     ChevronLeft,
@@ -35,7 +38,9 @@ import {
     Menu,
     Edit,
     Trash2,
-    Check
+    Check,
+    CalendarClock,
+    Undo2
 } from 'lucide-react';
 import { gmApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -54,6 +59,7 @@ interface ContentItem {
     scheduled_datetime: string;
     status: string;
     client_id: string;
+    is_rescheduled?: boolean;
     clients?: { company_name: string };
 }
 
@@ -84,6 +90,7 @@ export default function GMDashboard() {
     const [activeItem, setActiveItem] = useState<any>(null);
     const [statusNote, setStatusNote] = useState('');
     const [user, setUser] = useState<any>(null);
+    const [isRescheduling, setIsRescheduling] = useState(false);
 
     const isMasterMode = view === 'master';
 
@@ -225,6 +232,22 @@ export default function GMDashboard() {
     };
 
     const handleEditClick = (item: ContentItem) => {
+        setIsRescheduling(false);
+        setEditingItem(item);
+        const dt = parseISO(item.scheduled_datetime);
+        setSelectedDate(dt);
+        setFormData({
+            content_type: item.content_type,
+            time: format(dt, 'HH:mm'),
+            title: item.title || '',
+            description: item.description || ''
+        });
+        setIsDetailsOpen(false);
+        setIsModalOpen(true);
+    };
+
+    const handleRescheduleClick = (item: ContentItem) => {
+        setIsRescheduling(true);
         setEditingItem(item);
         const dt = parseISO(item.scheduled_datetime);
         setSelectedDate(dt);
@@ -269,6 +292,20 @@ export default function GMDashboard() {
         }
     };
 
+    const handleUndoStatus = async () => {
+        if (!activeItem) return;
+        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        try {
+            await gmApi.undoStatus(activeItem.item.id);
+            const res = await gmApi.getContentDetails(activeItem.item.id);
+            setActiveItem(res.data);
+            if (isMasterMode) fetchMasterCalendar(); else fetchClientCalendar();
+        } catch (err) { 
+            console.error(err); 
+            alert('Failed to undo status change. It might be because there is no more history to undo.'); 
+        }
+    };
+
     const handleAssignClient = async (clientId: string, teamLeadId: string) => {
         try {
             await gmApi.assignClient(clientId, teamLeadId);
@@ -288,11 +325,23 @@ export default function GMDashboard() {
         const scheduled_datetime = format(selectedDate!, 'yyyy-MM-dd') + 'T' + formData.time + ':00';
         try {
             if (editingItem) {
-                await gmApi.updateContent(editingItem.id, { title: formData.title, description: formData.description, scheduled_datetime });
+                await gmApi.updateContent(editingItem.id, { 
+                    title: formData.title, 
+                    description: formData.description, 
+                    scheduled_datetime,
+                    is_rescheduled: isRescheduling ? true : editingItem.is_rescheduled
+                });
             } else {
-                await gmApi.addContent({ client_id: selectedClient, title: formData.title, description: formData.description, content_type: formData.content_type, scheduled_datetime });
+                await gmApi.addContent({ 
+                    client_id: selectedClient, 
+                    title: formData.title, 
+                    description: formData.description, 
+                    content_type: formData.content_type, 
+                    scheduled_datetime 
+                });
             }
             setIsModalOpen(false);
+            setIsRescheduling(false);
             if (view === 'master') fetchMasterCalendar(); else fetchClientCalendar();
         } catch (err) { alert('Error saving item'); }
     };
@@ -792,10 +841,11 @@ export default function GMDashboard() {
                                                         <div
                                                             key={item.id}
                                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                            className={`content-item ${item.content_type.toLowerCase()}`}
+                                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
                                                         >
                                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate">
+                                                                {item.is_rescheduled ? '[R] ' : ''}
                                                                 {view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
                                                                 {item.content_type}
                                                             </span>
@@ -806,7 +856,7 @@ export default function GMDashboard() {
                                                     {dayContent.map(item => (
                                                         <div 
                                                             key={item.id}
-                                                            className={`mobile-dot ${item.content_type.toLowerCase()}`}
+                                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
                                                         ></div>
                                                     ))}
                                                 </div>
@@ -830,27 +880,37 @@ export default function GMDashboard() {
                         </div>
                         <form onSubmit={handleSubmit} className="modal-form">
 
+                            <div className="form-group">
+                                <label className="form-label">Content Type</label>
+                                <select 
+                                    className="form-input" 
+                                    value={formData.content_type} 
+                                    onChange={e => setFormData({ ...formData, content_type: e.target.value as any })}
+                                    disabled={!!editingItem}
+                                >
+                                    <option value="Post">Post</option>
+                                    <option value="Reel">Reel</option>
+                                </select>
+                            </div>
+
                             <div className="form-row">
                                 <div className="form-group">
-                                    <label className="form-label">Type</label>
-                                    <select 
+                                    <label className="form-label">Date</label>
+                                    <input 
+                                        type="date" 
                                         className="form-input" 
-                                        value={formData.content_type} 
-                                        onChange={e => setFormData({ ...formData, content_type: e.target.value as any })}
-                                        disabled={!!editingItem}
-                                    >
-                                        <option value="Post">Post</option>
-                                        <option value="Reel">Reel</option>
-                                    </select>
+                                        value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''} 
+                                        onChange={e => setSelectedDate(parseISO(e.target.value))} 
+                                    />
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Time</label>
                                     <input type="time" className="form-input" value={formData.time} onChange={e => setFormData({ ...formData, time: e.target.value })} />
                                 </div>
                             </div>
-                            <button type="submit" className="btn-primary">
-                                {editingItem ? <Edit size={18} /> : <Plus size={18} />}
-                                {editingItem ? 'Update Content' : 'Create Content Schedule'}
+                            <button type="submit" className="btn-primary" style={{ background: isRescheduling ? '#ef4444' : '' }}>
+                                {isRescheduling ? <CalendarClock size={18} /> : editingItem ? <Edit size={18} /> : <Plus size={18} />}
+                                {isRescheduling ? 'Confirm Reschedule' : editingItem ? 'Update Content' : 'Create Content Schedule'}
                             </button>
                         </form>
                     </div>
@@ -948,6 +1008,37 @@ export default function GMDashboard() {
                                             <span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'p')}</span>
                                         </div>
                                     </div>
+                                    {(() => {
+                                        const isOverdue = isBefore(parseISO(activeItem.item.scheduled_datetime), startOfDay(new Date())) && activeItem.item.status !== 'POSTED';
+                                        if (isOverdue) {
+                                            return (
+                                                <button 
+                                                    onClick={() => handleRescheduleClick(activeItem.item)}
+                                                    className="btn-reschedule"
+                                                    style={{
+                                                        marginTop: '16px',
+                                                        width: '100%',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '8px',
+                                                        padding: '12px',
+                                                        background: 'rgba(239, 68, 68, 0.1)',
+                                                        color: '#ef4444',
+                                                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                        borderRadius: '10px',
+                                                        fontWeight: 700,
+                                                        fontSize: '13px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    <CalendarClock size={18} />
+                                                    Reschedule Task
+                                                </button>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             </div>
                             <div className="detail-workflow">
@@ -1040,7 +1131,23 @@ export default function GMDashboard() {
                         </div>
 
                         <div className="activity-log">
-                            <label className="detail-label">Activity Log</label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
+                                {activeItem.history.length > 0 && (
+                                    <button 
+                                        onClick={handleUndoStatus}
+                                        style={{ 
+                                            display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
+                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
+                                            border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
+                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                        }}
+                                    >
+                                        <Undo2 size={12} />
+                                        Undo Last Step
+                                    </button>
+                                )}
+                            </div>
                             <div className="timeline-container">
                                 <div className="timeline-line"></div>
                                 {(() => {

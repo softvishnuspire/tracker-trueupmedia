@@ -162,10 +162,10 @@ app.post('/api/gm/content', async (req, res) => {
 
 app.put('/api/gm/content/:id', async (req, res) => {
     const { id } = req.params;
-    const { title, description, scheduled_datetime } = req.body;
+    const { title, description, scheduled_datetime, is_rescheduled } = req.body;
     const { data, error } = await supabase
         .from('content_items')
-        .update({ title, description, scheduled_datetime })
+        .update({ title, description, scheduled_datetime, is_rescheduled })
         .eq('id', id)
         .select();
     if (error) return res.status(500).json({ error: error.message });
@@ -250,6 +250,41 @@ app.patch('/api/gm/content/:id/status', async (req, res) => {
     }
 
     res.json({ message: 'Status updated successfully' });
+});
+
+app.post('/api/gm/content/:id/undo-status', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Fetch the latest log
+        const { data: latestLog, error: logFetchError } = await supabase
+            .from('status_logs')
+            .select('*')
+            .eq('item_id', id)
+            .order('changed_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (logFetchError || !latestLog) {
+            return res.status(404).json({ error: 'No status history found to undo' });
+        }
+
+        // Revert status in content_items
+        const { error: revertError } = await supabase
+            .from('content_items')
+            .update({ status: latestLog.old_status, updated_at: new Date().toISOString() })
+            .eq('id', id);
+
+        if (revertError) {
+            return res.status(500).json({ error: 'Failed to revert status' });
+        }
+
+        // Delete the log entry
+        await supabase.from('status_logs').delete().eq('id', latestLog.id);
+
+        res.json({ message: 'Status reverted successfully', previous_status: latestLog.old_status });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // ─── Admin: Client Management ───

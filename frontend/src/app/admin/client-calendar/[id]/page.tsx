@@ -13,7 +13,10 @@ import {
     isSameDay, 
     addMonths, 
     subMonths,
-    parseISO
+    parseISO,
+    isPast,
+    isBefore,
+    startOfDay
 } from 'date-fns';
 import { 
     ChevronLeft, 
@@ -27,7 +30,9 @@ import {
     ArrowLeft,
     Edit,
     Trash2,
-    Check
+    Check,
+    CalendarClock,
+    Undo2
 } from 'lucide-react';
 import { gmApi, adminApi } from '@/lib/api';
 
@@ -39,6 +44,7 @@ interface ContentItem {
     scheduled_datetime: string;
     status: string;
     client_id: string;
+    is_rescheduled?: boolean;
 }
 
 export default function ClientCalendarPage() {
@@ -55,6 +61,7 @@ export default function ClientCalendarPage() {
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
+    const [isRescheduling, setIsRescheduling] = useState(false);
 
     const [formData, setFormData] = useState({
         content_type: 'Post' as 'Post' | 'Reel',
@@ -117,6 +124,21 @@ export default function ClientCalendarPage() {
     };
 
     const handleEditClick = (item: ContentItem) => {
+        setIsRescheduling(false);
+        setEditingItem(item);
+        setFormData({
+            content_type: item.content_type,
+            scheduled_datetime: format(parseISO(item.scheduled_datetime), "yyyy-MM-dd'T'HH:mm"),
+            client_id: item.client_id,
+            title: item.title || '',
+            description: item.description || ''
+        });
+        setSelectedItem(null);
+        setShowAddModal(true);
+    };
+
+    const handleRescheduleClick = (item: ContentItem) => {
+        setIsRescheduling(true);
         setEditingItem(item);
         setFormData({
             content_type: item.content_type,
@@ -138,16 +160,34 @@ export default function ClientCalendarPage() {
         } catch (err) { console.error(err); alert('Failed to delete content'); }
     };
 
+    const handleUndoStatus = async () => {
+        if (!selectedItem) return;
+        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        try {
+            await gmApi.undoStatus(selectedItem.item.id);
+            const res = await gmApi.getContentDetails(selectedItem.item.id);
+            setSelectedItem(res.data);
+            fetchCalendarData();
+        } catch (err) { 
+            console.error(err); 
+            alert('Failed to undo status change. It might be because there is no more history to undo.'); 
+        }
+    };
+
     const handleAddContent = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             if (editingItem) {
-                await gmApi.updateContent(editingItem.id, formData);
+                await gmApi.updateContent(editingItem.id, {
+                    ...formData,
+                    is_rescheduled: isRescheduling ? true : editingItem.is_rescheduled
+                });
             } else {
                 await gmApi.addContent(formData);
             }
             setShowAddModal(false);
             setEditingItem(null);
+            setIsRescheduling(false);
             setFormData({
                 content_type: 'Post',
                 scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
@@ -249,10 +289,11 @@ export default function ClientCalendarPage() {
                                         <div 
                                             key={item.id}
                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                            className={`content-item ${item.content_type.toLowerCase()}`}
+                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
                                         >
                                             {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
                                             <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                                {item.is_rescheduled ? '[R] ' : ''}
                                                 {item.content_type}
                                             </span>
                                         </div>
@@ -262,7 +303,7 @@ export default function ClientCalendarPage() {
                                     {dayContent.map(item => (
                                         <div 
                                             key={item.id}
-                                            className={`mobile-dot ${item.content_type.toLowerCase()}`}
+                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
                                         ></div>
                                     ))}
                                 </div>
@@ -354,14 +395,22 @@ export default function ClientCalendarPage() {
                                             {format(parseISO(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}
                                         </div>
                                     </div>
-                                    <div>
-                                        <label className="detail-label">Posting Time</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                            <Clock size={14} style={{ color: 'var(--accent)' }}/>
-                                            {format(parseISO(selectedItem.item.scheduled_datetime), 'hh:mm a')}
-                                        </div>
-                                    </div>
                                 </div>
+                                {(() => {
+                                    const isOverdue = isBefore(parseISO(selectedItem.item.scheduled_datetime), startOfDay(new Date())) && selectedItem.item.status !== 'POSTED';
+                                    if (isOverdue) {
+                                        return (
+                                            <button 
+                                                onClick={() => handleRescheduleClick(selectedItem.item)}
+                                                style={{ marginTop: '16px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 700, fontSize: '13px', width: '100%', cursor: 'pointer' }}
+                                            >
+                                                <CalendarClock size={18} />
+                                                Reschedule Task
+                                            </button>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
 
                             <div>
@@ -371,7 +420,23 @@ export default function ClientCalendarPage() {
                                     <p style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)' }}>{selectedItem.item.status}</p>
                                 </div>
 
-                                <label className="detail-label">Activity Log</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
+                                    {selectedItem.history.length > 0 && (
+                                        <button 
+                                            onClick={handleUndoStatus}
+                                            style={{ 
+                                                display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
+                                                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
+                                                border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
+                                                fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                            }}
+                                        >
+                                            <Undo2 size={12} />
+                                            Undo Last Step
+                                        </button>
+                                    )}
+                                </div>
                                 <div style={{ marginTop: '24px', position: 'relative', paddingLeft: '12px', display: 'flex', flexDirection: 'column' }}>
                                     <div style={{ 
                                         position: 'absolute', left: '23px', top: '12px', bottom: '12px', 
@@ -499,8 +564,8 @@ export default function ClientCalendarPage() {
 
                             <div className="modal-footer">
                                 <button type="button" className="btn-secondary" onClick={() => { setShowAddModal(false); setEditingItem(null); }}>Cancel</button>
-                                <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }}>
-                                    {editingItem ? 'Update' : 'Schedule'}
+                                <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '10px 24px', background: isRescheduling ? '#ef4444' : '' }}>
+                                    {isRescheduling ? 'Confirm Reschedule' : editingItem ? 'Update' : 'Schedule'}
                                 </button>
                             </div>
                         </form>
