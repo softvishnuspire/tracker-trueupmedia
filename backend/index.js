@@ -884,6 +884,161 @@ app.patch('/api/posting/content/:id/post', async (req, res) => {
     }
 });
 
+// ─── Notifications ───
+
+// Send Notification (Admin or GM only)
+app.post('/api/notifications/send', async (req, res) => {
+    try {
+        const { title, message, type, target } = req.body;
+        const sender = req.user; // from authenticateUser
+
+        // Check sender role
+        const { data: senderData, error: senderError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('user_id', sender.id)
+            .single();
+
+        if (senderError || !senderData) {
+            return res.status(401).json({ error: 'Sender role not found' });
+        }
+
+        const senderRole = senderData.role;
+        if (senderRole !== 'Admin' && senderRole !== 'General Manager' && senderRole !== 'GM') {
+            return res.status(403).json({ error: 'Unauthorized to send notifications' });
+        }
+
+        if (senderRole === 'General Manager' || senderRole === 'GM') {
+            const allowedRoles = ['Team Lead 1', 'Team Lead 2', 'Posting Team', 'TL1', 'TL2'];
+            if (target.type === 'ROLE' && !allowedRoles.includes(target.value)) {
+                return res.status(403).json({ error: 'GM can only send to specific roles' });
+            }
+        }
+
+        // Insert Notification
+        const { data: notification, error: notifError } = await supabase
+            .from('notifications')
+            .insert([{
+                title,
+                message,
+                type: type || 'INFO',
+                sender_id: sender.id
+            }])
+            .select()
+            .single();
+
+        if (notifError) {
+            return res.status(500).json({ error: 'Failed to create notification', details: notifError.message });
+        }
+
+        // Determine Recipients
+        let recipientQuery = supabase.from('users').select('user_id');
+        if (target.type === 'ROLE') {
+            recipientQuery = recipientQuery.eq('role', target.value);
+        } else if (target.type === 'USER') {
+            recipientQuery = recipientQuery.eq('user_id', target.value);
+        } else if (target.type === 'ALL') {
+            // keep default recipientQuery (all users)
+        } else {
+            return res.status(400).json({ error: 'Invalid target type' });
+        }
+        
+        const { data: users, error: usersError } = await recipientQuery;
+        if (usersError || !users.length) {
+            return res.status(400).json({ error: 'No recipients found' });
+        }
+
+        // Insert Recipients
+        const recipientInserts = users.map(u => ({
+            notification_id: notification.notification_id,
+            user_id: u.user_id
+        }));
+
+        const { error: recipError } = await supabase
+            .from('notification_recipients')
+            .insert(recipientInserts);
+
+        if (recipError) {
+            return res.status(500).json({ error: 'Failed to assign recipients', details: recipError.message });
+        }
+
+        res.json({ message: 'Notification sent successfully', notification });
+    } catch (err) {
+        console.error('Send notification error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get User Notifications
+app.get('/api/notifications', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        const { data, error } = await supabase
+            .from('notification_recipients')
+            .select('id, is_read, read_at, notification_id, notifications(title, message, type, created_at, sender_id)')
+            .eq('user_id', userId)
+            // Can't directly order by referenced table in simple query without explicit join sometimes, 
+            // but we'll try sorting after fetch if it's small, or use order with referenced table.
+            // Supabase JS allows: .order('created_at', { referencedTable: 'notifications', ascending: false })
+            // but if it fails, we fallback to frontend sorting. Let's just fetch and sort.
+        
+        if (error) {
+            return res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
+        }
+        
+        // Sort descending by created_at of notification
+        data.sort((a, b) => new Date(b.notifications.created_at) - new Date(a.notifications.created_at));
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mark as Read
+app.patch('/api/notifications/:id/read', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const notificationId = req.params.id; // From URL, user gives the notification_id
+        
+        const { error } = await supabase
+            .from('notification_recipients')
+            .update({
+                is_read: true,
+                read_at: new Date().toISOString()
+            })
+            .eq('notification_id', notificationId)
+            .eq('user_id', userId);
+
+        if (error) {
+            return res.status(500).json({ error: 'Failed to mark as read', details: error.message });
+        }
+        res.json({ message: 'Marked as read' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Unread Count
+app.get('/api/notifications/unread-count', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { count, error } = await supabase
+            .from('notification_recipients')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('is_read', false);
+
+        if (error) {
+            return res.status(500).json({ error: 'Failed to get unread count', details: error.message });
+        }
+        res.json({ count });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.use((err, req, res, next) => {
     console.error('Unhandled Error:', err);
     res.status(500).json({ error: 'Internal Server Error', message: err.message });
