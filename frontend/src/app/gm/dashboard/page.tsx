@@ -257,6 +257,17 @@ export default function GMDashboard() {
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
         });
 
+    const monthStatusCounts = calendarData.reduce(
+        (acc, item) => {
+            const normalizedStatus = (item.status || '').toUpperCase();
+            if (normalizedStatus.includes('CONTENT')) acc.content += 1;
+            if (normalizedStatus.includes('DESIGN')) acc.design += 1;
+            if (normalizedStatus === 'POSTED') acc.posted += 1;
+            return acc;
+        },
+        { content: 0, design: 0, posted: 0 }
+    );
+
     const handlePrev = () => {
         if (viewMode === 'month') setCurrentMonth(subMonths(currentMonth, 1));
         else setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() - 7)));
@@ -553,7 +564,7 @@ export default function GMDashboard() {
                     <div style={{ width: '40px' }}></div> {/* Spacer */}
                 </div>
 
-                <header className="page-header">
+                <header className="page-header page-header-safe">
                     <div className="header-content">
                         <div className="header-info">
                             <h1 className="page-title">
@@ -657,6 +668,23 @@ export default function GMDashboard() {
                         </div>
                     </div>
                 </header>
+
+                {(view === 'client' || view === 'master') && (
+                    <div className="status-summary-row">
+                        <div className="status-pill status-pill-content">
+                            <span className="status-pill-label">Content</span>
+                            <span className="status-pill-count">{monthStatusCounts.content}</span>
+                        </div>
+                        <div className="status-pill status-pill-design">
+                            <span className="status-pill-label">Design</span>
+                            <span className="status-pill-count">{monthStatusCounts.design}</span>
+                        </div>
+                        <div className="status-pill status-pill-posted">
+                            <span className="status-pill-label">Posted</span>
+                            <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                        </div>
+                    </div>
+                )}
 
                 {view === 'dashboard' && (
                     <div className="daily-stats-banner">

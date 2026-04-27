@@ -138,11 +138,22 @@ export default function CooClientCalendarPage() {
         }
     };
 
+    const monthStatusCounts = calendarData.reduce(
+        (acc, item) => {
+            const normalizedStatus = (item.status || '').toUpperCase();
+            if (normalizedStatus.includes('CONTENT')) acc.content += 1;
+            if (normalizedStatus.includes('DESIGN')) acc.design += 1;
+            if (normalizedStatus === 'POSTED') acc.posted += 1;
+            return acc;
+        },
+        { content: 0, design: 0, posted: 0 }
+    );
+
     if (!client && !loading) return <div className="p-8">Loading client info...</div>;
 
     return (
         <div>
-            <header className="page-header">
+            <header className="page-header page-header-safe">
                 <div className="header-content">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <button onClick={() => router.back()} className="btn-icon">
@@ -183,6 +194,21 @@ export default function CooClientCalendarPage() {
                     </div>
                 </div>
             </header>
+
+            <div className="status-summary-row">
+                <div className="status-pill status-pill-content">
+                    <span className="status-pill-label">Content</span>
+                    <span className="status-pill-count">{monthStatusCounts.content}</span>
+                </div>
+                <div className="status-pill status-pill-design">
+                    <span className="status-pill-label">Design</span>
+                    <span className="status-pill-count">{monthStatusCounts.design}</span>
+                </div>
+                <div className="status-pill status-pill-posted">
+                    <span className="status-pill-label">Posted</span>
+                    <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                </div>
+            </div>
 
             {loading && <div className="loading-bar">Updating calendar...</div>}
 
