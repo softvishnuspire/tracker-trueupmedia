@@ -99,8 +99,8 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px',
-                    padding: '10px 20px',
+                    justifyContent: 'center',
+                    padding: '12px',
                     background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
                     color: 'white',
                     border: 'none',
@@ -113,7 +113,9 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     letterSpacing: '0.02em',
                     textTransform: 'none',
                     position: 'relative',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    width: '45px',
+                    height: '45px'
                 }}
                 onMouseOver={(e) => {
                     e.currentTarget.style.transform = 'translateY(-2px)';
@@ -128,18 +130,13 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    padding: '6px',
-                    borderRadius: '8px',
-                    marginLeft: '-4px'
                 }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
                 </div>
-                <span>Download Schedule</span>
             </button>
 
             {/* Hidden Export Template */}
