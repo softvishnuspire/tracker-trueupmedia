@@ -980,6 +980,75 @@ app.get('/api/tl/master-calendar', async (req, res) => {
     res.json(data);
 });
 
+// ─── POC Communication (Team Lead + GM) ───
+app.get('/api/tl/poc-notes', async (req, res) => {
+    const { month, tlId } = req.query;
+    if (!month || !tlId) return res.status(400).json({ error: 'Missing month or tlId' });
+
+    const [year, mon] = month.split('-');
+    const startDate = `${year}-${mon}-01`;
+    const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}`;
+
+    const { data, error } = await supabase
+        .from('poc_communications')
+        .select(`id, team_lead_id, note_date, note_text, created_at, users:team_lead_id (name, role_identifier)`)
+        .eq('team_lead_id', tlId)
+        .gte('note_date', startDate)
+        .lte('note_date', endDate)
+        .order('note_date', { ascending: true })
+        .order('created_at', { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data || []);
+});
+
+app.post('/api/tl/poc-notes', async (req, res) => {
+    const { tlId, note_date, note_text } = req.body;
+    if (!tlId || !note_date || !note_text?.trim()) {
+        return res.status(400).json({ error: 'tlId, note_date and note_text are required' });
+    }
+
+    const { data, error } = await supabase
+        .from('poc_communications')
+        .insert([{
+            team_lead_id: tlId,
+            note_date,
+            note_text: note_text.trim()
+        }])
+        .select(`id, team_lead_id, note_date, note_text, created_at, users:team_lead_id (name, role_identifier)`)
+        .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+app.get('/api/gm/poc-notes', async (req, res) => {
+    const { month, team_lead_id } = req.query;
+    if (!month) return res.status(400).json({ error: 'Missing month' });
+
+    const [year, mon] = month.split('-');
+    const startDate = `${year}-${mon}-01`;
+    const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}`;
+
+    let query = supabase
+        .from('poc_communications')
+        .select(`id, team_lead_id, note_date, note_text, created_at, users:team_lead_id (name, role_identifier)`)
+        .gte('note_date', startDate)
+        .lte('note_date', endDate)
+        .order('note_date', { ascending: true })
+        .order('created_at', { ascending: false });
+
+    if (team_lead_id) {
+        query = query.eq('team_lead_id', team_lead_id);
+    }
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data || []);
+});
+
 // ─── Posting Team Endpoints ───
 
 // Today's Posting Queue

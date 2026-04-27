@@ -58,6 +58,15 @@ interface ContentItem {
     clients?: { company_name: string };
 }
 
+interface PocNote {
+    id: string;
+    team_lead_id: string;
+    note_date: string;
+    note_text: string;
+    created_at: string;
+    users?: { name?: string; role_identifier?: string };
+}
+
 const normalizeRole = (role?: string | null) => (role || '').trim().toLowerCase().replace(/[_\s]+/g, ' ');
 
 export default function TLDashboard() {
@@ -70,10 +79,14 @@ export default function TLDashboard() {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'poc'>('dashboard');
     const [searchQuery, setSearchQuery] = useState('');
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
+    const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
+    const [isPocModalOpen, setIsPocModalOpen] = useState(false);
+    const [selectedPocDate, setSelectedPocDate] = useState<Date | null>(null);
+    const [pocNoteText, setPocNoteText] = useState('');
 
     useEffect(() => {
         if (calendarData.length > 0) {
@@ -144,6 +157,8 @@ export default function TLDashboard() {
         if (user) {
             if (view === 'master' || view === 'dashboard') {
                 fetchMasterCalendar();
+            } else if (view === 'poc') {
+                fetchPocNotes();
             } else if (view === 'client' && selectedClient) {
                 fetchClientCalendar();
             }
@@ -185,6 +200,43 @@ export default function TLDashboard() {
             const emergencyRes = await emergencyApi.getAll();
             setEmergencyTasks(emergencyRes.data);
         } catch (err) { console.error(err); } finally { setLoading(false); }
+    };
+
+    const fetchPocNotes = async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            const res = await tlApi.getPocNotes(format(currentMonth, 'yyyy-MM'), user.id);
+            setPocNotes(res.data || []);
+        } catch (err) {
+            console.error('Error fetching POC notes:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePocDayClick = (date: Date) => {
+        setSelectedPocDate(date);
+        setPocNoteText('');
+        setIsPocModalOpen(true);
+    };
+
+    const handleSavePocNote = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !selectedPocDate || !pocNoteText.trim()) return;
+        try {
+            await tlApi.addPocNote({
+                tlId: user.id,
+                note_date: format(selectedPocDate, 'yyyy-MM-dd'),
+                note_text: pocNoteText.trim()
+            });
+            setIsPocModalOpen(false);
+            setPocNoteText('');
+            await fetchPocNotes();
+        } catch (err) {
+            console.error('Error saving POC note:', err);
+            alert('Failed to save note');
+        }
     };
 
     const handlePrev = () => setCurrentMonth(subMonths(currentMonth, 1));
@@ -278,6 +330,13 @@ export default function TLDashboard() {
                     >
                         <CalendarIcon size={18} />
                         <span>Master Calendar</span>
+                    </div>
+                    <div
+                        onClick={() => setView('poc')}
+                        className={`nav-item ${view === 'poc' ? 'active' : ''}`}
+                    >
+                        <FileText size={18} />
+                        <span>POC Communication</span>
                     </div>
 
                     {view === 'client' && (
@@ -376,11 +435,13 @@ export default function TLDashboard() {
                 <header className="page-header">
                     <div>
                         <h1 className="page-title">
-                            {view === 'master' ? 'Master Calendar' : 'Client Dashboard'}
+                            {view === 'master' ? 'Master Calendar' : view === 'poc' ? 'POC Communication' : 'Client Dashboard'}
                         </h1>
                         <p className="page-subtitle">
-                            {view === 'master' 
+                            {view === 'master'
                                 ? 'Unified view of all assigned client schedules' 
+                                : view === 'poc'
+                                ? 'Click any date to add communication notes for GM visibility'
                                 : `Managing content for ${clients.find(c => c.id === selectedClient)?.company_name || 'Client'}`
                             }
                         </p>
@@ -541,28 +602,42 @@ export default function TLDashboard() {
                             ) : (
                                 <>
                                     {days.map((day, idx) => {
-                                        const dayContent = calendarData.filter(item => {
-                                            const itemDate = parseISO(item.scheduled_datetime);
-                                            return isSameDay(itemDate, day);
-                                        });
+                                        const isPocView = view === 'poc';
+                                        const dayContent = isPocView
+                                            ? pocNotes.filter(note => isSameDay(parseISO(`${note.note_date}T00:00:00`), day))
+                                            : calendarData.filter(item => {
+                                                const itemDate = parseISO(item.scheduled_datetime);
+                                                return isSameDay(itemDate, day);
+                                            });
                                         return (
                                             <div 
                                                 key={idx} 
+                                                onClick={() => {
+                                                    if (isPocView) {
+                                                        handlePocDayClick(day);
+                                                    }
+                                                }}
                                                 className={`calendar-day ${!isSameMonth(day, currentMonth) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
                                             >
                                                 <span className="day-number">{format(day, 'd')}</span>
                                                 <div className="day-items desktop-only">
-                                                    {dayContent.map(item => (
+                                                    {dayContent.map((item: any) => (
                                                         <div 
                                                             key={item.id}
-                                                            onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                            className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                                            title={item.content_type}
+                                                            onClick={(e) => {
+                                                                if (!isPocView) {
+                                                                    e.stopPropagation();
+                                                                    handleItemClick(item);
+                                                                }
+                                                            }}
+                                                            className={isPocView ? 'content-item post' : `content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                            title={isPocView ? item.note_text : item.content_type}
                                                         >
-                                                            {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
+                                                            {isPocView ? <FileText size={10}/> : item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
                                                             <span className="truncate" style={{ fontSize: '9px' }}>
-                                                                {view === 'master' ? `[${item.clients?.company_name?.substring(0,3)}] ` : ''}
-                                                                {item.content_type}
+                                                                {isPocView
+                                                                    ? item.note_text
+                                                                    : `${view === 'master' ? `[${item.clients?.company_name?.substring(0,3)}] ` : ''}${item.content_type}`}
                                                             </span>
                                                         </div>
                                                     ))}
@@ -822,6 +897,43 @@ export default function TLDashboard() {
                                 })()}
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {isPocModalOpen && selectedPocDate && (
+                <div className="modal-overlay" onClick={() => setIsPocModalOpen(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Add POC Note</h3>
+                            <button onClick={() => setIsPocModalOpen(false)} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleSavePocNote} className="modal-form">
+                            <div className="form-group">
+                                <label className="form-label">Date</label>
+                                <input
+                                    type="date"
+                                    className="form-input"
+                                    value={format(selectedPocDate, 'yyyy-MM-dd')}
+                                    readOnly
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Note</label>
+                                <textarea
+                                    className="form-input"
+                                    value={pocNoteText}
+                                    onChange={(e) => setPocNoteText(e.target.value)}
+                                    placeholder="Write communication note for GM..."
+                                    rows={4}
+                                    required
+                                />
+                            </div>
+                            <button type="submit" className="btn-primary">
+                                <Plus size={16} />
+                                Save Note
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}

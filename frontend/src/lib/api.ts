@@ -47,6 +47,15 @@ export interface StatusHistoryItem {
     [key: string]: unknown;
 }
 
+export interface PocNote {
+    id: string;
+    team_lead_id: string;
+    note_date: string;
+    note_text: string;
+    created_at: string;
+    users?: { name?: string; role_identifier?: string };
+}
+
 export const gmApi = {
     getClients: () => api.get<Client[]>('/api/gm/clients'),
     getCalendar: (clientId: string, month: string) => api.get(`/api/gm/calendar?client_id=${clientId}&month=${month}`),
@@ -62,6 +71,8 @@ export const gmApi = {
     assignClient: (clientId: string, teamLeadId: string) => api.patch(`/api/gm/clients/${clientId}/assign`, { team_lead_id: teamLeadId }),
     getTeamLeadClients: (teamLeadId: string) => api.get(`/api/gm/team-leads/${teamLeadId}/clients`),
     undoStatus: (contentId: string) => api.post(`/api/gm/content/${contentId}/undo-status`),
+    getPocNotes: (month: string, teamLeadId?: string) =>
+        api.get<PocNote[]>(`/api/gm/poc-notes?month=${month}${teamLeadId ? `&team_lead_id=${teamLeadId}` : ''}`),
 };
 
 const adminBase = axios.create({
@@ -143,6 +154,10 @@ export const tlApi = {
     getCalendar: (clientId: string, month: string, tlId: string) => tlBase.get(`calendar?client_id=${clientId}&month=${month}&tlId=${tlId}`),
     getMasterCalendar: (month: string, tlId: string, contentType?: string) =>
         tlBase.get<ContentItem[]>(`master-calendar?month=${month}&tlId=${tlId}${contentType ? `&content_type=${contentType}` : ''}`),
+    getPocNotes: (month: string, tlId: string) =>
+        tlBase.get<PocNote[]>(`poc-notes?month=${month}&tlId=${tlId}`),
+    addPocNote: (data: { tlId: string; note_date: string; note_text: string }) =>
+        tlBase.post<PocNote>('poc-notes', data),
 };
 
 // ─── Posting Team API ───

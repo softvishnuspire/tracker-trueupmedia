@@ -68,6 +68,15 @@ interface ContentItem {
     clients?: { company_name: string };
 }
 
+interface PocNote {
+    id: string;
+    team_lead_id: string;
+    note_date: string;
+    note_text: string;
+    created_at: string;
+    users?: { name?: string; role_identifier?: string };
+}
+
 export default function GMDashboard() {
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
@@ -76,10 +85,11 @@ export default function GMDashboard() {
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'teams'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'teams' | 'poc'>('dashboard');
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
 
     const router = useRouter();
     const supabase = createClient();
@@ -123,10 +133,24 @@ export default function GMDashboard() {
             fetchClientCalendar();
         } else if (view === 'teams') {
             fetchTeamLeads();
+        } else if (view === 'poc') {
+            fetchPocNotes();
         } else if (view === 'dashboard') {
             fetchDashboardStats();
         }
     }, [selectedClient, selectedType, currentMonth, view, clients.length, teamLeads.length]);
+
+    const fetchPocNotes = async () => {
+        setLoading(true);
+        try {
+            const res = await gmApi.getPocNotes(format(currentMonth, 'yyyy-MM'));
+            setPocNotes(res.data || []);
+        } catch (err) {
+            console.error('Error fetching POC notes:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchTeamLeads = async () => {
         setLoading(true);
@@ -451,6 +475,13 @@ export default function GMDashboard() {
                         <Users size={20} />
                         <span>Teams</span>
                     </div>
+                    <div
+                        onClick={() => setView('poc')}
+                        className={`nav-item ${view === 'poc' ? 'active' : ''}`}
+                    >
+                        <FileText size={20} />
+                        <span>POC Communication</span>
+                    </div>
 
                     {view === 'client' && (
                         <>
@@ -523,12 +554,14 @@ export default function GMDashboard() {
                                 {view === 'client' && 'Client Calendar'}
                                 {view === 'master' && 'Master Calendar'}
                                 {view === 'teams' && 'Team Management'}
+                                {view === 'poc' && 'POC Communication'}
                             </h1>
                             <p className="page-subtitle">
                                 {view === 'dashboard' && 'Monitor operational health and pipeline metrics'}
                                 {view === 'client' && 'Detailed content planning for individual clients'}
                                 {view === 'master' && 'Review and manage content production flow'}
                                 {view === 'teams' && 'Assign clients and manage team lead performance'}
+                                {view === 'poc' && 'Read communication notes added by Team Leads'}
                             </p>
                         </div>
 
@@ -607,8 +640,8 @@ export default function GMDashboard() {
                                         <button onClick={handleNext} className="month-btn"><ChevronRight size={20} /></button>
                                     </div>
 
-                                    <ScheduleExport 
-                                        data={calendarData}
+                                    <ScheduleExport
+                                        data={view === 'poc' ? [] : calendarData}
                                         clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find(c => c.id === selectedClient)?.company_name || 'Client'}
                                         month={currentMonth}
                                     />
@@ -925,15 +958,18 @@ export default function GMDashboard() {
                             ) : (
                                 <>
                                     {days.map((day, idx) => {
-                                        const dayContent = calendarData.filter(item => {
-                                            const itemDate = parseISO(item.scheduled_datetime);
-                                            return isSameDay(itemDate, day);
-                                        });
+                                        const isPocView = view === 'poc';
+                                        const dayContent = isPocView
+                                            ? pocNotes.filter(note => isSameDay(parseISO(`${note.note_date}T00:00:00`), day))
+                                            : calendarData.filter(item => {
+                                                const itemDate = parseISO(item.scheduled_datetime);
+                                                return isSameDay(itemDate, day);
+                                            });
                                         return (
                                             <div
                                                 key={idx}
                                                 onClick={() => {
-                                                    if (dayContent.length > 0) {
+                                                    if (dayContent.length > 0 && !isPocView) {
                                                         if (window.innerWidth <= 768) {
                                                             setDailyAgenda({ date: day, items: dayContent });
                                                         } else {
@@ -974,26 +1010,30 @@ export default function GMDashboard() {
                                                     )}
                                                 </div>
                                                 <div className="day-items desktop-only">
-                                                    {dayContent.map(item => (
+                                                    {dayContent.map((item: any) => (
                                                         <div
                                                             key={item.id}
-                                                            onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                            onClick={(e) => {
+                                                                if (isPocView) return;
+                                                                e.stopPropagation();
+                                                                handleItemClick(item);
+                                                            }}
+                                                            className={isPocView ? 'content-item post' : `content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                         >
-                                                            {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                            {isPocView ? <FileText size={10} /> : item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate">
-                                                                {item.is_rescheduled ? '[R] ' : ''}
-                                                                {view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
-                                                                {item.content_type}
+                                                                {isPocView
+                                                                    ? `${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
+                                                                    : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}${item.content_type}`}
                                                             </span>
                                                         </div>
                                                     ))}
                                                 </div>
                                                 <div className="mobile-day-indicators">
-                                                    {dayContent.map(item => (
+                                                    {dayContent.map((item: any) => (
                                                         <div 
                                                             key={item.id}
-                                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                            className={`mobile-dot ${isPocView ? 'post' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
                                                         ></div>
                                                     ))}
                                                 </div>
