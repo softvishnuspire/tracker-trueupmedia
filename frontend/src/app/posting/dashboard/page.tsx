@@ -30,6 +30,7 @@ import {
     Menu,
     Send,
     Inbox,
+    Clock,
     UserCircle,
     ShieldAlert,
     AlertTriangle,
