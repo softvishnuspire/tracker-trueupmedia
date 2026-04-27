@@ -77,7 +77,7 @@ export default function NotificationBell() {
             setNotifications(list || []);
             setUnreadCount(unread?.count || 0);
         } catch (error) {
-            console.error('Failed to load notifications', error);
+            // console.error('Failed to load notifications', error);
         }
     }, []);
 

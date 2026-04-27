@@ -616,6 +616,7 @@ app.delete('/api/admin/content/:id', async (req, res) => {
     res.json({ message: 'Deleted successfully' });
 });
 
+
 // ─── Team Leads ───
 app.get('/api/gm/team-leads', async (req, res) => {
     const { data, error } = await supabase

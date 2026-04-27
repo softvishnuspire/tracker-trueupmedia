@@ -24,8 +24,13 @@ export default function AdminDashboard() {
       try {
         const res = await adminApi.getStats();
         setStats(res.data);
-        
-        // Fetch master calendar for today's stats
+      } catch (err: any) {
+        console.error('Failed to load stats:', err.message);
+        setError(err.message);
+      }
+
+      // Fetch master calendar separately so stats still show if this fails
+      try {
         const calendarRes = await adminApi.getMasterCalendar(format(new Date(), 'yyyy-MM'));
         const data = calendarRes.data;
         const today = new Date();
@@ -45,15 +50,13 @@ export default function AdminDashboard() {
         setEmergencyTasks(emergencyRes.data);
 
       } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+        console.error('Failed to load calendar:', err.message);
       }
+
+      setLoading(false);
     };
     fetchStats();
   }, []);
-
-  if (error) return <div className="error-message">{error}</div>;
 
   return (
     <div>
