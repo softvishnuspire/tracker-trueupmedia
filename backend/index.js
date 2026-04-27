@@ -61,6 +61,55 @@ app.use('/api', authenticateUser);
 
 const normalizeRole = (role) => (role || '').toString().trim().toUpperCase().replace(/[_\s]+/g, ' ');
 
+const getRequesterRole = async (user) => {
+    const userId = user?.id;
+    if (!userId) return null;
+
+    let profile = null;
+    let profileErr = null;
+
+    const byUserId = await supabase
+        .from('users')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+    profile = byUserId.data;
+    profileErr = byUserId.error;
+
+    if ((!profile || profileErr) && user?.email) {
+        const byEmail = await supabase
+            .from('users')
+            .select('role')
+            .eq('email', user.email)
+            .single();
+        profile = byEmail.data;
+        profileErr = byEmail.error;
+    }
+
+    const metadataRole = user?.user_metadata?.role || user?.app_metadata?.role;
+    return normalizeRole(profile?.role || metadataRole);
+};
+
+const requireRoles = (allowedRoles) => {
+    const normalizedAllowed = allowedRoles.map((role) => normalizeRole(role));
+
+    return async (req, res, next) => {
+        try {
+            const resolvedRole = await getRequesterRole(req.user);
+            if (!resolvedRole) {
+                return res.status(403).json({ error: 'User profile not found' });
+            }
+            if (!normalizedAllowed.includes(resolvedRole)) {
+                return res.status(403).json({ error: 'Forbidden' });
+            }
+            req.resolvedRole = resolvedRole;
+            next();
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
+    };
+};
+
 const STATUS_FLOWS = {
     'Reel': [
         'CONTENT READY',
@@ -298,7 +347,7 @@ app.get('/api/admin/clients', async (req, res) => {
     res.json(data);
 });
 
-app.post('/api/admin/clients', async (req, res) => {
+app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
     const { company_name, phone, email, address, posts_per_month, reels_per_month } = req.body;
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
     const { data, error } = await supabase.from('clients').insert([{
@@ -316,7 +365,7 @@ app.post('/api/admin/clients', async (req, res) => {
     res.json(data[0]);
 });
 
-app.put('/api/admin/clients/:id', async (req, res) => {
+app.put('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month } = req.body;
     const { data, error } = await supabase.from('clients').update({
@@ -333,7 +382,7 @@ app.put('/api/admin/clients/:id', async (req, res) => {
     res.json(data[0]);
 });
 
-app.delete('/api/admin/clients/:id', async (req, res) => {
+app.delete('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('clients').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
@@ -359,7 +408,7 @@ app.get('/api/admin/team', async (req, res) => {
     res.json(teamLeads);
 });
 
-app.post('/api/admin/team', async (req, res) => {
+app.post('/api/admin/team', requireRoles(['ADMIN']), async (req, res) => {
     const { name, email, password, role, role_identifier } = req.body;
     if (!name || !email || !password || !role) return res.status(400).json({ error: 'Missing fields' });
 
@@ -397,7 +446,7 @@ app.post('/api/admin/team', async (req, res) => {
     }
 });
 
-app.put('/api/admin/team/:id', async (req, res) => {
+app.put('/api/admin/team/:id', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     const { name, email, password, role_identifier } = req.body;
 
@@ -451,7 +500,7 @@ app.put('/api/admin/team/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/admin/team/:id', async (req, res) => {
+app.delete('/api/admin/team/:id', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     console.log(`[Admin] Delete request for user: ${id}`);
 
@@ -558,7 +607,93 @@ app.get('/api/admin/content/:id', async (req, res) => {
     }
 });
 
-app.post('/api/admin/content/:id/undo-status', async (req, res) => {
+// ─── COO: Read-only Monitoring ───
+app.get('/api/coo/clients', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+    const { data, error } = await supabase.from('clients').select('*').eq('is_deleted', false).order('company_name');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+app.get('/api/coo/team', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+    const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+    const teamLeads = (data || []).filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role));
+    res.json(teamLeads);
+});
+
+app.get('/api/coo/stats', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const mon = String(now.getMonth() + 1).padStart(2, '0');
+    const startDate = `${year}-${mon}-01T00:00:00`;
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+    try {
+        const [clientRes, itemRes, statusRes] = await Promise.all([
+            supabase.from('clients').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('is_deleted', false),
+            supabase.from('content_items').select('*', { count: 'exact', head: true }).gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate),
+            supabase.from('content_items').select('status')
+        ]);
+
+        const statusSummary = {};
+        if (statusRes.data) {
+            statusRes.data.forEach(item => { statusSummary[item.status] = (statusSummary[item.status] || 0) + 1; });
+        }
+
+        res.json({
+            totalClients: clientRes.count,
+            totalItemsThisMonth: itemRes.count,
+            statusSummary
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/coo/master-calendar', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+    const { month, client_id, content_type } = req.query;
+    if (!month) return res.status(400).json({ error: 'Missing month' });
+
+    const [year, mon] = month.split('-');
+    const startDate = `${year}-${mon}-01T00:00:00`;
+    const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+    let query = supabase
+        .from('content_items')
+        .select(`*, clients (company_name)`)
+        .gte('scheduled_datetime', startDate)
+        .lte('scheduled_datetime', endDate);
+
+    if (client_id) query = query.eq('client_id', client_id);
+    if (content_type) query = query.eq('content_type', content_type);
+
+    const { data, error } = await query.order('scheduled_datetime');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+app.get('/api/coo/content/:id', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [itemRes, logsRes] = await Promise.all([
+            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
+        ]);
+
+        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        res.json({ item: itemRes.data, history: logsRes.data || [] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/admin/content/:id/undo-status', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: latestLog, error: logFetchError } = await supabase
@@ -584,7 +719,7 @@ app.post('/api/admin/content/:id/undo-status', async (req, res) => {
     }
 });
 
-app.post('/api/admin/content', async (req, res) => {
+app.post('/api/admin/content', requireRoles(['ADMIN']), async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
     const initial_status = content_type === 'Post' ? 'CONTENT APPROVED' : 'CONTENT READY';
 
@@ -597,7 +732,7 @@ app.post('/api/admin/content', async (req, res) => {
     res.json(data[0]);
 });
 
-app.put('/api/admin/content/:id', async (req, res) => {
+app.put('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     const { title, description, scheduled_datetime, is_rescheduled } = req.body;
     const { data, error } = await supabase
@@ -609,7 +744,7 @@ app.put('/api/admin/content/:id', async (req, res) => {
     res.json(data[0]);
 });
 
-app.delete('/api/admin/content/:id', async (req, res) => {
+app.delete('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('content_items').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
@@ -1227,38 +1362,15 @@ app.post('/api/emergency/:id/toggle', async (req, res) => {
     const userId = req.user.id;
 
     try {
-        // Verify user is Admin or GM. Prefer users.user_id, but fall back for legacy rows.
-        let profile = null;
-        let profileErr = null;
-
-        const byUserIdResult = await supabase
-            .from('users')
-            .select('role')
-            .eq('user_id', userId)
-            .single();
-        profile = byUserIdResult.data;
-        profileErr = byUserIdResult.error;
-
-        if ((!profile || profileErr) && req.user.email) {
-            const byEmailResult = await supabase
-                .from('users')
-                .select('role')
-                .eq('email', req.user.email)
-                .single();
-            profile = byEmailResult.data;
-            profileErr = byEmailResult.error;
-        }
-
-        const metadataRole = req.user.user_metadata?.role || req.user.app_metadata?.role;
-        const resolvedRole = normalizeRole(profile?.role || metadataRole);
+        const resolvedRole = await getRequesterRole(req.user);
 
         if (!resolvedRole) {
             return res.status(403).json({ error: 'User profile not found' });
         }
 
-        const allowed = ['ADMIN', 'GENERAL MANAGER', 'GM'].includes(resolvedRole);
+        const allowed = ['ADMIN', 'GENERAL MANAGER', 'GM', 'COO'].includes(resolvedRole);
         if (!allowed) {
-            return res.status(403).json({ error: 'Only Admin and GM can toggle emergency status' });
+            return res.status(403).json({ error: 'Only Admin, GM, and COO can toggle emergency status' });
         }
 
         // Get current state

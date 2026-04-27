@@ -105,6 +105,27 @@ export const adminApi = {
     deleteContent: (id: string) => adminBase.delete(`/api/admin/content/${id}`),
 };
 
+const cooBase = axios.create({
+    baseURL: API_BASE_URL,
+});
+
+cooBase.interceptors.request.use(async (config) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    return config;
+});
+
+export const cooApi = {
+    getClients: () => cooBase.get<Client[]>('/api/coo/clients'),
+    getStats: () => cooBase.get('/api/coo/stats'),
+    getTeam: () => cooBase.get<TeamMember[]>('/api/coo/team'),
+    getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
+        cooBase.get<ContentItem[]>(`/api/coo/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
+    getContentDetails: (id: string) => cooBase.get<{ item: ContentItem; history: StatusHistoryItem[] }>(`/api/coo/content/${id}`),
+};
+
 const tlBase = axios.create({
     baseURL: `${API_BASE_URL}/api/tl/`,
 });
