@@ -41,12 +41,23 @@ const authenticateUser = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
+    
+    // Fast path: Check cache first
+    const cachedUser = myCache.get(`auth_${token}`);
+    if (cachedUser) {
+        req.user = cachedUser;
+        return next();
+    }
+
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
         console.error('❌ Auth Error:', error?.message || 'User not found');
         return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
+
+    // Cache the user object for 60 seconds to avoid repeating network calls on subsequent requests
+    myCache.set(`auth_${token}`, user, 60);
 
     console.log(`✅ Auth Success: ${user.email} (${req.method} ${req.url})`);
     req.user = user;
@@ -64,6 +75,10 @@ const normalizeRole = (role) => (role || '').toString().trim().toUpperCase().rep
 const getRequesterRole = async (user) => {
     const userId = user?.id;
     if (!userId) return null;
+
+    // Fast path: Check cache
+    const cachedRole = myCache.get(`role_${userId}`);
+    if (cachedRole) return cachedRole;
 
     let profile = null;
     let profileErr = null;
@@ -87,7 +102,14 @@ const getRequesterRole = async (user) => {
     }
 
     const metadataRole = user?.user_metadata?.role || user?.app_metadata?.role;
-    return normalizeRole(profile?.role || metadataRole);
+    const resolvedRole = normalizeRole(profile?.role || metadataRole);
+    
+    // Cache the resolved role for 60 seconds
+    if (resolvedRole) {
+        myCache.set(`role_${userId}`, resolvedRole, 60);
+    }
+    
+    return resolvedRole;
 };
 
 const requireRoles = (allowedRoles) => {
