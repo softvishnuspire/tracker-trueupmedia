@@ -38,6 +38,8 @@ export interface ContentItem {
     status: string;
     client_id: string;
     is_rescheduled?: boolean;
+    is_emergency?: boolean;
+    emergency_marked_at?: string;
     clients?: { company_name: string };
 }
 
@@ -90,7 +92,7 @@ export const adminApi = {
     updateClient: (id: string, data: Partial<Client>) => adminBase.put(`/api/admin/clients/${id}`, data),
     deleteClient: (id: string) => adminBase.delete(`/api/admin/clients/${id}`),
     getStats: () => adminBase.get('/api/admin/stats'),
-    getTeam: () => adminBase.get('/api/admin/team'),
+    getTeam: () => adminBase.get<TeamMember[]>('/api/admin/team'),
     addTeamMember: (data: Partial<TeamMember>) => adminBase.post('/api/admin/team', data),
     updateTeamMember: (id: string, data: Record<string, unknown>) => adminBase.put(`/api/admin/team/${id}`, data),
     deleteTeamMember: (id: string) => adminBase.delete(`/api/admin/team/${id}`),
@@ -191,6 +193,26 @@ export const notificationApi = {
         type: 'INFO' | 'WARNING' | 'URGENT';
         target: NotificationTarget;
     }) => notificationBase.post('/api/notifications/send', payload),
+};
+
+// ─── Emergency Tasks API ───
+const emergencyBase = axios.create({
+    baseURL: `${API_BASE_URL}/api/emergency`,
+});
+
+emergencyBase.interceptors.request.use(async (config) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    return config;
+});
+
+export const emergencyApi = {
+    getToday: () => emergencyBase.get<ContentItem[]>('/today'),
+    getAll: () => emergencyBase.get<ContentItem[]>('/all'),
+    getMonth: (month: string) => emergencyBase.get<ContentItem[]>(`/month?month=${month}`),
+    toggle: (id: string) => emergencyBase.post(`/${id}/toggle`),
 };
 
 export default api;

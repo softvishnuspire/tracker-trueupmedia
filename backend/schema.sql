@@ -29,9 +29,34 @@ CREATE TABLE public.content_items (
   title text NOT NULL DEFAULT 'Untitled Content'::text,
   description text,
   creative_url text,
+  is_rescheduled boolean DEFAULT false,
+  is_emergency boolean DEFAULT false,
+  emergency_marked_by uuid,
+  emergency_marked_at timestamp with time zone,
   CONSTRAINT content_items_pkey PRIMARY KEY (id),
   CONSTRAINT content_items_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
-  CONSTRAINT content_items_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+  CONSTRAINT content_items_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id),
+  CONSTRAINT content_items_emergency_marked_by_fkey FOREIGN KEY (emergency_marked_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.notification_recipients (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  notification_id uuid,
+  user_id uuid,
+  is_read boolean DEFAULT false,
+  read_at timestamp with time zone,
+  CONSTRAINT notification_recipients_pkey PRIMARY KEY (id),
+  CONSTRAINT notification_recipients_notification_id_fkey FOREIGN KEY (notification_id) REFERENCES public.notifications(notification_id),
+  CONSTRAINT notification_recipients_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.notifications (
+  notification_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title character varying NOT NULL,
+  message text NOT NULL,
+  type character varying NOT NULL CHECK (type::text = ANY (ARRAY['INFO'::character varying, 'WARNING'::character varying, 'URGENT'::character varying]::text[])),
+  sender_id uuid,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT notifications_pkey PRIMARY KEY (notification_id),
+  CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(user_id)
 );
 CREATE TABLE public.status_logs (
   log_id uuid NOT NULL DEFAULT gen_random_uuid(),

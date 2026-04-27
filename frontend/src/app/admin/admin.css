@@ -1123,4 +1123,136 @@
         padding: 8px;
         border-radius: 8px;
     }
-}
+}
+
+/* Emergency Tasks */
+.content-item.emergency {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    border-left: 3px solid #ef4444 !important;
+}
+
+.content-item.emergency span {
+    color: #ef4444 !important;
+    font-weight: 700 !important;
+}
+
+.mobile-dot.emergency {
+    background-color: #ef4444 !important;
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.5);
+}
+
+.emergency-badge {
+    background: #ef4444;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.emergency-panel {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.1);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.emergency-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.emergency-panel-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ef4444;
+    margin: 0;
+}
+
+.emergency-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+}
+
+.emergency-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.emergency-card:hover {
+    transform: translateY(-2px);
+    border-color: #ef4444;
+}
+
+.emergency-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ef4444;
+}
+
+.emergency-card-info {
+    flex: 1;
+}
+
+.emergency-card-client {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.emergency-card-type {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.btn-emergency-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-emergency-toggle.active {
+    background: #ef4444;
+    color: white;
+    border: 1px solid #ef4444;
+}
+
+.btn-emergency-toggle.inactive {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.btn-emergency-toggle:hover {
+    opacity: 0.9;
+}

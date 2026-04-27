@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { adminApi } from '@/lib/api';
-import { Users, Calendar, Activity } from 'lucide-react';
+import { adminApi, emergencyApi } from '@/lib/api';
+import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format, isSameDay, parseISO } from 'date-fns';
 
@@ -17,6 +17,7 @@ export default function AdminDashboard() {
   const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [emergencyTasks, setEmergencyTasks] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -38,6 +39,11 @@ export default function AdminDashboard() {
           remaining: totalToday - completedToday,
           percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
         });
+
+        // Fetch all emergency tasks
+        const emergencyRes = await emergencyApi.getAll();
+        setEmergencyTasks(emergencyRes.data);
+
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -82,6 +88,36 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {emergencyTasks.length > 0 && (
+        <div className="emergency-panel">
+          <div className="emergency-panel-header">
+            <ShieldAlert size={24} color="#ef4444" />
+            <h2 className="emergency-panel-title">All Emergency Tasks</h2>
+          </div>
+          <div className="emergency-list">
+            {emergencyTasks.map((task: any) => (
+              <div
+                key={task.id}
+                className="emergency-card"
+                onClick={() => {
+                  // Admin dashboard doesn't have an item detail modal on this page
+                  // Usually we'd redirect or show a modal, but for now just highlight
+                }}
+              >
+                <div className="emergency-card-icon">
+                  {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                </div>
+                <div className="emergency-card-info">
+                  <p className="emergency-card-client">{task.clients?.company_name}</p>
+                  <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                </div>
+                <ArrowRight size={18} color="var(--text-muted)" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="stats-grid">
         {loading ? (
