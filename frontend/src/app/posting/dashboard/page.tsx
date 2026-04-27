@@ -30,10 +30,12 @@ import {
     Menu,
     Send,
     Inbox,
-    Clock,
-    UserCircle
+    UserCircle,
+    ShieldAlert,
+    AlertTriangle,
+    ArrowRight
 } from 'lucide-react';
-import { postingApi } from '@/lib/api';
+import { postingApi, emergencyApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -48,6 +50,7 @@ interface ContentItem {
     scheduled_datetime: string;
     status: string;
     client_id: string;
+    is_emergency?: boolean;
     clients?: { company_name: string };
 }
 
@@ -67,6 +70,7 @@ export default function PostingDashboard() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [user, setUser] = useState<any>(null);
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
+    const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
 
     const router = useRouter();
     const supabase = createClient();
@@ -80,13 +84,16 @@ export default function PostingDashboard() {
             const todayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
             const completedToday = todayItems.filter(item => item.status === 'POSTED').length;
-            
             setTodayStats({
                 total: totalToday,
                 completed: completedToday,
                 remaining: totalToday - completedToday,
                 percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
             });
+
+            // Fetch emergency tasks
+            const emergencyRes = await emergencyApi.getToday();
+            setEmergencyTasks(emergencyRes.data);
         } catch (err) { console.error('Error fetching today stats:', err); }
     };
 
@@ -381,6 +388,33 @@ export default function PostingDashboard() {
                     </div>
                 )}
 
+                {view === 'dashboard' && emergencyTasks.length > 0 && (
+                    <div className="emergency-panel">
+                        <div className="emergency-panel-header">
+                            <ShieldAlert size={24} color="#ef4444" />
+                            <h2 className="emergency-panel-title">Today's Emergency Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {emergencyTasks.map(task => (
+                                <div 
+                                    key={task.id} 
+                                    className="emergency-card"
+                                    onClick={() => handleItemClick(task)}
+                                >
+                                    <div className="emergency-card-icon">
+                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                    </div>
+                                    <div className="emergency-card-info">
+                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                                    </div>
+                                    <ArrowRight size={18} color="var(--text-muted)" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {view === 'dashboard' && (
                     <div className="dashboard-view">
                         <div className="stats-grid">
@@ -506,7 +540,7 @@ export default function PostingDashboard() {
                                                     <div
                                                         key={item.id}
                                                         onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                        className={`content-item ${item.content_type.toLowerCase()}`}
+                                                        className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                     >
                                                         {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                         <span className="truncate">

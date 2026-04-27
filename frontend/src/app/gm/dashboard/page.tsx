@@ -40,9 +40,11 @@ import {
     Trash2,
     Check,
     CalendarClock,
-    Undo2
+    Undo2,
+    AlertTriangle,
+    ShieldAlert
 } from 'lucide-react';
-import { gmApi } from '@/lib/api';
+import { gmApi, emergencyApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -61,6 +63,7 @@ interface ContentItem {
     status: string;
     client_id: string;
     is_rescheduled?: boolean;
+    is_emergency?: boolean;
     clients?: { company_name: string };
 }
 
@@ -74,6 +77,7 @@ export default function GMDashboard() {
     const [loading, setLoading] = useState(false);
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'teams'>('dashboard');
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
+    const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const router = useRouter();
@@ -208,6 +212,11 @@ export default function GMDashboard() {
                 monthlyContent: data.length,
                 statusBreakdown: breakdown
             });
+
+            // Fetch today's emergency tasks
+            const emergencyRes = await emergencyApi.getToday();
+            setEmergencyTasks(emergencyRes.data);
+
         } catch (err) { console.error(err); } finally { setLoading(false); }
     };
 
@@ -320,6 +329,27 @@ export default function GMDashboard() {
         } catch (err) { 
             console.error(err); 
             alert('Failed to undo status change. It might be because there is no more history to undo.'); 
+        }
+    };
+
+    const handleToggleEmergency = async () => {
+        if (!activeItem) return;
+        try {
+            const res: any = await emergencyApi.toggle(activeItem.item.id);
+            if (res.data.success) {
+                const detailsRes = await gmApi.getContentDetails(activeItem.item.id);
+                setActiveItem(detailsRes.data);
+                
+                // Refresh calendars
+                if (view === 'master') fetchMasterCalendar(); 
+                else if (view === 'client') fetchClientCalendar();
+                
+                // Always refresh dashboard stats to update emergency list
+                fetchDashboardStats();
+            }
+        } catch (err: any) {
+            console.error('Emergency toggle error:', err);
+            alert(err.response?.data?.error || 'Failed to toggle emergency status');
         }
     };
 
@@ -608,6 +638,33 @@ export default function GMDashboard() {
                     </div>
                 )}
 
+                {view === 'dashboard' && emergencyTasks.length > 0 && (
+                    <div className="emergency-panel">
+                        <div className="emergency-panel-header">
+                            <ShieldAlert size={24} color="#ef4444" />
+                            <h2 className="emergency-panel-title">Today's Emergency Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {emergencyTasks.map(task => (
+                                <div 
+                                    key={task.id} 
+                                    className="emergency-card"
+                                    onClick={() => handleItemClick(task)}
+                                >
+                                    <div className="emergency-card-icon">
+                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                    </div>
+                                    <div className="emergency-card-info">
+                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                                    </div>
+                                    <ArrowRight size={18} color="var(--text-muted)" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Removed global loading bar in favor of inline skeletons */}
 
                 {view === 'dashboard' && (
@@ -888,7 +945,7 @@ export default function GMDashboard() {
                                                         <div
                                                             key={item.id}
                                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
+                                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                         >
                                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate">
@@ -903,7 +960,7 @@ export default function GMDashboard() {
                                                     {dayContent.map(item => (
                                                         <div 
                                                             key={item.id}
-                                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
+                                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                         ></div>
                                                     ))}
                                                 </div>
@@ -1054,6 +1111,15 @@ export default function GMDashboard() {
                                             <Clock size={16} />
                                             <span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'p')}</span>
                                         </div>
+                                    </div>
+                                    <div style={{ marginTop: '16px' }}>
+                                        <button
+                                            onClick={handleToggleEmergency}
+                                            className={`btn-emergency-toggle ${activeItem.item.is_emergency ? 'active' : 'inactive'}`}
+                                        >
+                                            <AlertTriangle size={16} />
+                                            {activeItem.item.is_emergency ? 'Emergency Active' : 'Mark as Emergency'}
+                                        </button>
                                     </div>
                                     {(() => {
                                         const isOverdue = isBefore(parseISO(activeItem.item.scheduled_datetime), new Date()) && activeItem.item.status !== 'POSTED';

@@ -34,7 +34,8 @@ import {
     CalendarClock,
     Undo2
 } from 'lucide-react';
-import { gmApi, adminApi } from '@/lib/api';
+import { gmApi, adminApi, emergencyApi } from '@/lib/api';
+import { ShieldAlert } from 'lucide-react';
 
 interface ContentItem {
     id: string;
@@ -45,6 +46,7 @@ interface ContentItem {
     status: string;
     client_id: string;
     is_rescheduled?: boolean;
+    is_emergency?: boolean;
 }
 
 export default function ClientCalendarPage() {
@@ -174,6 +176,28 @@ export default function ClientCalendarPage() {
         }
     };
 
+    const handleToggleEmergency = async () => {
+        if (!selectedItem) return;
+        try {
+            const res: any = await emergencyApi.toggle(selectedItem.item.id);
+            if (res.data.success) {
+                setSelectedItem({
+                    ...selectedItem,
+                    item: {
+                        ...selectedItem.item,
+                        is_emergency: res.data.is_emergency
+                    }
+                });
+                // Update calendar data
+                setCalendarData(prev => prev.map(item => 
+                    item.id === selectedItem.item.id 
+                        ? { ...item, is_emergency: res.data.is_emergency } 
+                        : item
+                ));
+            }
+        } catch (err) { console.error('Error toggling emergency:', err); }
+    };
+
     const handleAddContent = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -289,7 +313,7 @@ export default function ClientCalendarPage() {
                                         <div 
                                             key={item.id}
                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
+                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                         >
                                             {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
                                             <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
@@ -303,7 +327,7 @@ export default function ClientCalendarPage() {
                                     {dayContent.map(item => (
                                         <div 
                                             key={item.id}
-                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()}`}
+                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                         ></div>
                                     ))}
                                 </div>
@@ -419,6 +443,15 @@ export default function ClientCalendarPage() {
                                     <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '4px' }}>Current</p>
                                     <p style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)' }}>{selectedItem.item.status}</p>
                                 </div>
+
+                                <button
+                                    onClick={handleToggleEmergency}
+                                    className={`btn-emergency-toggle ${selectedItem.item.is_emergency ? 'active' : ''}`}
+                                    style={{ width: '100%', marginBottom: '24px', justifyContent: 'center' }}
+                                >
+                                    <ShieldAlert size={18} />
+                                    {selectedItem.item.is_emergency ? 'Emergency Active' : 'Mark as Emergency'}
+                                </button>
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                     <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>

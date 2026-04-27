@@ -1095,6 +1095,126 @@ app.get('/api/notifications/unread-count', async (req, res) => {
     }
 });
 
+// ─── Emergency Tasks ───
+app.post('/api/emergency/:id/toggle', async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    try {
+        // Verify user is Admin or GM. Prefer users.user_id, but fall back for legacy rows.
+        let profile = null;
+        let profileErr = null;
+
+        const byUserIdResult = await supabase
+            .from('users')
+            .select('role')
+            .eq('user_id', userId)
+            .single();
+        profile = byUserIdResult.data;
+        profileErr = byUserIdResult.error;
+
+        if ((!profile || profileErr) && req.user.email) {
+            const byEmailResult = await supabase
+                .from('users')
+                .select('role')
+                .eq('email', req.user.email)
+                .single();
+            profile = byEmailResult.data;
+            profileErr = byEmailResult.error;
+        }
+
+        const metadataRole = req.user.user_metadata?.role || req.user.app_metadata?.role;
+        const resolvedRole = normalizeRole(profile?.role || metadataRole);
+
+        if (!resolvedRole) {
+            return res.status(403).json({ error: 'User profile not found' });
+        }
+
+        const allowed = ['ADMIN', 'GENERAL MANAGER', 'GM'].includes(resolvedRole);
+        if (!allowed) {
+            return res.status(403).json({ error: 'Only Admin and GM can toggle emergency status' });
+        }
+
+        // Get current state
+        const { data: item, error: fetchErr } = await supabase
+            .from('content_items')
+            .select('is_emergency')
+            .eq('id', id)
+            .single();
+
+        if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+
+        const newState = !item.is_emergency;
+        const updateData = {
+            is_emergency: newState,
+            emergency_marked_by: newState ? userId : null,
+            emergency_marked_at: newState ? new Date().toISOString() : null
+        };
+
+        const { error } = await supabase
+            .from('content_items')
+            .update(updateData)
+            .eq('id', id);
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json({ success: true, is_emergency: newState });
+    } catch (err) {
+        console.error('Emergency toggle error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/emergency/today', async (req, res) => {
+    try {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const dayStart = `${yyyy}-${mm}-${dd}T00:00:00`;
+        const dayEnd = `${yyyy}-${mm}-${dd}T23:59:59`;
+
+        const { data, error } = await supabase
+            .from('content_items')
+            .select(`*, clients (company_name)`)
+            .eq('is_emergency', true)
+            .gte('scheduled_datetime', dayStart)
+            .lte('scheduled_datetime', dayEnd)
+            .order('scheduled_datetime');
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data || []);
+    } catch (err) {
+        console.error('Emergency today error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/emergency/month', async (req, res) => {
+    try {
+        const { month } = req.query;
+        if (!month) return res.status(400).json({ error: 'Missing month parameter (YYYY-MM)' });
+
+        const [year, mon] = month.split('-');
+        const startDate = `${year}-${mon}-01T00:00:00`;
+        const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+        const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+        const { data, error } = await supabase
+            .from('content_items')
+            .select(`*, clients (company_name)`)
+            .eq('is_emergency', true)
+            .gte('scheduled_datetime', startDate)
+            .lte('scheduled_datetime', endDate)
+            .order('scheduled_datetime');
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data || []);
+    } catch (err) {
+        console.error('Emergency month error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.use((err, req, res, next) => {
     console.error('Unhandled Error:', err);
     res.status(500).json({ error: 'Internal Server Error', message: err.message });

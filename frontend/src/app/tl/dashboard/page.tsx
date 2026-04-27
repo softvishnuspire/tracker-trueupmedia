@@ -31,11 +31,13 @@ import {
     ArrowRight,
     Search,
     LogOut,
-    Menu,
-    Check
+    Check,
+    ShieldAlert,
+    AlertTriangle,
+    Menu
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { tlApi, gmApi } from '@/lib/api';
+import { tlApi, gmApi, emergencyApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -50,6 +52,7 @@ interface ContentItem {
     scheduled_datetime: string;
     status: string;
     client_id: string;
+    is_emergency?: boolean;
     clients?: { company_name: string };
 }
 
@@ -66,6 +69,7 @@ export default function TLDashboard() {
     const [view, setView] = useState<'dashboard' | 'client' | 'master'>('dashboard');
     const [searchQuery, setSearchQuery] = useState('');
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
+    const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
 
     useEffect(() => {
         if (calendarData.length > 0) {
@@ -171,6 +175,10 @@ export default function TLDashboard() {
         try {
             const res = await tlApi.getMasterCalendar(format(currentMonth, 'yyyy-MM'), user.id);
             setCalendarData(res.data);
+            
+            // Fetch emergency tasks
+            const emergencyRes = await emergencyApi.getToday();
+            setEmergencyTasks(emergencyRes.data);
         } catch (err) { console.error(err); } finally { setLoading(false); }
     };
 
@@ -404,6 +412,33 @@ export default function TLDashboard() {
                     </div>
                 )}
 
+                {view === 'dashboard' && emergencyTasks.length > 0 && (
+                    <div className="emergency-panel">
+                        <div className="emergency-panel-header">
+                            <ShieldAlert size={24} color="#ef4444" />
+                            <h2 className="emergency-panel-title">Today's Emergency Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {emergencyTasks.map(task => (
+                                <div 
+                                    key={task.id} 
+                                    className="emergency-card"
+                                    onClick={() => handleItemClick(task)}
+                                >
+                                    <div className="emergency-card-icon">
+                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                    </div>
+                                    <div className="emergency-card-info">
+                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                                    </div>
+                                    <ArrowRight size={18} color="var(--text-muted)" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {view === 'dashboard' && (
                     <div className="dashboard-view">
                         <div className="stats-grid">
@@ -500,7 +535,7 @@ export default function TLDashboard() {
                                                         <div 
                                                             key={item.id}
                                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                            className={`content-item ${item.content_type.toLowerCase()}`}
+                                                            className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                             title={item.content_type}
                                                         >
                                                             {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
