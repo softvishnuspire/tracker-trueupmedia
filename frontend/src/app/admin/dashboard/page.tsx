@@ -69,20 +69,22 @@ export default function AdminDashboard() {
 
       <div className="daily-stats-banner">
         <div className="progress-meter-card">
-          <div className="progress-info">
+          <div className="progress-main-info">
             <h3 className="stat-label">Today's Progress</h3>
             <div className="progress-values">
               <span className="current">{todayStats.completed}</span>
               <span className="separator">/</span>
               <span className="total">{todayStats.total}</span>
-              <span className="unit"> Tasks Posted</span>
-          <div className="meter-container">
+              <span className="unit">Tasks Posted</span>
+            </div>
+          </div>
+          <div className="meter-visual">
             <div className="meter-bar">
               <div className="meter-fill" style={{ width: `${todayStats.percentage}%` }}>
                 <div className="meter-glow"></div>
               </div>
             </div>
-            <div className="meter-label">
+            <div className="meter-labels">
               <span className="percentage">{todayStats.percentage}% Done</span>
               <span className="remaining">{todayStats.remaining} remaining today</span>
             </div>
@@ -101,19 +103,22 @@ export default function AdminDashboard() {
               <div
                 key={task.id}
                 className="emergency-card"
-                onClick={() => {
-                  // Admin dashboard doesn't have an item detail modal on this page
-                  // Usually we'd redirect or show a modal, but for now just highlight
-                }}
+                onClick={() => {}}
               >
                 <div className="emergency-card-icon">
                   {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
                 </div>
-                <div className="emergency-card-info">
-                  <p className="emergency-card-client">{task.clients?.company_name}</p>
-                  <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                <div className="emergency-card-body">
+                  <div className="emergency-card-client">{task.clients?.company_name.toUpperCase()}</div>
+                  <div className="emergency-card-details">
+                    <span className="type">{task.content_type}</span>
+                    <span className="dot">•</span>
+                    <span className="time">{format(parseISO(task.scheduled_datetime), 'h:mm a')}</span>
+                  </div>
                 </div>
-                <ArrowRight size={18} color="var(--text-muted)" />
+                <div className="emergency-card-arrow">
+                  <ArrowRight size={18} />
+                </div>
               </div>
             ))}
           </div>
