@@ -47,6 +47,18 @@ const roles = [
   }
 ];
 
+const canonicalizeRole = (role?: string | null) => {
+  const normalized = (role || '').trim().toLowerCase().replace(/[_\s]+/g, ' ');
+
+  if (['admin', 'administrator'].includes(normalized)) return 'admin';
+  if (['coo'].includes(normalized)) return 'coo';
+  if (['gm', 'general manager'].includes(normalized)) return 'gm';
+  if (['tl', 'tl1', 'tl2', 'team lead'].includes(normalized)) return 'tl';
+  if (['posting', 'posting team'].includes(normalized)) return 'posting';
+
+  return normalized || null;
+};
+
 export default function Login() {
   const [selectedRole, setSelectedRole] = useState('admin');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -80,12 +92,12 @@ export default function Login() {
         return;
       }
 
-      // Get the user's role from metadata
-      let userRole = data.user?.user_metadata?.role;
-      if (['tl1', 'tl2', 'team lead', 'TL1', 'TL2', 'TEAM LEAD'].includes(userRole)) userRole = 'tl';
-      if (['posting_team', 'POSTING_TEAM', 'posting'].includes(userRole)) userRole = 'posting';
+      // Resolve role from metadata and normalize role aliases
+      const metadataRole = data.user?.user_metadata?.role || data.user?.app_metadata?.role;
+      const userRole = canonicalizeRole(metadataRole);
+      const selectedRoleCanonical = canonicalizeRole(selectedRole);
 
-      if (userRole && userRole !== selectedRole) {
+      if (userRole && selectedRoleCanonical && userRole !== selectedRoleCanonical) {
         setError(`Your account is assigned to the "${userRole}" role. Please select the correct role.`);
         await supabase.auth.signOut();
         setLoading(false);

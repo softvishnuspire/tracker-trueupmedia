@@ -58,6 +58,8 @@ interface ContentItem {
     clients?: { company_name: string };
 }
 
+const normalizeRole = (role?: string | null) => (role || '').trim().toLowerCase().replace(/[_\s]+/g, ' ');
+
 export default function TLDashboard() {
     const supabase = createClient();
     const router = useRouter();
@@ -118,7 +120,8 @@ export default function TLDashboard() {
                     .eq('user_id', user.id)
                     .single();
 
-                const isTeamLead = ['tl', 'tl1', 'tl2', 'team lead', 'TL1', 'TL2', 'TEAM LEAD'].includes(profileData?.role);
+                const role = normalizeRole(profileData?.role);
+                const isTeamLead = ['tl', 'tl1', 'tl2', 'team lead'].includes(role);
 
                 if (profileError || !profileData || !isTeamLead) {
                     console.warn('Profile validation check:', { role: profileData?.role, isTeamLead });
