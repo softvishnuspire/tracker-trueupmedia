@@ -71,10 +71,12 @@ interface ContentItem {
 interface PocNote {
     id: string;
     team_lead_id: string;
+    client_id?: string;
     note_date: string;
     note_text: string;
     created_at: string;
     users?: { name?: string; role_identifier?: string };
+    clients?: { company_name?: string };
 }
 
 export default function GMDashboard() {
@@ -90,6 +92,7 @@ export default function GMDashboard() {
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
+    const [selectedPocClient, setSelectedPocClient] = useState<string>('all');
     const [selectedPocNote, setSelectedPocNote] = useState<PocNote | null>(null);
     const [isPocDetailsOpen, setIsPocDetailsOpen] = useState(false);
 
@@ -140,12 +143,13 @@ export default function GMDashboard() {
         } else if (view === 'dashboard') {
             fetchDashboardStats();
         }
-    }, [selectedClient, selectedType, currentMonth, view, clients.length, teamLeads.length]);
+    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length]);
 
     const fetchPocNotes = async () => {
         setLoading(true);
         try {
-            const res = await gmApi.getPocNotes(format(currentMonth, 'yyyy-MM'));
+            const clientId = selectedPocClient === 'all' ? undefined : selectedPocClient;
+            const res = await gmApi.getPocNotes(format(currentMonth, 'yyyy-MM'), undefined, clientId);
             setPocNotes(res.data || []);
         } catch (err) {
             console.error('Error fetching POC notes:', err);
@@ -623,6 +627,27 @@ export default function GMDashboard() {
                                 </div>
                             )}
 
+                            {view === 'poc' && (
+                                <div className="master-filters-container">
+                                    <div className="filter-icon-box">
+                                        <Filter size={14} />
+                                    </div>
+                                    <div className="client-dropdown-wrapper">
+                                        <select
+                                            className="client-dropdown"
+                                            value={selectedPocClient}
+                                            onChange={(e) => setSelectedPocClient(e.target.value)}
+                                        >
+                                            <option value="all">All Clients</option>
+                                            {clients.map(c => (
+                                                <option key={c.id} value={c.id}>{c.company_name}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown size={14} className="dropdown-chevron" />
+                                    </div>
+                                </div>
+                            )}
+
                             {view !== 'teams' && view !== 'dashboard' && (
                                 <>
                                     <div className="view-mode-toggle">
@@ -977,10 +1002,11 @@ export default function GMDashboard() {
                                                 key={idx}
                                                 onClick={() => {
                                                     if (dayContent.length > 0 && !isPocView) {
+                                                        const contentItems = dayContent as ContentItem[];
                                                         if (window.innerWidth <= 768) {
-                                                            setDailyAgenda({ date: day, items: dayContent });
+                                                            setDailyAgenda({ date: day, items: contentItems });
                                                         } else {
-                                                            handleItemClick(dayContent[0]);
+                                                            handleItemClick(contentItems[0]);
                                                         }
                                                     } else if (view === 'client') {
                                                         handleAddClick(day);
@@ -1033,7 +1059,7 @@ export default function GMDashboard() {
                                                             {isPocView ? <FileText size={10} /> : item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate">
                                                                 {isPocView
-                                                                    ? `${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
+                                                                    ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
                                                                     : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}${item.content_type}`}
                                                             </span>
                                                         </div>
@@ -1492,6 +1518,15 @@ export default function GMDashboard() {
                                     type="text"
                                     className="form-input"
                                     value={selectedPocNote.users?.role_identifier || selectedPocNote.users?.name || 'Team Lead'}
+                                    readOnly
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Client</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={selectedPocNote.clients?.company_name || 'Client not selected'}
                                     readOnly
                                 />
                             </div>

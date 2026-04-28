@@ -61,10 +61,12 @@ CREATE TABLE public.notifications (
 CREATE TABLE public.poc_communications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   team_lead_id uuid NOT NULL,
+  client_id uuid,
   note_date date NOT NULL,
   note_text text NOT NULL,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT poc_communications_pkey PRIMARY KEY (id),
+  CONSTRAINT poc_communications_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
   CONSTRAINT poc_communications_team_lead_id_fkey FOREIGN KEY (team_lead_id) REFERENCES public.users(user_id)
 );
 CREATE TABLE public.status_logs (
