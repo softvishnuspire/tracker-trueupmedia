@@ -141,12 +141,22 @@ export default function CooMasterCalendar() {
         }
     };
 
+    const monthStatusCounts = calendarData.reduce(
+        (acc, item) => {
+            const normalizedStatus = (item.status || '').toUpperCase();
+            if (normalizedStatus.includes('CONTENT')) acc.content += 1;
+            if (normalizedStatus.includes('DESIGN')) acc.design += 1;
+            if (normalizedStatus === 'POSTED') acc.posted += 1;
+            return acc;
+        },
+        { content: 0, design: 0, posted: 0 }
+    );
+
     return (
         <div>
-            <header className="page-header">
+            <header className="page-header page-header-safe">
                 <div>
                     <h1 className="page-title">Master Schedule</h1>
-                    <p className="page-subtitle">Company-wide view of all scheduled content</p>
                 </div>
 
                 <div className="header-controls">
@@ -227,6 +237,21 @@ export default function CooMasterCalendar() {
                     </div>
                 </div>
             </header>
+
+            <div className="status-summary-row">
+                <div className="status-pill status-pill-content">
+                    <span className="status-pill-label">Content</span>
+                    <span className="status-pill-count">{monthStatusCounts.content}</span>
+                </div>
+                <div className="status-pill status-pill-design">
+                    <span className="status-pill-label">Design</span>
+                    <span className="status-pill-count">{monthStatusCounts.design}</span>
+                </div>
+                <div className="status-pill status-pill-posted">
+                    <span className="status-pill-label">Posted</span>
+                    <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                </div>
+            </div>
 
             <div className="calendar-card">
                 <div className="calendar-grid" style={{ gridTemplateRows: viewMode === 'week' ? 'auto 1fr' : 'auto', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>

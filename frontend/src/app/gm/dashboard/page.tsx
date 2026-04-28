@@ -44,7 +44,7 @@ import {
     AlertTriangle,
     ShieldAlert
 } from 'lucide-react';
-import { gmApi, emergencyApi } from '@/lib/api';
+import { gmApi, emergencyApi, ContentItem, PocNote, StatusHistoryItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -54,29 +54,9 @@ import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
 import './gm.css';
 
-// Matches actual DB: content_items has id, client_id, title, scheduled_datetime, status, content_type, description
-interface ContentItem {
-    id: string;
-    title: string;
-    description: string;
-    content_type: 'Post' | 'Reel';
-    scheduled_datetime: string;
-    status: string;
-    client_id: string;
-    is_rescheduled?: boolean;
-    is_emergency?: boolean;
-    clients?: { company_name: string };
-}
-
-interface PocNote {
-    id: string;
-    team_lead_id: string;
-    client_id?: string;
-    note_date: string;
-    note_text: string;
-    created_at: string;
-    users?: { name?: string; role_identifier?: string };
-    clients?: { company_name?: string };
+interface ContentDetails {
+    item: ContentItem;
+    history: StatusHistoryItem[];
 }
 
 export default function GMDashboard() {
@@ -108,7 +88,7 @@ export default function GMDashboard() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
-    const [activeItem, setActiveItem] = useState<any>(null);
+    const [activeItem, setActiveItem] = useState<ContentDetails | null>(null);
     const [statusNote, setStatusNote] = useState('');
     const [user, setUser] = useState<any>(null);
     const [isRescheduling, setIsRescheduling] = useState(false);
@@ -121,29 +101,6 @@ export default function GMDashboard() {
         title: '',
         description: ''
     });
-
-    useEffect(() => {
-        fetchClients();
-        const fetchUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) setUser(user);
-        };
-        fetchUser();
-    }, []);
-
-    useEffect(() => {
-        if (view === 'master') {
-            fetchMasterCalendar();
-        } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
-            fetchClientCalendar();
-        } else if (view === 'teams') {
-            fetchTeamLeads();
-        } else if (view === 'poc') {
-            fetchPocNotes();
-        } else if (view === 'dashboard') {
-            fetchDashboardStats();
-        }
-    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length]);
 
     const fetchPocNotes = async () => {
         setLoading(true);
@@ -229,7 +186,7 @@ export default function GMDashboard() {
             const todayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
             const completedToday = todayItems.filter(item => item.status === 'POSTED').length;
-            
+
             setTodayStats({
                 total: totalToday,
                 completed: completedToday,
@@ -251,6 +208,29 @@ export default function GMDashboard() {
         } catch (err) { console.error(err); } finally { setLoading(false); }
     };
 
+    useEffect(() => {
+        if (view === 'master') {
+            fetchMasterCalendar();
+        } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
+            fetchClientCalendar();
+        } else if (view === 'teams') {
+            fetchTeamLeads();
+        } else if (view === 'poc') {
+            fetchPocNotes();
+        } else if (view === 'dashboard') {
+            fetchDashboardStats();
+        }
+    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length]);
+
+    useEffect(() => {
+        fetchClients();
+        const fetchUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) setUser(user);
+        };
+        fetchUser();
+    }, []);
+
     const days = viewMode === 'month'
         ? eachDayOfInterval({
             start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
@@ -260,6 +240,17 @@ export default function GMDashboard() {
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
         });
+
+    const monthStatusCounts = calendarData.reduce(
+        (acc, item) => {
+            const normalizedStatus = (item.status || '').toUpperCase();
+            if (normalizedStatus.includes('CONTENT')) acc.content += 1;
+            if (normalizedStatus.includes('DESIGN')) acc.design += 1;
+            if (normalizedStatus === 'POSTED') acc.posted += 1;
+            return acc;
+        },
+        { content: 0, design: 0, posted: 0 }
+    );
 
     const handlePrev = () => {
         if (viewMode === 'month') setCurrentMonth(subMonths(currentMonth, 1));
@@ -357,9 +348,9 @@ export default function GMDashboard() {
             const res = await gmApi.getContentDetails(activeItem.item.id);
             setActiveItem(res.data);
             if (isMasterMode) fetchMasterCalendar(); else fetchClientCalendar();
-        } catch (err) { 
-            console.error(err); 
-            alert('Failed to undo status change. It might be because there is no more history to undo.'); 
+        } catch (err) {
+            console.error(err);
+            alert('Failed to undo status change. It might be because there is no more history to undo.');
         }
     };
 
@@ -370,11 +361,11 @@ export default function GMDashboard() {
             if (res.data.success) {
                 const detailsRes = await gmApi.getContentDetails(activeItem.item.id);
                 setActiveItem(detailsRes.data);
-                
+
                 // Refresh calendars
-                if (view === 'master') fetchMasterCalendar(); 
+                if (view === 'master') fetchMasterCalendar();
                 else if (view === 'client') fetchClientCalendar();
-                
+
                 // Always refresh dashboard stats to update emergency list
                 fetchDashboardStats();
             }
@@ -408,19 +399,19 @@ export default function GMDashboard() {
         const scheduled_datetime = format(selectedDate!, 'yyyy-MM-dd') + 'T' + formData.time + ':00';
         try {
             if (editingItem) {
-                await gmApi.updateContent(editingItem.id, { 
-                    title: formData.title, 
-                    description: formData.description, 
+                await gmApi.updateContent(editingItem.id, {
+                    title: formData.title,
+                    description: formData.description,
                     scheduled_datetime,
                     is_rescheduled: isRescheduling ? true : editingItem.is_rescheduled
                 });
             } else {
-                await gmApi.addContent({ 
-                    client_id: selectedClient, 
-                    title: formData.title, 
-                    description: formData.description, 
-                    content_type: formData.content_type, 
-                    scheduled_datetime 
+                await gmApi.addContent({
+                    client_id: selectedClient,
+                    title: formData.title,
+                    description: formData.description,
+                    content_type: formData.content_type,
+                    scheduled_datetime
                 });
             }
             setIsModalOpen(false);
@@ -557,7 +548,7 @@ export default function GMDashboard() {
                     <div style={{ width: '40px' }}></div> {/* Spacer */}
                 </div>
 
-                <header className="page-header">
+                <header className="page-header page-header-safe">
                     <div className="header-content">
                         <div className="header-info">
                             <h1 className="page-title">
@@ -683,6 +674,23 @@ export default function GMDashboard() {
                     </div>
                 </header>
 
+                {(view === 'client' || view === 'master') && (
+                    <div className="status-summary-row">
+                        <div className="status-pill status-pill-content">
+                            <span className="status-pill-label">Content</span>
+                            <span className="status-pill-count">{monthStatusCounts.content}</span>
+                        </div>
+                        <div className="status-pill status-pill-design">
+                            <span className="status-pill-label">Design</span>
+                            <span className="status-pill-count">{monthStatusCounts.design}</span>
+                        </div>
+                        <div className="status-pill status-pill-posted">
+                            <span className="status-pill-label">Posted</span>
+                            <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                        </div>
+                    </div>
+                )}
+
                 {view === 'dashboard' && (
                     <div className="daily-stats-banner">
                         <div className="progress-meter-card">
@@ -718,8 +726,8 @@ export default function GMDashboard() {
                         </div>
                         <div className="emergency-list">
                             {emergencyTasks.map(task => (
-                                <div 
-                                    key={task.id} 
+                                <div
+                                    key={task.id}
                                     className="emergency-card"
                                     onClick={() => handleItemClick(task)}
                                 >
@@ -1018,7 +1026,7 @@ export default function GMDashboard() {
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                                     <span className="day-number">{format(day, 'd')}</span>
                                                     {!isMasterMode && view === 'client' && (
-                                                        <button 
+                                                        <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 handleAddClick(day);
@@ -1067,7 +1075,7 @@ export default function GMDashboard() {
                                                 </div>
                                                 <div className="mobile-day-indicators">
                                                     {dayContent.map((item: any) => (
-                                                        <div 
+                                                        <div
                                                             key={item.id}
                                                             className={`mobile-dot ${isPocView ? 'post' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
                                                         ></div>
@@ -1095,9 +1103,9 @@ export default function GMDashboard() {
 
                             <div className="form-group">
                                 <label className="form-label">Content Type</label>
-                                <select 
-                                    className="form-input" 
-                                    value={formData.content_type} 
+                                <select
+                                    className="form-input"
+                                    value={formData.content_type}
                                     onChange={e => setFormData({ ...formData, content_type: e.target.value as any })}
                                     disabled={!!editingItem}
                                 >
@@ -1109,11 +1117,11 @@ export default function GMDashboard() {
                             <div className="form-row">
                                 <div className="form-group">
                                     <label className="form-label">Date</label>
-                                    <input 
-                                        type="date" 
-                                        className="form-input" 
-                                        value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''} 
-                                        onChange={e => setSelectedDate(parseISO(e.target.value))} 
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+                                        onChange={e => setSelectedDate(parseISO(e.target.value))}
                                     />
                                 </div>
                                 <div className="form-group">
@@ -1166,7 +1174,7 @@ export default function GMDashboard() {
                             ))}
 
                             {!isMasterMode && view === 'client' && (
-                                <button 
+                                <button
                                     onClick={() => {
                                         setDailyAgenda(null);
                                         handleAddClick(dailyAgenda.date);
@@ -1213,17 +1221,17 @@ export default function GMDashboard() {
                                 <h3 className="modal-title" style={{ marginTop: '8px' }}>{activeItem.item.title || activeItem.item.content_type}</h3>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <button 
-                                    onClick={() => handleEditClick(activeItem.item)} 
-                                    className="btn-icon" 
+                                <button
+                                    onClick={() => handleEditClick(activeItem.item)}
+                                    className="btn-icon"
                                     title="Edit Content"
                                     style={{ color: 'var(--accent)', background: 'transparent', border: 'none', cursor: 'pointer' }}
                                 >
                                     <Edit size={18} />
                                 </button>
-                                <button 
-                                    onClick={() => handleDeleteContent(activeItem.item.id)} 
-                                    className="btn-icon" 
+                                <button
+                                    onClick={() => handleDeleteContent(activeItem.item.id)}
+                                    className="btn-icon"
                                     title="Delete Content"
                                     style={{ color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer' }}
                                 >
@@ -1250,13 +1258,13 @@ export default function GMDashboard() {
                                         </div>
                                     </div>
                                     <div style={{ marginTop: '16px' }}>
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'space-between', 
-                                        background: 'var(--bg-elevated)', 
-                                        padding: '12px 16px', 
-                                        borderRadius: '12px', 
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        background: 'var(--bg-elevated)',
+                                        padding: '12px 16px',
+                                        borderRadius: '12px',
                                         border: '1px solid var(--border)',
                                         marginTop: '16px'
                                     }}>
@@ -1296,7 +1304,7 @@ export default function GMDashboard() {
                                         const isOverdue = isBefore(parseISO(activeItem.item.scheduled_datetime), new Date()) && activeItem.item.status !== 'POSTED';
                                         if (isOverdue) {
                                             return (
-                                                <button 
+                                                <button
                                                     onClick={() => handleRescheduleClick(activeItem.item)}
                                                     className="btn-reschedule"
                                                     style={{
@@ -1381,19 +1389,19 @@ export default function GMDashboard() {
                                                     </div>
                                                 )}
                                                 {nextStatus && activeItem.item.status === 'WAITING FOR POSTING' && (
-                                                    <div className="workflow-waiting-posting" style={{ 
-                                                        marginTop: '16px', 
-                                                        padding: '16px', 
-                                                        background: 'rgba(59, 130, 246, 0.05)', 
+                                                    <div className="workflow-waiting-posting" style={{
+                                                        marginTop: '16px',
+                                                        padding: '16px',
+                                                        background: 'rgba(59, 130, 246, 0.05)',
                                                         border: '1px solid rgba(59, 130, 246, 0.2)',
-                                                        color: '#3b82f6', 
-                                                        borderRadius: '12px', 
-                                                        fontSize: '13px', 
-                                                        display: 'flex', 
+                                                        color: '#3b82f6',
+                                                        borderRadius: '12px',
+                                                        fontSize: '13px',
+                                                        display: 'flex',
                                                         flexDirection: 'column',
-                                                        alignItems: 'center', 
+                                                        alignItems: 'center',
                                                         textAlign: 'center',
-                                                        gap: '8px' 
+                                                        gap: '8px'
                                                     }}>
                                                         <Clock size={20} />
                                                         <div style={{ fontWeight: 700 }}>Waiting for Posting Team</div>
@@ -1418,13 +1426,13 @@ export default function GMDashboard() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                 <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
                                 {activeItem.history.length > 0 && (
-                                    <button 
+                                    <button
                                         onClick={handleUndoStatus}
-                                        style={{ 
-                                            display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
-                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
-                                            border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
-                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
+                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                                            border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px',
+                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer'
                                         }}
                                     >
                                         <Undo2 size={12} />
@@ -1452,7 +1460,7 @@ export default function GMDashboard() {
                                     return flow.map((status: string, idx: number) => {
                                         const isCompleted = idx < currentIdx || currentStatus === 'POSTED';
                                         const isCurrent = idx === currentIdx && currentStatus !== 'POSTED';
-                                        const historyEntry = activeItem.history.find((h: any) => h.new_status === status);
+                                        const historyEntry = activeItem.history.find((h: StatusHistoryItem) => h.new_status === status);
 
                                         return (
                                             <div key={status} className={`timeline-step ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>

@@ -37,7 +37,7 @@ import {
     Menu
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { tlApi, gmApi, emergencyApi } from '@/lib/api';
+import { tlApi, gmApi, emergencyApi, ContentItem, PocNote, StatusHistoryItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -45,28 +45,9 @@ import ScheduleExport from '@/components/ScheduleExport';
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
 
-// Reusing interfaces from GM/Admin
-interface ContentItem {
-    id: string;
-    title: string;
-    description: string;
-    content_type: 'Post' | 'Reel';
-    scheduled_datetime: string;
-    status: string;
-    client_id: string;
-    is_emergency?: boolean;
-    clients?: { company_name: string };
-}
-
-interface PocNote {
-    id: string;
-    team_lead_id: string;
-    client_id?: string;
-    note_date: string;
-    note_text: string;
-    created_at: string;
-    users?: { name?: string; role_identifier?: string };
-    clients?: { company_name?: string };
+interface ContentDetails {
+    item: ContentItem;
+    history: StatusHistoryItem[];
 }
 
 const normalizeRole = (role?: string | null) => (role || '').trim().toLowerCase().replace(/[_\s]+/g, ' ');
@@ -113,62 +94,17 @@ export default function TLDashboard() {
     
     // Details modal state
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-    const [activeItem, setActiveItem] = useState<any>(null);
+    const [activeItem, setActiveItem] = useState<ContentDetails | null>(null);
     const [statusNote, setStatusNote] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
 
     const isMasterMode = view === 'master';
 
-    useEffect(() => {
-        const init = async () => {
-            setLoading(true);
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                
-                if (!user) {
-                    window.location.href = '/';
-                    return;
-                }
-
-                // Verify role
-                const { data: profileData, error: profileError } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .single();
-
-                const role = normalizeRole(profileData?.role);
-                const isTeamLead = ['tl', 'tl1', 'tl2', 'team lead'].includes(role);
-
-                if (profileError || !profileData || !isTeamLead) {
-                    console.warn('Profile validation check:', { role: profileData?.role, isTeamLead });
-                }
-
-                setUser(user);
-                setProfile(profileData);
-                await fetchClients(user.id);
-            } catch (err) {
-                console.error('Initialization error:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        init();
-    }, []);
 
 
-    useEffect(() => {
-        if (user) {
-            if (view === 'master' || view === 'dashboard') {
-                fetchMasterCalendar();
-            } else if (view === 'poc') {
-                fetchPocNotes();
-            } else if (view === 'client' && selectedClient) {
-                fetchClientCalendar();
-            }
-        }
-    }, [selectedClient, currentMonth, view, user]);
+
+
 
     const fetchClients = async (tlId: string) => {
         try {
@@ -223,6 +159,55 @@ export default function TLDashboard() {
         }
     };
 
+    useEffect(() => {
+        if (user) {
+            if (view === 'master' || view === 'dashboard') {
+                fetchMasterCalendar();
+            } else if (view === 'poc') {
+                fetchPocNotes();
+            } else if (view === 'client' && selectedClient) {
+                fetchClientCalendar();
+            }
+        }
+    }, [selectedClient, currentMonth, view, user]);
+
+    useEffect(() => {
+        const init = async () => {
+            setLoading(true);
+            try {
+                const { data: { user: authUser } } = await supabase.auth.getUser();
+
+                if (!authUser) {
+                    window.location.href = '/';
+                    return;
+                }
+
+                // Verify role
+                const { data: profileData, error: profileError } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('user_id', authUser.id)
+                    .single();
+
+                const role = normalizeRole(profileData?.role);
+                const isTeamLead = ['tl', 'tl1', 'tl2', 'team lead'].includes(role);
+
+                if (profileError || !profileData || !isTeamLead) {
+                    console.warn('Profile validation check:', { role: profileData?.role, isTeamLead });
+                }
+
+                setUser(authUser);
+                setProfile(profileData);
+                await fetchClients(authUser.id);
+            } catch (err) {
+                console.error('Initialization error:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        init();
+    }, []);
+
     const handlePocDayClick = (date: Date) => {
         setSelectedPocDate(date);
         setPocNoteText('');
@@ -272,10 +257,10 @@ export default function TLDashboard() {
             
             console.log('Updating status:', { newStatus, note: statusNote, actorId });
             
-            // Pass the note - ensure it's not just an empty string if we want it to be recognized as 'null' in DB
+            if (!activeItem) return;
             await gmApi.updateStatus(activeItem.item.id, newStatus, statusNote.trim() || undefined, actorId);
             
-            setStatusNote(''); // Clear note after success
+            if (!activeItem) return;
             const res = await gmApi.getContentDetails(activeItem.item.id);
 
             setActiveItem(res.data);
@@ -295,6 +280,17 @@ export default function TLDashboard() {
         start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
         end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
     });
+
+    const monthStatusCounts = calendarData.reduce(
+        (acc, item) => {
+            const normalizedStatus = (item.status || '').toUpperCase();
+            if (normalizedStatus.includes('CONTENT')) acc.content += 1;
+            if (normalizedStatus.includes('DESIGN')) acc.design += 1;
+            if (normalizedStatus === 'POSTED') acc.posted += 1;
+            return acc;
+        },
+        { content: 0, design: 0, posted: 0 }
+    );
 
     const filteredClients = clients.filter(c => 
         c.company_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -446,7 +442,7 @@ export default function TLDashboard() {
                     </div>
                 </div>
 
-                <header className="page-header">
+                <header className="page-header page-header-safe">
                     <div>
                         <h1 className="page-title">
                             {view === 'master' ? 'Master Calendar' : view === 'poc' ? 'POC Communication' : 'Client Dashboard'}
@@ -477,6 +473,23 @@ export default function TLDashboard() {
                         />
                     </div>
                 </header>
+
+                {(view === 'client' || view === 'master') && (
+                    <div className="status-summary-row">
+                        <div className="status-pill status-pill-content">
+                            <span className="status-pill-label">Content</span>
+                            <span className="status-pill-count">{monthStatusCounts.content}</span>
+                        </div>
+                        <div className="status-pill status-pill-design">
+                            <span className="status-pill-label">Design</span>
+                            <span className="status-pill-count">{monthStatusCounts.design}</span>
+                        </div>
+                        <div className="status-pill status-pill-posted">
+                            <span className="status-pill-label">Posted</span>
+                            <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                        </div>
+                    </div>
+                )}
 
                 {view === 'dashboard' && (
                     <div className="daily-stats-banner">
@@ -646,23 +659,23 @@ export default function TLDashboard() {
                                                                     handleItemClick(item);
                                                                 }
                                                             }}
-                                                            className={isPocView ? 'content-item post' : `content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                                            title={isPocView ? item.note_text : item.content_type}
+                                                            className={isPocView ? 'content-item post' : `content-item ${(item as ContentItem).content_type.toLowerCase()} ${(item as ContentItem).is_emergency ? 'emergency' : ''}`}
+                                                            title={isPocView ? (item as PocNote).note_text : (item as ContentItem).content_type}
                                                         >
-                                                            {isPocView ? <FileText size={10}/> : item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
+                                                            {isPocView ? <FileText size={10}/> : (item as ContentItem).content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
                                                             <span className="truncate" style={{ fontSize: '9px' }}>
                                                                 {isPocView
-                                                                    ? `${item.clients?.company_name || 'Client'}: ${item.note_text}`
-                                                                    : `${view === 'master' ? `[${item.clients?.company_name?.substring(0,3)}] ` : ''}${item.content_type}`}
+                                                                    ? (item as PocNote).note_text
+                                                                    : `${view === 'master' ? `[${(item as ContentItem).clients?.company_name?.substring(0,3)}] ` : ''}${(item as ContentItem).content_type}`}
                                                             </span>
                                                         </div>
                                                     ))}
                                                 </div>
                                                 <div className="mobile-day-indicators">
-                                                    {dayContent.map((item: any) => (
+                                                    {dayContent.map(item => (
                                                         <div
                                                             key={item.id}
-                                                            className={`mobile-dot ${isPocView ? 'post' : (item.content_type || '').toLowerCase()} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
+                                                            className={`mobile-dot ${isPocView ? 'post' : ((item as ContentItem).content_type || '').toLowerCase()} ${!isPocView && (item as ContentItem).is_emergency ? 'emergency' : ''}`}
                                                         ></div>
                                                     ))}
                                                 </div>
@@ -849,7 +862,7 @@ export default function TLDashboard() {
                                     return flow.map((status: string, idx: number) => {
                                         const isCompleted = idx < currentIdx || currentStatus === 'POSTED';
                                         const isCurrent = idx === currentIdx && currentStatus !== 'POSTED';
-                                        const historyEntry = activeItem.history.find((h: any) => h.new_status === status);
+                                        const historyEntry = activeItem.history.find((h: StatusHistoryItem) => h.new_status === status);
 
                                         return (
                                             <div key={status} style={{ 
