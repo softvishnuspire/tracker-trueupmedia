@@ -981,8 +981,19 @@ app.get('/api/tl/master-calendar', async (req, res) => {
 });
 
 // ─── POC Communication (Team Lead + GM) ───
+const POC_SELECT_BASE = 'id, team_lead_id, note_date, note_text, created_at, users:team_lead_id (name, role_identifier)';
+const POC_SELECT_WITH_CLIENT = `${POC_SELECT_BASE}, client_id, clients:client_id (company_name)`;
+const isMissingPocClientColumn = (error) => {
+    const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+    return message.includes('client_id') && (
+        message.includes('does not exist') ||
+        message.includes('could not find') ||
+        message.includes('relationship')
+    );
+};
+
 app.get('/api/tl/poc-notes', async (req, res) => {
-    const { month, tlId } = req.query;
+    const { month, tlId, client_id } = req.query;
     if (!month || !tlId) return res.status(400).json({ error: 'Missing month or tlId' });
 
     const [year, mon] = month.split('-');
@@ -990,41 +1001,93 @@ app.get('/api/tl/poc-notes', async (req, res) => {
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}`;
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('poc_communications')
-        .select(`id, team_lead_id, note_date, note_text, created_at, users:team_lead_id (name, role_identifier)`)
+        .select(POC_SELECT_WITH_CLIENT)
         .eq('team_lead_id', tlId)
         .gte('note_date', startDate)
         .lte('note_date', endDate)
         .order('note_date', { ascending: true })
         .order('created_at', { ascending: false });
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (client_id) {
+        query = query.eq('client_id', client_id);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+        if (isMissingPocClientColumn(error)) {
+            if (client_id) return res.json([]);
+
+            const { data: fallbackData, error: fallbackError } = await supabase
+                .from('poc_communications')
+                .select(POC_SELECT_BASE)
+                .eq('team_lead_id', tlId)
+                .gte('note_date', startDate)
+                .lte('note_date', endDate)
+                .order('note_date', { ascending: true })
+                .order('created_at', { ascending: false });
+
+            if (fallbackError) return res.status(500).json({ error: fallbackError.message });
+            return res.json(fallbackData || []);
+        }
+
+        return res.status(500).json({ error: error.message });
+    }
     res.json(data || []);
 });
 
 app.post('/api/tl/poc-notes', async (req, res) => {
-    const { tlId, note_date, note_text } = req.body;
-    if (!tlId || !note_date || !note_text?.trim()) {
-        return res.status(400).json({ error: 'tlId, note_date and note_text are required' });
+    const { tlId, client_id, note_date, note_text } = req.body;
+    if (!tlId || !client_id || !note_date || !note_text?.trim()) {
+        return res.status(400).json({ error: 'tlId, client_id, note_date and note_text are required' });
     }
+
+    const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('id', client_id)
+        .eq('team_lead_id', tlId)
+        .eq('is_deleted', false)
+        .single();
+
+    if (clientError || !client) {
+        return res.status(403).json({ error: 'Client is not assigned to this team lead' });
+    }
+
+    const insertPayload = {
+        team_lead_id: tlId,
+        client_id,
+        note_date,
+        note_text: note_text.trim()
+    };
 
     const { data, error } = await supabase
         .from('poc_communications')
-        .insert([{
-            team_lead_id: tlId,
-            note_date,
-            note_text: note_text.trim()
-        }])
-        .select(`id, team_lead_id, note_date, note_text, created_at, users:team_lead_id (name, role_identifier)`)
+        .insert([insertPayload])
+        .select(POC_SELECT_WITH_CLIENT)
         .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+        if (isMissingPocClientColumn(error)) {
+            const { client_id: _clientId, ...legacyPayload } = insertPayload;
+            const { data: fallbackData, error: fallbackError } = await supabase
+                .from('poc_communications')
+                .insert([legacyPayload])
+                .select(POC_SELECT_BASE)
+                .single();
+
+            if (fallbackError) return res.status(500).json({ error: fallbackError.message });
+            return res.json(fallbackData);
+        }
+
+        return res.status(500).json({ error: error.message });
+    }
     res.json(data);
 });
 
 app.get('/api/gm/poc-notes', async (req, res) => {
-    const { month, team_lead_id } = req.query;
+    const { month, team_lead_id, client_id } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
     const [year, mon] = month.split('-');
@@ -1034,7 +1097,7 @@ app.get('/api/gm/poc-notes', async (req, res) => {
 
     let query = supabase
         .from('poc_communications')
-        .select(`id, team_lead_id, note_date, note_text, created_at, users:team_lead_id (name, role_identifier)`)
+        .select(POC_SELECT_WITH_CLIENT)
         .gte('note_date', startDate)
         .lte('note_date', endDate)
         .order('note_date', { ascending: true })
@@ -1044,8 +1107,34 @@ app.get('/api/gm/poc-notes', async (req, res) => {
         query = query.eq('team_lead_id', team_lead_id);
     }
 
+    if (client_id) {
+        query = query.eq('client_id', client_id);
+    }
+
     const { data, error } = await query;
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+        if (isMissingPocClientColumn(error)) {
+            if (client_id) return res.json([]);
+
+            let fallbackQuery = supabase
+                .from('poc_communications')
+                .select(POC_SELECT_BASE)
+                .gte('note_date', startDate)
+                .lte('note_date', endDate)
+                .order('note_date', { ascending: true })
+                .order('created_at', { ascending: false });
+
+            if (team_lead_id) {
+                fallbackQuery = fallbackQuery.eq('team_lead_id', team_lead_id);
+            }
+
+            const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+            if (fallbackError) return res.status(500).json({ error: fallbackError.message });
+            return res.json(fallbackData || []);
+        }
+
+        return res.status(500).json({ error: error.message });
+    }
     res.json(data || []);
 });
 

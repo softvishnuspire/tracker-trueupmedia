@@ -10,10 +10,13 @@ async function run() {
     create table if not exists public.poc_communications (
       id uuid primary key default gen_random_uuid(),
       team_lead_id uuid not null references public.users(user_id),
+      client_id uuid references public.clients(id),
       note_date date not null,
       note_text text not null,
       created_at timestamptz default now()
     );
+    alter table public.poc_communications
+      add column if not exists client_id uuid references public.clients(id);
   `;
 
   const { error } = await supabase.rpc('run_sql', { sql });

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { cooApi, emergencyApi } from '@/lib/api';
 import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format, isSameDay, parseISO } from 'date-fns';
+import { endOfWeek, format, isSameDay, parseISO, startOfWeek } from 'date-fns';
 
 interface Stats {
     totalClients: number;
@@ -14,6 +14,7 @@ interface Stats {
 
 export default function CooDashboard() {
     const [stats, setStats] = useState<Stats | null>(null);
+    const [calendarData, setCalendarData] = useState<any[]>([]);
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -36,6 +37,7 @@ export default function CooDashboard() {
                 selectedClient === 'all' ? undefined : selectedClient
             );
             const data = calendarRes.data;
+            setCalendarData(data);
 
             const breakdown = data.reduce((acc: any, item: any) => {
                 acc[item.status] = (acc[item.status] || 0) + 1;
@@ -84,6 +86,19 @@ export default function CooDashboard() {
         fetchDashboardData();
     }, [selectedClient]);
 
+    const monthTotal = stats?.totalItemsThisMonth || 0;
+    const monthCompleted = (stats?.statusSummary?.POSTED || 0) as number;
+    const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekItems = calendarData.filter((item: any) => {
+        const itemDate = parseISO(item.scheduled_datetime);
+        return itemDate >= weekStart && itemDate <= weekEnd;
+    });
+    const weekTotal = weekItems.length;
+    const weekCompleted = weekItems.filter((item: any) => (item.status || '').toUpperCase() === 'POSTED').length;
+    const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
+
     if (error) return <div className="error-message">{error}</div>;
 
     return (
@@ -94,54 +109,6 @@ export default function CooDashboard() {
                     <p className="page-subtitle">Monitoring overview of system activity and client pipelines</p>
                 </div>
             </header>
-
-            <div className="daily-stats-banner">
-                <div className="progress-meter-card">
-                    <div className="progress-info">
-                        <div className="progress-main">
-                            <div className="progress-count">
-                                <span className="current">{todayStats.completed}</span>
-                                <span className="total">/{todayStats.total}</span>
-                            </div>
-                            <div className="progress-label">Tasks Completed</div>
-                        </div>
-                        <div className="meter-wrapper">
-                            <div className="meter-bar">
-                                <div className="meter-fill" style={{ width: `${todayStats.percentage}%` }}>
-                                    <div className="meter-glow"></div>
-                                </div>
-                            </div>
-                            <div className="meter-label">
-                                <span className="percentage">{todayStats.percentage}% Done</span>
-                                <span className="remaining">{todayStats.remaining} remaining</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {emergencyTasks.length > 0 && (
-                <div className="emergency-panel">
-                    <div className="emergency-panel-header">
-                        <ShieldAlert size={24} color="#ef4444" />
-                        <h2 className="emergency-panel-title">All Emergency Tasks</h2>
-                    </div>
-                    <div className="emergency-list">
-                        {emergencyTasks.map((task: any) => (
-                            <div key={task.id} className="emergency-card">
-                                <div className="emergency-card-icon">
-                                    {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
-                                </div>
-                                <div className="emergency-card-info">
-                                    <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                    <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
-                                </div>
-                                <ArrowRight size={18} color="var(--text-muted)" />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
 
             <div className="stats-grid" style={{ marginBottom: '32px' }}>
                 {loading ? (
@@ -272,7 +239,71 @@ export default function CooDashboard() {
                 </div>
             </div>
 
+            <div className="daily-stats-banner" style={{ marginTop: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '16px' }}>
+                    <div className="progress-meter-card" style={{ padding: '20px' }}>
+                        <h3 className="stat-label">Today&apos;s Progress</h3>
+                        <div className="progress-values">
+                            <span className="current">{todayStats.completed}</span>
+                            <span className="separator">/</span>
+                            <span className="total">{todayStats.total}</span>
+                            <span className="unit"> Tasks</span>
+                        </div>
+                        <div className="meter-label">
+                            <span className="percentage">{todayStats.percentage}% Done</span>
+                        </div>
+                    </div>
 
+                    <div className="progress-meter-card" style={{ padding: '20px' }}>
+                        <h3 className="stat-label">Week&apos;s Progress</h3>
+                        <div className="progress-values">
+                            <span className="current">{weekCompleted}</span>
+                            <span className="separator">/</span>
+                            <span className="total">{weekTotal}</span>
+                            <span className="unit"> Tasks</span>
+                        </div>
+                        <div className="meter-label">
+                            <span className="percentage">{weekPercentage}% Done</span>
+                        </div>
+                    </div>
+
+                    <div className="progress-meter-card" style={{ padding: '20px' }}>
+                        <h3 className="stat-label">Month&apos;s Progress</h3>
+                        <div className="progress-values">
+                            <span className="current">{monthCompleted}</span>
+                            <span className="separator">/</span>
+                            <span className="total">{monthTotal}</span>
+                            <span className="unit"> Tasks</span>
+                        </div>
+                        <div className="meter-label">
+                            <span className="percentage">{monthPercentage}% Done</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {emergencyTasks.length > 0 && (
+                <div className="emergency-panel" style={{ marginTop: '32px' }}>
+                    <div className="emergency-panel-header">
+                        <ShieldAlert size={24} color="#ef4444" />
+                        <h2 className="emergency-panel-title">All Emergency Tasks</h2>
+                    </div>
+                    <div className="emergency-list">
+                        {emergencyTasks.map((task: any) => (
+                            <div key={task.id} className="emergency-card">
+                                <div className="emergency-card-icon">
+                                    {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                </div>
+                                <div className="emergency-card-info">
+                                    <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                    <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                                </div>
+                                <ArrowRight size={18} color="var(--text-muted)" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

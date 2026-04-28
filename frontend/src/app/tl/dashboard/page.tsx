@@ -69,6 +69,7 @@ export default function TLDashboard() {
     const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
     const [isPocModalOpen, setIsPocModalOpen] = useState(false);
     const [selectedPocDate, setSelectedPocDate] = useState<Date | null>(null);
+    const [selectedPocClient, setSelectedPocClient] = useState<string>('');
     const [pocNoteText, setPocNoteText] = useState('');
     const [selectedPocNote, setSelectedPocNote] = useState<PocNote | null>(null);
     const [isPocDetailsOpen, setIsPocDetailsOpen] = useState(false);
@@ -111,6 +112,9 @@ export default function TLDashboard() {
             setClients(res.data);
             if (res.data.length > 0 && !selectedClient) {
                 setSelectedClient(res.data[0].id);
+            }
+            if (res.data.length > 0 && !selectedPocClient) {
+                setSelectedPocClient(res.data[0].id);
             }
         } catch (err) { console.error('Error fetching clients:', err); }
     };
@@ -172,7 +176,7 @@ export default function TLDashboard() {
             setLoading(true);
             try {
                 const { data: { user: authUser } } = await supabase.auth.getUser();
-                
+
                 if (!authUser) {
                     window.location.href = '/';
                     return;
@@ -212,10 +216,11 @@ export default function TLDashboard() {
 
     const handleSavePocNote = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !selectedPocDate || !pocNoteText.trim()) return;
+        if (!user || !selectedPocDate || !selectedPocClient || !pocNoteText.trim()) return;
         try {
             await tlApi.addPocNote({
                 tlId: user.id,
+                client_id: selectedPocClient,
                 note_date: format(selectedPocDate, 'yyyy-MM-dd'),
                 note_text: pocNoteText.trim()
             });
@@ -286,6 +291,18 @@ export default function TLDashboard() {
         },
         { content: 0, design: 0, posted: 0 }
     );
+    const monthTotal = calendarData.length;
+    const monthCompleted = monthStatusCounts.posted;
+    const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekItems = calendarData.filter(item => {
+        const itemDate = parseISO(item.scheduled_datetime);
+        return itemDate >= weekStart && itemDate <= weekEnd;
+    });
+    const weekTotal = weekItems.length;
+    const weekCompleted = weekItems.filter(item => (item.status || '').toUpperCase() === 'POSTED').length;
+    const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
 
     const filteredClients = clients.filter(c => 
         c.company_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -488,25 +505,43 @@ export default function TLDashboard() {
 
                 {view === 'dashboard' && (
                     <div className="daily-stats-banner">
-                        <div className="progress-meter-card">
-                            <div className="progress-info">
-                                <h3 className="stat-label">Today's Progress</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '16px' }}>
+                            <div className="progress-meter-card" style={{ padding: '20px' }}>
+                                <h3 className="stat-label">Today&apos;s Progress</h3>
                                 <div className="progress-values">
                                     <span className="current">{todayStats.completed}</span>
                                     <span className="separator">/</span>
                                     <span className="total">{todayStats.total}</span>
-                                    <span className="unit"> Tasks Posted</span>
-                                </div>
-                            </div>
-                            <div className="meter-container">
-                                <div className="meter-bar">
-                                    <div className="meter-fill" style={{ width: `${todayStats.percentage}%` }}>
-                                        <div className="meter-glow"></div>
-                                    </div>
+                                    <span className="unit"> Tasks</span>
                                 </div>
                                 <div className="meter-label">
                                     <span className="meter-percentage">{todayStats.percentage}% Complete</span>
-                                    <span>{todayStats.remaining} tasks remaining today</span>
+                                </div>
+                            </div>
+
+                            <div className="progress-meter-card" style={{ padding: '20px' }}>
+                                <h3 className="stat-label">Week&apos;s Progress</h3>
+                                <div className="progress-values">
+                                    <span className="current">{weekCompleted}</span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{weekTotal}</span>
+                                    <span className="unit"> Tasks</span>
+                                </div>
+                                <div className="meter-label">
+                                    <span className="meter-percentage">{weekPercentage}% Complete</span>
+                                </div>
+                            </div>
+
+                            <div className="progress-meter-card" style={{ padding: '20px' }}>
+                                <h3 className="stat-label">Month&apos;s Progress</h3>
+                                <div className="progress-values">
+                                    <span className="current">{monthCompleted}</span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{monthTotal}</span>
+                                    <span className="unit"> Tasks</span>
+                                </div>
+                                <div className="meter-label">
+                                    <span className="meter-percentage">{monthPercentage}% Complete</span>
                                 </div>
                             </div>
                         </div>
@@ -542,36 +577,6 @@ export default function TLDashboard() {
 
                 {view === 'dashboard' && (
                     <div className="dashboard-view">
-                        <div className="stats-grid">
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
-                                    <Users size={24} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>Managed Clients</h3>
-                                    <p className="stat-value">{clients.length}</p>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
-                                    <CalendarIcon size={24} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>Total Monthly Content</h3>
-                                    <p className="stat-value">{calendarData.length}</p>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
-                                    <Clock size={24} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>Today's Throughput</h3>
-                                    <p className="stat-value">{todayStats.total}</p>
-                                </div>
-                            </div>
-                        </div>
-
                         <div className="dashboard-grid" style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px' }}>
                             <div className="dashboard-card">
                                 <div className="card-header">
@@ -668,7 +673,7 @@ export default function TLDashboard() {
                                                 </div>
                                                 <div className="mobile-day-indicators">
                                                     {dayContent.map(item => (
-                                                        <div 
+                                                        <div
                                                             key={item.id}
                                                             className={`mobile-dot ${isPocView ? 'post' : ((item as ContentItem).content_type || '').toLowerCase()} ${!isPocView && (item as ContentItem).is_emergency ? 'emergency' : ''}`}
                                                         ></div>
@@ -943,6 +948,20 @@ export default function TLDashboard() {
                                 />
                             </div>
                             <div className="form-group">
+                                <label className="form-label">Client</label>
+                                <select
+                                    className="form-input"
+                                    value={selectedPocClient}
+                                    onChange={(e) => setSelectedPocClient(e.target.value)}
+                                    required
+                                >
+                                    <option value="" disabled>Select assigned client</option>
+                                    {clients.map((client) => (
+                                        <option key={client.id} value={client.id}>{client.company_name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
                                 <label className="form-label">Note</label>
                                 <textarea
                                     className="form-input"
@@ -985,6 +1004,15 @@ export default function TLDashboard() {
                                     type="text"
                                     className="form-input"
                                     value={selectedPocNote.users?.role_identifier || selectedPocNote.users?.name || 'Team Lead'}
+                                    readOnly
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Client</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={selectedPocNote.clients?.company_name || 'Client not selected'}
                                     readOnly
                                 />
                             </div>

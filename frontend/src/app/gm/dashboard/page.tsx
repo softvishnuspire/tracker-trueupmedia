@@ -72,6 +72,7 @@ export default function GMDashboard() {
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
+    const [selectedPocClient, setSelectedPocClient] = useState<string>('all');
     const [selectedPocNote, setSelectedPocNote] = useState<PocNote | null>(null);
     const [isPocDetailsOpen, setIsPocDetailsOpen] = useState(false);
 
@@ -102,13 +103,27 @@ export default function GMDashboard() {
     });
 
 
+    useEffect(() => {
+        if (view === 'master') {
+            fetchMasterCalendar();
+        } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
+            fetchClientCalendar();
+        } else if (view === 'teams') {
+            fetchTeamLeads();
+        } else if (view === 'poc') {
+            fetchPocNotes();
+        } else if (view === 'dashboard') {
+            fetchDashboardStats();
+        }
+    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length]);
 
 
 
     const fetchPocNotes = async () => {
         setLoading(true);
         try {
-            const res = await gmApi.getPocNotes(format(currentMonth, 'yyyy-MM'));
+            const clientId = selectedPocClient === 'all' ? undefined : selectedPocClient;
+            const res = await gmApi.getPocNotes(format(currentMonth, 'yyyy-MM'), undefined, clientId);
             setPocNotes(res.data || []);
         } catch (err) {
             console.error('Error fetching POC notes:', err);
@@ -191,7 +206,7 @@ export default function GMDashboard() {
             const todayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
             const completedToday = todayItems.filter(item => item.status === 'POSTED').length;
-            
+
             setTodayStats({
                 total: totalToday,
                 completed: completedToday,
@@ -212,7 +227,7 @@ export default function GMDashboard() {
 
         } catch (err) { console.error(err); } finally { setLoading(false); }
     };
-    
+
     useEffect(() => {
         if (view === 'master') {
             fetchMasterCalendar();
@@ -256,6 +271,16 @@ export default function GMDashboard() {
         },
         { content: 0, design: 0, posted: 0 }
     );
+    const monthTotal = stats.monthlyContent || 0;
+    const monthCompleted = monthStatusCounts.posted;
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekItems = calendarData.filter(item => {
+        const itemDate = parseISO(item.scheduled_datetime);
+        return itemDate >= weekStart && itemDate <= weekEnd;
+    });
+    const weekTotal = weekItems.length;
+    const weekCompleted = weekItems.filter(item => (item.status || '').toUpperCase() === 'POSTED').length;
 
     const handlePrev = () => {
         if (viewMode === 'month') setCurrentMonth(subMonths(currentMonth, 1));
@@ -353,9 +378,9 @@ export default function GMDashboard() {
             const res = await gmApi.getContentDetails(activeItem.item.id);
             setActiveItem(res.data);
             if (isMasterMode) fetchMasterCalendar(); else fetchClientCalendar();
-        } catch (err) { 
-            console.error(err); 
-            alert('Failed to undo status change. It might be because there is no more history to undo.'); 
+        } catch (err) {
+            console.error(err);
+            alert('Failed to undo status change. It might be because there is no more history to undo.');
         }
     };
 
@@ -366,11 +391,11 @@ export default function GMDashboard() {
             if (res.data.success) {
                 const detailsRes = await gmApi.getContentDetails(activeItem.item.id);
                 setActiveItem(detailsRes.data);
-                
+
                 // Refresh calendars
-                if (view === 'master') fetchMasterCalendar(); 
+                if (view === 'master') fetchMasterCalendar();
                 else if (view === 'client') fetchClientCalendar();
-                
+
                 // Always refresh dashboard stats to update emergency list
                 fetchDashboardStats();
             }
@@ -404,19 +429,19 @@ export default function GMDashboard() {
         const scheduled_datetime = format(selectedDate!, 'yyyy-MM-dd') + 'T' + formData.time + ':00';
         try {
             if (editingItem) {
-                await gmApi.updateContent(editingItem.id, { 
-                    title: formData.title, 
-                    description: formData.description, 
+                await gmApi.updateContent(editingItem.id, {
+                    title: formData.title,
+                    description: formData.description,
                     scheduled_datetime,
                     is_rescheduled: isRescheduling ? true : editingItem.is_rescheduled
                 });
             } else {
-                await gmApi.addContent({ 
-                    client_id: selectedClient, 
-                    title: formData.title, 
-                    description: formData.description, 
-                    content_type: formData.content_type, 
-                    scheduled_datetime 
+                await gmApi.addContent({
+                    client_id: selectedClient,
+                    title: formData.title,
+                    description: formData.description,
+                    content_type: formData.content_type,
+                    scheduled_datetime
                 });
             }
             setIsModalOpen(false);
@@ -623,6 +648,27 @@ export default function GMDashboard() {
                                 </div>
                             )}
 
+                            {view === 'poc' && (
+                                <div className="master-filters-container">
+                                    <div className="filter-icon-box">
+                                        <Filter size={14} />
+                                    </div>
+                                    <div className="client-dropdown-wrapper">
+                                        <select
+                                            className="client-dropdown"
+                                            value={selectedPocClient}
+                                            onChange={(e) => setSelectedPocClient(e.target.value)}
+                                        >
+                                            <option value="all">All Clients</option>
+                                            {clients.map(c => (
+                                                <option key={c.id} value={c.id}>{c.company_name}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown size={14} className="dropdown-chevron" />
+                                    </div>
+                                </div>
+                            )}
+
                             {view !== 'teams' && view !== 'dashboard' && (
                                 <>
                                     <div className="view-mode-toggle">
@@ -677,25 +723,34 @@ export default function GMDashboard() {
 
                 {view === 'dashboard' && (
                     <div className="daily-stats-banner">
-                        <div className="progress-meter-card">
-                            <div className="progress-info">
-                                <h3 className="stat-label">Today's Progress</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '16px' }}>
+                            <div className="progress-meter-card" style={{ padding: '20px' }}>
+                                <h3 className="stat-label">Today&apos;s Progress</h3>
                                 <div className="progress-values">
                                     <span className="current">{todayStats.completed}</span>
                                     <span className="separator">/</span>
                                     <span className="total">{todayStats.total}</span>
-                                    <span className="unit"> Tasks Posted</span>
+                                    <span className="unit"> Tasks</span>
                                 </div>
                             </div>
-                            <div className="meter-container">
-                                <div className="meter-bar">
-                                    <div className="meter-fill" style={{ width: `${todayStats.percentage}%` }}>
-                                        <div className="meter-glow"></div>
-                                    </div>
+
+                            <div className="progress-meter-card" style={{ padding: '20px' }}>
+                                <h3 className="stat-label">Week&apos;s Progress</h3>
+                                <div className="progress-values">
+                                    <span className="current">{weekCompleted}</span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{weekTotal}</span>
+                                    <span className="unit"> Tasks</span>
                                 </div>
-                                <div className="meter-label">
-                                    <span className="meter-percentage">{todayStats.percentage}% Complete</span>
-                                    <span>{todayStats.remaining} tasks remaining today</span>
+                            </div>
+
+                            <div className="progress-meter-card" style={{ padding: '20px' }}>
+                                <h3 className="stat-label">Month&apos;s Progress</h3>
+                                <div className="progress-values">
+                                    <span className="current">{monthCompleted}</span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{monthTotal}</span>
+                                    <span className="unit"> Tasks</span>
                                 </div>
                             </div>
                         </div>
@@ -710,8 +765,8 @@ export default function GMDashboard() {
                         </div>
                         <div className="emergency-list">
                             {emergencyTasks.map(task => (
-                                <div 
-                                    key={task.id} 
+                                <div
+                                    key={task.id}
                                     className="emergency-card"
                                     onClick={() => handleItemClick(task)}
                                 >
@@ -733,64 +788,6 @@ export default function GMDashboard() {
 
                 {view === 'dashboard' && (
                     <div className="dashboard-view">
-                        <div className="stats-grid">
-                            {loading ? (
-                                <>
-                                    <div className="stat-card">
-                                        <Skeleton className="h-12 w-12 rounded-xl" />
-                                        <div className="space-y-2 flex-1">
-                                            <Skeleton className="h-4 w-20" />
-                                            <Skeleton className="h-8 w-12" />
-                                        </div>
-                                    </div>
-                                    <div className="stat-card">
-                                        <Skeleton className="h-12 w-12 rounded-xl" />
-                                        <div className="space-y-2 flex-1">
-                                            <Skeleton className="h-4 w-20" />
-                                            <Skeleton className="h-8 w-12" />
-                                        </div>
-                                    </div>
-                                    <div className="stat-card">
-                                        <Skeleton className="h-12 w-12 rounded-xl" />
-                                        <div className="space-y-2 flex-1">
-                                            <Skeleton className="h-4 w-20" />
-                                            <Skeleton className="h-8 w-12" />
-                                        </div>
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="stat-card">
-                                        <div className="stat-icon-box" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
-                                            <Users size={24} />
-                                        </div>
-                                        <div className="stat-info">
-                                            <h3>Total Clients</h3>
-                                            <p className="stat-value">{stats.totalClients}</p>
-                                        </div>
-                                    </div>
-                                    <div className="stat-card">
-                                        <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
-                                            <UserCircle size={24} />
-                                        </div>
-                                        <div className="stat-info">
-                                            <h3>Active Teams</h3>
-                                            <p className="stat-value">{stats.totalTeams}</p>
-                                        </div>
-                                    </div>
-                                    <div className="stat-card">
-                                        <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
-                                            <FileText size={24} />
-                                        </div>
-                                        <div className="stat-info">
-                                            <h3>This Month's Content</h3>
-                                            <p className="stat-value">{stats.monthlyContent}</p>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
                         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', marginTop: '24px' }} className="responsive-dashboard-grid">
                             <div className="dashboard-card">
                                 <div className="card-header">
@@ -1027,6 +1024,7 @@ export default function GMDashboard() {
                                                 key={idx}
                                                 onClick={() => {
                                                     if (dayContent.length > 0 && !isPocView) {
+                                                        const contentItems = dayContent as ContentItem[];
                                                         if (window.innerWidth <= 768) {
                                                             setDailyAgenda({ date: day, items: dayContent as ContentItem[] });
                                                         } else {
@@ -1042,7 +1040,7 @@ export default function GMDashboard() {
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                                     <span className="day-number">{format(day, 'd')}</span>
                                                     {!isMasterMode && view === 'client' && (
-                                                        <button 
+                                                        <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 handleAddClick(day);
@@ -1083,7 +1081,7 @@ export default function GMDashboard() {
                                                             {isPocView ? <FileText size={10} /> : item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate">
                                                                 {isPocView
-                                                                    ? `${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
+                                                                    ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
                                                                     : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}${item.content_type}`}
                                                             </span>
                                                         </div>
@@ -1091,7 +1089,7 @@ export default function GMDashboard() {
                                                 </div>
                                                 <div className="mobile-day-indicators">
                                                     {dayContent.map((item: any) => (
-                                                        <div 
+                                                        <div
                                                             key={item.id}
                                                             className={`mobile-dot ${isPocView ? 'post' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
                                                         ></div>
@@ -1119,9 +1117,9 @@ export default function GMDashboard() {
 
                             <div className="form-group">
                                 <label className="form-label">Content Type</label>
-                                <select 
-                                    className="form-input" 
-                                    value={formData.content_type} 
+                                <select
+                                    className="form-input"
+                                    value={formData.content_type}
                                     onChange={e => setFormData({ ...formData, content_type: e.target.value as any })}
                                     disabled={!!editingItem}
                                 >
@@ -1133,11 +1131,11 @@ export default function GMDashboard() {
                             <div className="form-row">
                                 <div className="form-group">
                                     <label className="form-label">Date</label>
-                                    <input 
-                                        type="date" 
-                                        className="form-input" 
-                                        value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''} 
-                                        onChange={e => setSelectedDate(parseISO(e.target.value))} 
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+                                        onChange={e => setSelectedDate(parseISO(e.target.value))}
                                     />
                                 </div>
                                 <div className="form-group">
@@ -1190,7 +1188,7 @@ export default function GMDashboard() {
                             ))}
 
                             {!isMasterMode && view === 'client' && (
-                                <button 
+                                <button
                                     onClick={() => {
                                         setDailyAgenda(null);
                                         handleAddClick(dailyAgenda.date);
@@ -1237,17 +1235,17 @@ export default function GMDashboard() {
                                 <h3 className="modal-title" style={{ marginTop: '8px' }}>{activeItem.item.title || activeItem.item.content_type}</h3>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <button 
-                                    onClick={() => handleEditClick(activeItem.item)} 
-                                    className="btn-icon" 
+                                <button
+                                    onClick={() => handleEditClick(activeItem.item)}
+                                    className="btn-icon"
                                     title="Edit Content"
                                     style={{ color: 'var(--accent)', background: 'transparent', border: 'none', cursor: 'pointer' }}
                                 >
                                     <Edit size={18} />
                                 </button>
-                                <button 
-                                    onClick={() => handleDeleteContent(activeItem.item.id)} 
-                                    className="btn-icon" 
+                                <button
+                                    onClick={() => handleDeleteContent(activeItem.item.id)}
+                                    className="btn-icon"
                                     title="Delete Content"
                                     style={{ color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer' }}
                                 >
@@ -1274,53 +1272,53 @@ export default function GMDashboard() {
                                         </div>
                                     </div>
                                     <div style={{ marginTop: '16px' }}>
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'space-between', 
-                                        background: 'var(--bg-elevated)', 
-                                        padding: '12px 16px', 
-                                        borderRadius: '12px', 
-                                        border: '1px solid var(--border)',
-                                        marginTop: '16px'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <ShieldAlert size={18} color={activeItem.item.is_emergency ? "#ef4444" : "var(--text-muted)"} />
-                                            <span style={{ fontSize: '14px', fontWeight: 700, color: activeItem.item.is_emergency ? "#ef4444" : "var(--text-primary)" }}>
-                                                Emergency Priority
-                                            </span>
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            background: 'var(--bg-elevated)',
+                                            padding: '12px 16px',
+                                            borderRadius: '12px',
+                                            border: '1px solid var(--border)',
+                                            marginTop: '16px'
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <ShieldAlert size={18} color={activeItem.item.is_emergency ? "#ef4444" : "var(--text-muted)"} />
+                                                <span style={{ fontSize: '14px', fontWeight: 700, color: activeItem.item.is_emergency ? "#ef4444" : "var(--text-primary)" }}>
+                                                    Emergency Priority
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={handleToggleEmergency}
+                                                style={{
+                                                    width: '44px',
+                                                    height: '24px',
+                                                    borderRadius: '12px',
+                                                    background: activeItem.item.is_emergency ? '#ef4444' : 'var(--bg-surface)',
+                                                    border: `1px solid ${activeItem.item.is_emergency ? '#ef4444' : 'var(--border)'}`,
+                                                    position: 'relative',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.3s ease'
+                                                }}
+                                            >
+                                                <div style={{
+                                                    width: '18px',
+                                                    height: '18px',
+                                                    borderRadius: '50%',
+                                                    background: activeItem.item.is_emergency ? 'white' : 'var(--text-muted)',
+                                                    position: 'absolute',
+                                                    top: '2px',
+                                                    left: activeItem.item.is_emergency ? '22px' : '2px',
+                                                    transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+                                                }}></div>
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={handleToggleEmergency}
-                                            style={{
-                                                width: '44px',
-                                                height: '24px',
-                                                borderRadius: '12px',
-                                                background: activeItem.item.is_emergency ? '#ef4444' : 'var(--bg-surface)',
-                                                border: `1px solid ${activeItem.item.is_emergency ? '#ef4444' : 'var(--border)'}`,
-                                                position: 'relative',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.3s ease'
-                                            }}
-                                        >
-                                            <div style={{
-                                                width: '18px',
-                                                height: '18px',
-                                                borderRadius: '50%',
-                                                background: activeItem.item.is_emergency ? 'white' : 'var(--text-muted)',
-                                                position: 'absolute',
-                                                top: '2px',
-                                                left: activeItem.item.is_emergency ? '22px' : '2px',
-                                                transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
-                                            }}></div>
-                                        </button>
-                                    </div>
                                     </div>
                                     {(() => {
                                         const isOverdue = isBefore(parseISO(activeItem.item.scheduled_datetime), new Date()) && activeItem.item.status !== 'POSTED';
                                         if (isOverdue) {
                                             return (
-                                                <button 
+                                                <button
                                                     onClick={() => handleRescheduleClick(activeItem.item)}
                                                     className="btn-reschedule"
                                                     style={{
@@ -1405,19 +1403,19 @@ export default function GMDashboard() {
                                                     </div>
                                                 )}
                                                 {nextStatus && activeItem.item.status === 'WAITING FOR POSTING' && (
-                                                    <div className="workflow-waiting-posting" style={{ 
-                                                        marginTop: '16px', 
-                                                        padding: '16px', 
-                                                        background: 'rgba(59, 130, 246, 0.05)', 
+                                                    <div className="workflow-waiting-posting" style={{
+                                                        marginTop: '16px',
+                                                        padding: '16px',
+                                                        background: 'rgba(59, 130, 246, 0.05)',
                                                         border: '1px solid rgba(59, 130, 246, 0.2)',
-                                                        color: '#3b82f6', 
-                                                        borderRadius: '12px', 
-                                                        fontSize: '13px', 
-                                                        display: 'flex', 
+                                                        color: '#3b82f6',
+                                                        borderRadius: '12px',
+                                                        fontSize: '13px',
+                                                        display: 'flex',
                                                         flexDirection: 'column',
-                                                        alignItems: 'center', 
+                                                        alignItems: 'center',
                                                         textAlign: 'center',
-                                                        gap: '8px' 
+                                                        gap: '8px'
                                                     }}>
                                                         <Clock size={20} />
                                                         <div style={{ fontWeight: 700 }}>Waiting for Posting Team</div>
@@ -1442,13 +1440,13 @@ export default function GMDashboard() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                 <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
                                 {activeItem.history.length > 0 && (
-                                    <button 
+                                    <button
                                         onClick={handleUndoStatus}
-                                        style={{ 
-                                            display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
-                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
-                                            border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
-                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
+                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                                            border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px',
+                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer'
                                         }}
                                     >
                                         <Undo2 size={12} />
@@ -1542,6 +1540,15 @@ export default function GMDashboard() {
                                     type="text"
                                     className="form-input"
                                     value={selectedPocNote.users?.role_identifier || selectedPocNote.users?.name || 'Team Lead'}
+                                    readOnly
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Client</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={selectedPocNote.clients?.company_name || 'Client not selected'}
                                     readOnly
                                 />
                             </div>

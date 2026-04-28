@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { adminApi, emergencyApi, gmApi, ContentItem, StatusHistoryItem } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format, isSameDay, parseISO } from 'date-fns';
+import { endOfWeek, format, isSameDay, parseISO, startOfWeek } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
 
 interface Stats {
@@ -24,6 +24,7 @@ interface ContentDetails {
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
+  const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
@@ -67,6 +68,7 @@ export default function AdminDashboard() {
         selectedClient === 'all' ? undefined : selectedClient
       );
       const data = calendarRes.data;
+      setCalendarData(data);
 
       const breakdown = data.reduce((acc: any, item: ContentItem) => {
         acc[item.status] = (acc[item.status] || 0) + 1;
@@ -87,8 +89,6 @@ export default function AdminDashboard() {
       });
 
       // Update stats state for the pipeline and summary
-      // If we have a selected client, we use the local data for items count
-      // Otherwise we can use the getStats() for global totals if preferred
       if (selectedClient === 'all') {
         const statsRes = await adminApi.getStats();
         setStats({
@@ -97,11 +97,11 @@ export default function AdminDashboard() {
           totalItemsThisMonth: data.length
         });
       } else {
-        setStats(prev => ({
+        setStats({
           totalClients: clients.length,
           totalItemsThisMonth: data.length,
           statusSummary: breakdown
-        }));
+        });
       }
 
       // Fetch all emergency tasks
@@ -133,17 +133,13 @@ export default function AdminDashboard() {
     if (!activeItem) return;
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      // Admin uses adminApi for status updates if available, else we can use gmApi or similar
-      // For now let's assume adminApi has what we need or we can add it to api.ts if missing
-      // Actually let's use the patch endpoint directly if we can
       await gmApi.updateStatus(activeItem.item.id, newStatus, statusNote, user?.id);
       
       // Refresh details
       const res = await adminApi.getContentDetails(activeItem.item.id);
       setActiveItem(res.data);
       setStatusNote('');
-      fetchEmergencyTasks();
-      fetchEmergencyTasks();
+      fetchDashboardData(); // Refresh the whole dashboard to update stats
     } catch (err: unknown) {
       if (err instanceof Error) alert(err.message);
       else alert(String(err));
@@ -157,7 +153,7 @@ export default function AdminDashboard() {
       await adminApi.undoStatus(activeItem.item.id);
       const res = await adminApi.getContentDetails(activeItem.item.id);
       setActiveItem(res.data);
-      fetchEmergencyTasks();
+      fetchDashboardData();
     } catch (err) {
       console.error(err);
       alert('Failed to undo status change.');
@@ -194,12 +190,25 @@ export default function AdminDashboard() {
       const res = await adminApi.getContentDetails(activeItem.item.id);
       setActiveItem(res.data);
       setIsRescheduling(false);
-      fetchEmergencyTasks();
+      fetchDashboardData();
     } catch (err: unknown) {
       if (err instanceof Error) alert(err.message);
       else alert(String(err));
     }
   };
+
+  const monthTotal = stats?.totalItemsThisMonth || 0;
+  const monthCompleted = (stats?.statusSummary?.POSTED || 0) as number;
+  const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekItems = calendarData.filter((item) => {
+    const itemDate = parseISO(item.scheduled_datetime);
+    return itemDate >= weekStart && itemDate <= weekEnd;
+  });
+  const weekTotal = weekItems.length;
+  const weekCompleted = weekItems.filter((item) => (item.status || '').toUpperCase() === 'POSTED').length;
+  const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
 
   return (
     <div className="dashboard-view">
@@ -214,64 +223,6 @@ export default function AdminDashboard() {
         <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '12px', marginBottom: '24px', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={{ fontWeight: 600, fontSize: '14px' }}>Error: {error}</p>
           <button onClick={() => setError(null)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><X size={16} /></button>
-        </div>
-      )}
-
-      <div className="daily-stats-banner">
-        <div className="progress-meter-card">
-          <div className="progress-main-info">
-            <h3 className="stat-label">Today&apos;s Progress</h3>
-            <div className="progress-values">
-              <span className="current">{todayStats.completed}</span>
-              <span className="separator">/</span>
-              <span className="total">{todayStats.total}</span>
-              <span className="unit">Tasks Posted</span>
-            </div>
-          </div>
-          <div className="meter-visual">
-            <div className="meter-bar">
-              <div className="meter-fill" style={{ width: `${todayStats.percentage}%` }}>
-                <div className="meter-glow"></div>
-              </div>
-            </div>
-            <div className="meter-labels">
-              <span className="percentage">{todayStats.percentage}% Done</span>
-              <span className="remaining">{todayStats.remaining} remaining today</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {emergencyTasks.length > 0 && (
-        <div className="emergency-panel">
-          <div className="emergency-panel-header">
-            <ShieldAlert size={24} color="#ef4444" />
-            <h2 className="emergency-panel-title">All Emergency Tasks</h2>
-          </div>
-          <div className="emergency-list">
-            {emergencyTasks.map((task: ContentItem) => (
-              <div
-                key={task.id}
-                className="emergency-card"
-                onClick={() => handleTaskClick(task.id)}
-              >
-                <div className="emergency-card-icon">
-                  {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
-                </div>
-                <div className="emergency-card-body">
-                  <div className="emergency-card-client">{task.clients?.company_name?.toUpperCase()}</div>
-                  <div className="emergency-card-details">
-                    <span className="type">{task.content_type}</span>
-                    <span className="dot">•</span>
-                    <span className="time">{format(parseISO(task.scheduled_datetime), 'h:mm a')}</span>
-                  </div>
-                </div>
-                <div className="emergency-card-arrow">
-                  <ArrowRight size={18} />
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -404,7 +355,81 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      <div className="daily-stats-banner" style={{ marginTop: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '16px' }}>
+          <div className="progress-meter-card" style={{ padding: '20px' }}>
+            <h3 className="stat-label">Today&apos;s Progress</h3>
+            <div className="progress-values">
+              <span className="current">{todayStats.completed}</span>
+              <span className="separator">/</span>
+              <span className="total">{todayStats.total}</span>
+              <span className="unit">Tasks</span>
+            </div>
+            <div className="meter-labels">
+              <span className="percentage">{todayStats.percentage}% Done</span>
+            </div>
+          </div>
 
+          <div className="progress-meter-card" style={{ padding: '20px' }}>
+            <h3 className="stat-label">Week&apos;s Progress</h3>
+            <div className="progress-values">
+              <span className="current">{weekCompleted}</span>
+              <span className="separator">/</span>
+              <span className="total">{weekTotal}</span>
+              <span className="unit">Tasks</span>
+            </div>
+            <div className="meter-labels">
+              <span className="percentage">{weekPercentage}% Done</span>
+            </div>
+          </div>
+
+          <div className="progress-meter-card" style={{ padding: '20px' }}>
+            <h3 className="stat-label">Month&apos;s Progress</h3>
+            <div className="progress-values">
+              <span className="current">{monthCompleted}</span>
+              <span className="separator">/</span>
+              <span className="total">{monthTotal}</span>
+              <span className="unit">Tasks</span>
+            </div>
+            <div className="meter-labels">
+              <span className="percentage">{monthPercentage}% Done</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {emergencyTasks.length > 0 && (
+        <div className="emergency-panel" style={{ marginTop: '32px' }}>
+          <div className="emergency-panel-header">
+            <ShieldAlert size={24} color="#ef4444" />
+            <h2 className="emergency-panel-title">All Emergency Tasks</h2>
+          </div>
+          <div className="emergency-list">
+            {emergencyTasks.map((task: ContentItem) => (
+              <div
+                key={task.id}
+                className="emergency-card"
+                onClick={() => handleTaskClick(task.id)}
+              >
+                <div className="emergency-card-icon">
+                  {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                </div>
+                <div className="emergency-card-body">
+                  <div className="emergency-card-client">{task.clients?.company_name?.toUpperCase()}</div>
+                  <div className="emergency-card-details">
+                    <span className="type">{task.content_type}</span>
+                    <span className="dot">•</span>
+                    <span className="time">{format(parseISO(task.scheduled_datetime), 'h:mm a')}</span>
+                  </div>
+                </div>
+                <div className="emergency-card-arrow">
+                  <ArrowRight size={18} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Task Details Modal */}
       {isModalOpen && activeItem && (
@@ -434,7 +459,7 @@ export default function AdminDashboard() {
                   if(confirm('Delete this task permanently?')) {
                     adminApi.deleteContent(activeItem.item.id).then(() => {
                       setIsModalOpen(false);
-                      fetchEmergencyTasks();
+                      fetchDashboardData();
                     });
                   }
                 }}>
