@@ -2012,5 +2012,43 @@
     .detail-body {
         max-height: calc(100vh - 120px);
     }
+    
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .daily-stats-banner {
+        flex-direction: column !important;
+        gap: 16px !important;
+    }
+    
+    .pipeline-stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .progress-meter-card {
+        padding: 20px !important;
+        min-height: auto !important;
+    }
 }
 
+/* --- Dashboard Layout Grids --- */
+.admin-main-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.pipeline-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+    .admin-main-grid {
+        grid-template-columns: 1fr;
+    }
+}
