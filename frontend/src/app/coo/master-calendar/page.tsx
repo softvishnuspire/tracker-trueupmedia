@@ -237,6 +237,7 @@ export default function CooMasterCalendar() {
                             <ChevronRight size={20} />
                         </button>
                     </div>
+                </div>
             </header>
 
             <div className="status-summary-row">
