@@ -123,12 +123,12 @@ const getRequesterRole = async (user) => {
 
     const metadataRole = user?.user_metadata?.role || user?.app_metadata?.role;
     const resolvedRole = normalizeRole(profile?.role || metadataRole);
-    
+
     // Cache the resolved role for 60 seconds
     if (resolvedRole) {
         myCache.set(`role_${userId}`, resolvedRole, 60);
     }
-    
+
     return resolvedRole;
 };
 
@@ -339,8 +339,8 @@ app.post('/api/gm/content', async (req, res) => {
         // Check monthly limit
         const limitCheck = await checkContentLimit(client_id, content_type, scheduled_datetime);
         if (!limitCheck.allowed) {
-            return res.status(400).json({ 
-                error: `Monthly ${content_type} limit reached (${limitCheck.limit}). Already have ${limitCheck.count} items for the period ${limitCheck.period}.` 
+            return res.status(400).json({
+                error: `Monthly ${content_type} limit reached (${limitCheck.limit}). Already have ${limitCheck.count} items for the period ${limitCheck.period}.`
             });
         }
 
@@ -884,8 +884,8 @@ app.post('/api/admin/content', requireRoles(['ADMIN']), async (req, res) => {
         // Check monthly limit
         const limitCheck = await checkContentLimit(client_id, content_type, scheduled_datetime);
         if (!limitCheck.allowed) {
-            return res.status(400).json({ 
-                error: `Monthly ${content_type} limit reached (${limitCheck.limit}). Already have ${limitCheck.count} items for the period ${limitCheck.period}.` 
+            return res.status(400).json({
+                error: `Monthly ${content_type} limit reached (${limitCheck.limit}). Already have ${limitCheck.count} items for the period ${limitCheck.period}.`
             });
         }
 
@@ -1361,7 +1361,7 @@ app.get('/api/posting/master-calendar', async (req, res) => {
         .lte('scheduled_datetime', endDate);
 
     if (client_id) query = query.eq('client_id', client_id);
-    
+
     // Strictly filter by status unless 'all' is explicitly requested (for stats)
     if (all === 'true') {
         // No status filter
@@ -1632,17 +1632,17 @@ app.post('/api/notifications/send', async (req, res) => {
 app.get('/api/notifications', async (req, res) => {
     try {
         const userId = req.user.id;
-        
+
         const { data, error } = await supabase
             .from('notification_recipients')
             .select('id, is_read, read_at, notification_id, notifications(title, message, type, created_at, sender_id)')
             .eq('user_id', userId);
-        
+
         if (error) {
             console.error('Failed to fetch notifications:', error);
             return res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
         }
-        
+
         // Sort by notification created_at descending
         const sortedData = [...(data || [])].sort((a, b) => {
             const dateA = a?.notifications?.created_at ? new Date(a.notifications.created_at).getTime() : 0;
@@ -1662,7 +1662,7 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
     try {
         const userId = req.user.id;
         const notificationId = req.params.id; // From URL, user gives the notification_id
-        
+
         const { error } = await supabase
             .from('notification_recipients')
             .update({
