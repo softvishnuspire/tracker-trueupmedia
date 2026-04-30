@@ -13,7 +13,7 @@ export default function ClientManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  
+
   const [formData, setFormData] = useState({
     company_name: '',
     phone: '',
@@ -21,6 +21,7 @@ export default function ClientManagement() {
     address: '',
     posts_per_month: '',
     reels_per_month: '',
+    youtube_per_month: '',
     batch_type: '1-1' as '1-1' | '15-15',
   });
 
@@ -41,7 +42,7 @@ export default function ClientManagement() {
 
   const handleAddClick = () => {
     setEditingClient(null);
-    setFormData({ company_name: '', phone: '', email: '', address: '', posts_per_month: '', reels_per_month: '', batch_type: '1-1' });
+    setFormData({ company_name: '', phone: '', email: '', address: '', posts_per_month: '', reels_per_month: '', youtube_per_month: '', batch_type: '1-1' });
     setShowModal(true);
   };
 
@@ -54,6 +55,7 @@ export default function ClientManagement() {
       address: client.address || '',
       posts_per_month: client.posts_per_month?.toString() || '0',
       reels_per_month: client.reels_per_month?.toString() || '0',
+      youtube_per_month: client.youtube_per_month?.toString() || '0',
       batch_type: client.batch_type || '1-1',
     });
     setShowModal(true);
@@ -77,8 +79,10 @@ export default function ClientManagement() {
         ...formData,
         posts_per_month: parseInt(formData.posts_per_month) || 0,
         reels_per_month: parseInt(formData.reels_per_month) || 0,
+        youtube_per_month: parseInt(formData.youtube_per_month) || 0,
         batch_type: formData.batch_type,
       };
+      console.log('Submitting Client Data:', submissionData);
 
       if (editingClient) {
         await adminApi.updateClient(editingClient.id, submissionData);
@@ -92,7 +96,7 @@ export default function ClientManagement() {
     }
   };
 
-  const filteredClients = clients.filter(c => 
+  const filteredClients = clients.filter(c =>
     c.company_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -113,9 +117,9 @@ export default function ClientManagement() {
         <div className="table-header">
           <div className="search-input-box">
             <Search size={18} className="search-icon" />
-            <input 
-              type="text" 
-              placeholder="Search clients by name..." 
+            <input
+              type="text"
+              placeholder="Search clients by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -140,6 +144,7 @@ export default function ClientManagement() {
                   <th>Batch</th>
                   <th>Posts/mo</th>
                   <th>Reels/mo</th>
+                  <th>YTvid/mo</th>
                   <th>Date Added</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -153,6 +158,7 @@ export default function ClientManagement() {
                         <td><Skeleton className="h-4 w-24" /></td>
                         <td><Skeleton className="h-4 w-40" /></td>
                         <td><Skeleton className="h-4 w-48" /></td>
+                        <td><Skeleton className="h-4 w-12" /></td>
                         <td><Skeleton className="h-4 w-12" /></td>
                         <td><Skeleton className="h-4 w-12" /></td>
                         <td><Skeleton className="h-4 w-20" /></td>
@@ -183,6 +189,7 @@ export default function ClientManagement() {
                         </td>
                         <td data-label="Posts/mo"><span>{client.posts_per_month || '0'}</span></td>
                         <td data-label="Reels/mo"><span>{client.reels_per_month || '0'}</span></td>
+                        <td data-label="YTvid/mo"><span>{client.youtube_per_month || '0'}</span></td>
                         <td data-label="Date Added"><span>{new Date(client.created_at).toLocaleDateString()}</span></td>
                         <td data-label="Actions" style={{ textAlign: 'right' }}>
                           <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
@@ -219,47 +226,47 @@ export default function ClientManagement() {
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">{editingClient ? 'Edit Client' : 'Add New Client'}</h3>
-              <button onClick={() => setShowModal(false)} className="modal-close"><X size={20}/></button>
+              <button onClick={() => setShowModal(false)} className="modal-close"><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label className="form-label">Company Name *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  required 
+                <input
+                  type="text"
+                  className="form-input"
+                  required
                   value={formData.company_name}
-                  onChange={(e) => setFormData({...formData, company_name: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
                   placeholder="Enter legal company name"
                 />
               </div>
               <div className="form-group">
                 <label className="form-label">Phone Number</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
+                <input
+                  type="text"
+                  className="form-input"
                   value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91 XXXXX XXXXX"
                 />
               </div>
               <div className="form-group">
                 <label className="form-label">Email Address</label>
-                <input 
-                  type="email" 
-                  className="form-input" 
+                <input
+                  type="email"
+                  className="form-input"
                   value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="client@company.com"
                 />
               </div>
               <div className="form-group">
                 <label className="form-label">Physical Address</label>
-                <textarea 
-                  className="form-input" 
+                <textarea
+                  className="form-input"
                   rows={3}
                   value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   placeholder="Office address, city, country"
                   style={{ resize: 'none' }}
                 />
@@ -269,7 +276,7 @@ export default function ClientManagement() {
                 <select
                   className="form-input"
                   value={formData.batch_type}
-                  onChange={(e) => setFormData({...formData, batch_type: e.target.value as '1-1' | '15-15'})}
+                  onChange={(e) => setFormData({ ...formData, batch_type: e.target.value as '1-1' | '15-15' })}
                   style={{ cursor: 'pointer' }}
                 >
                   <option value="1-1">1–1 (Full Month)</option>
@@ -284,26 +291,38 @@ export default function ClientManagement() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Posts Per Month *</label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    required 
+                  <input
+                    type="number"
+                    className="form-input"
+                    required
                     min="0"
                     value={formData.posts_per_month}
-                    onChange={(e) => setFormData({...formData, posts_per_month: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, posts_per_month: e.target.value })}
                     placeholder="e.g. 12"
                   />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Reels Per Month *</label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    required 
+                  <input
+                    type="number"
+                    className="form-input"
+                    required
                     min="0"
                     value={formData.reels_per_month}
-                    onChange={(e) => setFormData({...formData, reels_per_month: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, reels_per_month: e.target.value })}
                     placeholder="e.g. 8"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">YouTube videos Per Month *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    required
+                    min="0"
+                    value={formData.youtube_per_month}
+                    onChange={(e) => setFormData({ ...formData, youtube_per_month: e.target.value })}
+                    placeholder="e.g. 4"
                   />
                 </div>
               </div>

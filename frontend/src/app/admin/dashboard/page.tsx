@@ -38,7 +38,7 @@ export default function AdminDashboard() {
     title: '',
     description: '',
     time: '12:00',
-    content_type: 'Post' as 'Post' | 'Reel'
+    content_type: 'Post' as 'Post' | 'Reel' | 'YouTube'
   });
   
   const supabase = createClient();
@@ -590,6 +590,7 @@ export default function AdminDashboard() {
                     {(() => {
                       const flows: Record<string, string[]> = {
                         'Reel': ['CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                        'YouTube': ['CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
                         'Post': ['CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
                       };
                       const flow = flows[activeItem.item.content_type] || [];
@@ -681,6 +682,10 @@ export default function AdminDashboard() {
                         'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                         'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                       ],
+                      'YouTube': [
+                        'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                        'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                      ],
                       'Post': [
                         'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
                         'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
@@ -754,10 +759,11 @@ export default function AdminDashboard() {
                   <select
                     className="form-input"
                     value={formData.content_type}
-                    onChange={(e) => setFormData({ ...formData, content_type: e.target.value as 'Post' | 'Reel' })}
+                    onChange={(e) => setFormData({ ...formData, content_type: e.target.value as 'Post' | 'Reel' | 'YouTube' })}
                   >
                     <option value="Post">Post</option>
                     <option value="Reel">Reel</option>
+                    <option value="YouTube">YouTube</option>
                   </select>
                 </div>
                 <div className="form-group">

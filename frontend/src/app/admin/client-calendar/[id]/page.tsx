@@ -57,7 +57,7 @@ export default function ClientCalendarPage() {
     const [isRescheduling, setIsRescheduling] = useState(false);
 
     const [formData, setFormData] = useState({
-        content_type: 'Post' as 'Post' | 'Reel',
+        content_type: 'Post' as 'Post' | 'Reel' | 'YouTube',
         scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         client_id: clientId,
         title: '',
@@ -239,7 +239,7 @@ export default function ClientCalendarPage() {
             setEditingItem(null);
             setIsRescheduling(false);
             setFormData({
-                content_type: 'Post',
+                content_type: 'Post' as 'Post' | 'Reel' | 'YouTube',
                 scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
                 client_id: clientId,
                 title: '',
@@ -635,6 +635,10 @@ export default function ClientCalendarPage() {
                                                 'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                                 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
+                                            'YouTube': [
+                                                'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
                                             'Post': [
                                                 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
                                                 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
@@ -731,11 +735,12 @@ export default function ClientCalendarPage() {
                                 <select 
                                     className="form-input"
                                     value={formData.content_type}
-                                    onChange={(e) => setFormData({...formData, content_type: e.target.value as 'Post' | 'Reel'})}
+                                    onChange={(e) => setFormData({...formData, content_type: e.target.value as 'Post' | 'Reel' | 'YouTube'})}
                                     disabled={!!editingItem}
                                 >
                                     <option value="Post">Post</option>
                                     <option value="Reel">Reel</option>
+                                    <option value="YouTube">YouTube</option>
                                 </select>
                             </div>
                             <div className="form-group">

@@ -31,23 +31,12 @@ import {
     CalendarClock,
     Undo2
 } from 'lucide-react';
-import { gmApi, adminApi, emergencyApi } from '@/lib/api';
+import { gmApi, adminApi, emergencyApi, ContentItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 
-interface ContentItem {
-    id: string;
-    title: string;
-    description: string;
-    content_type: 'Post' | 'Reel';
-    scheduled_datetime: string;
-    status: string;
-    client_id: string;
-    is_rescheduled?: boolean;
-    is_emergency?: boolean;
-    clients?: { company_name: string };
-}
+
 
 export default function MasterCalendar() {
     const [clients, setClients] = useState<any[]>([]);
@@ -207,6 +196,7 @@ export default function MasterCalendar() {
                                     <option value="all">All Types</option>
                                     <option value="Post">Posts</option>
                                     <option value="Reel">Reels</option>
+                                    <option value="YouTube">YouTube</option>
                                 </select>
                                 <ChevronDown size={14} style={{ position: 'absolute', right: '10px', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                             </div>
@@ -505,6 +495,10 @@ export default function MasterCalendar() {
                                     {(() => {
                                         const flows: any = {
                                             'Reel': [
+                                                'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            'YouTube': [
                                                 'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                                 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],

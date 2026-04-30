@@ -108,7 +108,7 @@ export default function GMDashboard() {
     const isMasterMode = view === 'master';
 
     const [formData, setFormData] = useState({
-        content_type: 'Post' as 'Post' | 'Reel',
+        content_type: 'Post' as 'Post' | 'Reel' | 'YouTube',
         time: '10:00',
         title: '',
         description: ''
@@ -709,6 +709,7 @@ export default function GMDashboard() {
                                             <option value="all">All Types</option>
                                             <option value="Post">Posts</option>
                                             <option value="Reel">Reels</option>
+                                            <option value="YouTube">YouTube</option>
                                         </select>
                                         <ChevronDown size={14} className="dropdown-chevron" />
                                     </div>
@@ -1247,6 +1248,7 @@ export default function GMDashboard() {
                                 >
                                     <option value="Post">Post</option>
                                     <option value="Reel">Reel</option>
+                                    <option value="YouTube">YouTube</option>
                                 </select>
                             </div>
 
@@ -1298,7 +1300,7 @@ export default function GMDashboard() {
                                 >
                                     <div style={{
                                         width: '4px', height: '24px', borderRadius: '2px',
-                                        background: item.content_type === 'Post' ? '#10b981' : '#6366f1'
+                                        background: item.content_type === 'Post' ? '#10b981' : item.content_type === 'Reel' ? '#6366f1' : '#f59e0b'
                                     }}></div>
                                     <div style={{ flex: 1 }}>
                                         <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
@@ -1475,14 +1477,12 @@ export default function GMDashboard() {
                                     {(() => {
                                         const flows: any = {
                                             'Reel': [
-                                                'CONTENT READY',
-                                                'SHOOT DONE',
-                                                'EDITING IN PROGRESS',
-                                                'EDITED',
-                                                'WAITING FOR APPROVAL',
-                                                'APPROVED',
-                                                'WAITING FOR POSTING',
-                                                'POSTED'
+                                                'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            'YouTube': [
+                                                'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
                                             'Post': [
                                                 'CONTENT APPROVED',
@@ -1581,6 +1581,10 @@ export default function GMDashboard() {
                                 {(() => {
                                     const flows: any = {
                                         'Reel': [
+                                            'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                            'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                        ],
+                                        'YouTube': [
                                             'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                             'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ],

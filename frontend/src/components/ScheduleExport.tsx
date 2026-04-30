@@ -7,7 +7,7 @@ interface ContentItem {
     id: string;
     title: string;
     description: string;
-    content_type: 'Post' | 'Reel';
+    content_type: 'Post' | 'Reel' | 'YouTube';
     scheduled_datetime: string;
     status: string;
     client_id: string;
@@ -41,7 +41,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 height: 1414 // A4 Aspect Ratio (1000 * 297/210)
             } as any);
             const imgData = canvas.toDataURL('image/png', 1.0);
-            
+
             const pdf = new jsPDF({
                 orientation: 'p',
                 unit: 'mm',
@@ -70,7 +70,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
         ? `${format(periodStart, 'MMMM yyyy')} (Mid-Cycle)`
         : format(month, 'MMMM yyyy');
 
-    const filename = isBiMonthly 
+    const filename = isBiMonthly
         ? `${clientName}_Schedule_15${format(periodStart, 'MMM')}_to_15${format(periodEnd, 'MMM')}_${format(periodEnd, 'yyyy')}.pdf`
         : `${clientName}_Schedule_${format(month, 'MMM_yyyy')}.pdf`;
 
@@ -88,11 +88,13 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
         });
         const posters = items.filter(item => item.content_type === 'Post');
         const reels = items.filter(item => item.content_type === 'Reel');
+        const youtube = items.filter(item => item.content_type === 'YouTube');
 
         return {
             day,
             posterCount: posters.length,
-            reelCount: reels.length
+            reelCount: reels.length,
+            youtubeCount: youtube.length
         };
     });
 
@@ -103,7 +105,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
 
     return (
         <>
-            <button 
+            <button
                 onClick={handleDownload}
                 className="export-btn"
                 style={{
@@ -132,14 +134,14 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
             </button>
 
             {/* Premium Export Template */}
-            <div 
+            <div
                 ref={exportRef}
                 style={{
                     display: 'none',
                     position: 'absolute',
                     left: '-9999px',
                     top: '-9999px',
-                    width: '1000px', 
+                    width: '1000px',
                     height: '1414px',
                     padding: '80px',
                     background: '#ffffff',
@@ -195,6 +197,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                 <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>DAY OF WEEK</th>
                                 <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>POSTERS</th>
                                 <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>REELS</th>
+                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>YOUTUBE</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -206,6 +209,9 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                     </td>
                                     <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#22d3ee' }}>
                                         {row.reelCount > 0 ? row.reelCount : '-'}
+                                    </td>
+                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#f59e0b' }}>
+                                        {row.youtubeCount > 0 ? row.youtubeCount : '-'}
                                     </td>
                                 </tr>
                             ))}
@@ -228,19 +234,19 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                         {gridDays.map((day, idx) => {
                             const isInPeriod = day >= periodStart && day <= periodEnd;
                             const dayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), day));
-                            
+
                             return (
-                                <div key={idx} style={{ 
-                                    minHeight: '88px', 
-                                    padding: '8px', 
+                                <div key={idx} style={{
+                                    minHeight: '88px',
+                                    padding: '8px',
                                     borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #f1f5f9',
                                     borderBottom: '1px solid #f1f5f9',
                                     background: isInPeriod ? '#fff' : '#fcfdfe',
                                     position: 'relative'
                                 }}>
-                                    <div style={{ 
-                                        fontSize: '14px', 
-                                        fontWeight: 800, 
+                                    <div style={{
+                                        fontSize: '14px',
+                                        fontWeight: 800,
                                         color: isInPeriod ? '#94a3b8' : '#e2e8f0',
                                         marginBottom: '10px'
                                     }}>
@@ -248,15 +254,15 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {dayItems.map((item, i) => (
-                                            <div key={i} style={{ 
-                                                fontSize: '10px', 
-                                                fontWeight: 800, 
-                                                padding: '4px 8px', 
+                                            <div key={i} style={{
+                                                fontSize: '10px',
+                                                fontWeight: 800,
+                                                padding: '4px 8px',
                                                 borderRadius: '6px',
-                                                background: item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(34, 211, 238, 0.1)',
-                                                color: item.content_type === 'Post' ? '#4f46e5' : '#0891b2',
+                                                background: item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.1)' : item.content_type === 'Reel' ? 'rgba(34, 211, 238, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                                color: item.content_type === 'Post' ? '#4f46e5' : item.content_type === 'Reel' ? '#0891b2' : '#d97706',
                                                 textAlign: 'center',
-                                                border: `1px solid ${item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(34, 211, 238, 0.2)'}`
+                                                border: `1px solid ${item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.2)' : item.content_type === 'Reel' ? 'rgba(34, 211, 238, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
                                             }}>
                                                 {item.content_type.toUpperCase()}
                                             </div>
@@ -269,16 +275,16 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 </div>
 
                 {/* Footer Section */}
-                <div style={{ 
+                <div style={{
                     position: 'absolute',
                     bottom: '80px',
                     left: '80px',
                     right: '80px',
-                    borderTop: '1px solid #e2e8f0', 
-                    paddingTop: '30px', 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center' 
+                    borderTop: '1px solid #e2e8f0',
+                    paddingTop: '30px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
                 }}>
                     <p style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', margin: 0 }}>© {new Date().getFullYear()} TRUEUP MEDIA SOLUTIONS</p>
                     <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0, letterSpacing: '0.05em' }}>PRECISION IN DIGITAL MARKETING</p>

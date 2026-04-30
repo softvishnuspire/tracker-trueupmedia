@@ -46,7 +46,7 @@ interface ContentItem {
     id: string;
     title: string;
     description: string;
-    content_type: 'Post' | 'Reel';
+    content_type: 'Post' | 'Reel' | 'YouTube';
     scheduled_datetime: string;
     status: string;
     client_id: string;

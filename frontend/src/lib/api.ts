@@ -26,6 +26,7 @@ export interface Client {
     is_active?: boolean;
     posts_per_month?: number;
     reels_per_month?: number;
+    youtube_per_month?: number;
     batch_type?: '1-1' | '15-15';
     created_at: string;
 }
@@ -34,7 +35,7 @@ export interface ContentItem {
     id: string;
     title: string;
     description: string;
-    content_type: 'Post' | 'Reel';
+    content_type: 'Post' | 'Reel' | 'YouTube';
     scheduled_datetime: string;
     status: string;
     client_id: string;

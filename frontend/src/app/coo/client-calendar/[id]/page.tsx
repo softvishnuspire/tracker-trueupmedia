@@ -28,20 +28,10 @@ import {
     Check,
     CalendarClock
 } from 'lucide-react';
-import { cooApi, emergencyApi } from '@/lib/api';
+import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
 
-interface ContentItem {
-    id: string;
-    title: string;
-    description: string;
-    content_type: 'Post' | 'Reel';
-    scheduled_datetime: string;
-    status: string;
-    client_id: string;
-    is_rescheduled?: boolean;
-    is_emergency?: boolean;
-}
+
 
 export default function CooClientCalendarPage() {
     const params = useParams();
@@ -450,6 +440,10 @@ export default function CooClientCalendarPage() {
                                     {(() => {
                                         const flows: any = {
                                             Reel: [
+                                                'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            YouTube: [
                                                 'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                                 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],

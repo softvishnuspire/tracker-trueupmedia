@@ -143,6 +143,16 @@ const STATUS_FLOWS = {
         'WAITING FOR POSTING',
         'POSTED'
     ],
+    'YouTube': [
+        'CONTENT READY',
+        'SHOOT DONE',
+        'EDITING IN PROGRESS',
+        'EDITED',
+        'WAITING FOR APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED'
+    ],
     'Post': [
         'CONTENT APPROVED',
         'DESIGNING IN PROGRESS',
@@ -370,7 +380,8 @@ app.get('/api/admin/clients', async (req, res) => {
 });
 
 app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
-    const { company_name, phone, email, address, posts_per_month, reels_per_month, batch_type } = req.body;
+    console.log('POST /api/admin/clients - Body:', req.body);
+    const { company_name, phone, email, address, posts_per_month, reels_per_month, youtube_per_month, batch_type } = req.body;
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
     const validBatchTypes = ['1-1', '15-15'];
     const resolvedBatch = validBatchTypes.includes(batch_type) ? batch_type : '1-1';
@@ -381,6 +392,7 @@ app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
         address,
         posts_per_month: parseInt(posts_per_month) || 0,
         reels_per_month: parseInt(reels_per_month) || 0,
+        youtube_per_month: parseInt(youtube_per_month) || 0,
         batch_type: resolvedBatch,
         is_active: true,
         is_deleted: false
@@ -392,7 +404,8 @@ app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
 
 app.put('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
-    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, batch_type } = req.body;
+    console.log(`PUT /api/admin/clients/${id} - Body:`, req.body);
+    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, youtube_per_month, batch_type } = req.body;
     const validBatchTypes = ['1-1', '15-15'];
     const updateObj = {
         company_name,
@@ -401,7 +414,8 @@ app.put('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
         address,
         is_active,
         posts_per_month: parseInt(posts_per_month) || 0,
-        reels_per_month: parseInt(reels_per_month) || 0
+        reels_per_month: parseInt(reels_per_month) || 0,
+        youtube_per_month: parseInt(youtube_per_month) || 0
     };
     if (validBatchTypes.includes(batch_type)) updateObj.batch_type = batch_type;
     const { data, error } = await supabase.from('clients').update(updateObj).eq('id', id).select();
