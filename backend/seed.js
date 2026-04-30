@@ -30,7 +30,7 @@ async function seed() {
     const items = [
         // Aero Dynamics
         { client_id: lookup['Aero Dynamics'], title: 'Product Launch Teaser', content_type: 'Post', scheduled_datetime: '2026-04-24T10:00:00', status: 'CONTENT APPROVED' },
-        { client_id: lookup['Aero Dynamics'], title: 'Weekly Reel #1', content_type: 'Reel', scheduled_datetime: '2026-04-25T18:00:00', status: 'CONTENT READY' },
+        { client_id: lookup['Aero Dynamics'], title: 'Weekly Reel #1', content_type: 'Reel', scheduled_datetime: '2026-04-25T18:00:00', status: 'CONTENT NOT STARTED' },
         { client_id: lookup['Aero Dynamics'], title: 'Behind the Brand', content_type: 'Post', scheduled_datetime: '2026-04-28T09:00:00', status: 'DESIGNING IN PROGRESS' },
         // Pulse Media Group
         { client_id: lookup['Pulse Media Group'], title: 'Client Testimonial', content_type: 'Post', scheduled_datetime: '2026-04-23T09:00:00', status: 'CONTENT APPROVED' },
@@ -40,10 +40,10 @@ async function seed() {
         { client_id: lookup['Zenith Solutions'], title: 'Product Demo Reel', content_type: 'Reel', scheduled_datetime: '2026-04-27T15:00:00', status: 'EDITING IN PROGRESS' },
         // Lumina Creative
         { client_id: lookup['Lumina Creative'], title: 'Morning Motivation', content_type: 'Post', scheduled_datetime: '2026-04-24T08:30:00', status: 'APPROVED' },
-        { client_id: lookup['Lumina Creative'], title: 'BTS Photography', content_type: 'Reel', scheduled_datetime: '2026-04-29T16:00:00', status: 'CONTENT READY' },
+        { client_id: lookup['Lumina Creative'], title: 'BTS Photography', content_type: 'Reel', scheduled_datetime: '2026-04-29T16:00:00', status: 'CONTENT NOT STARTED' },
         // Nova Digital
         { client_id: lookup['Nova Digital'], title: 'App Launch Announcement', content_type: 'Post', scheduled_datetime: '2026-04-25T10:00:00', status: 'CONTENT APPROVED' },
-        { client_id: lookup['Nova Digital'], title: 'Feature Walkthrough', content_type: 'Reel', scheduled_datetime: '2026-04-30T12:00:00', status: 'CONTENT READY' },
+        { client_id: lookup['Nova Digital'], title: 'Feature Walkthrough', content_type: 'Reel', scheduled_datetime: '2026-04-30T12:00:00', status: 'CONTENT NOT STARTED' },
         // Horizon Labs
         { client_id: lookup['Horizon Labs'], title: 'Research Highlights', content_type: 'Post', scheduled_datetime: '2026-04-23T13:00:00', status: 'DESIGNING COMPLETED' },
         { client_id: lookup['Horizon Labs'], title: 'Lab Tour', content_type: 'Reel', scheduled_datetime: '2026-04-28T17:00:00', status: 'SHOOT DONE' },

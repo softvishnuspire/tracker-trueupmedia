@@ -30,6 +30,26 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// One-time migration: Rename CONTENT READY to CONTENT APPROVED
+(async () => {
+    try {
+        const { data, error, count } = await supabase
+            .from('content_items')
+            .update({ status: 'CONTENT APPROVED' })
+            .eq('status', 'CONTENT READY')
+            .select('*', { count: 'exact' });
+        
+        if (error) {
+            console.error('❌ Migration Error (CONTENT READY -> CONTENT APPROVED):', error.message);
+        } else if (count > 0) {
+            console.log(`✅ Migration Success: Renamed ${count} items from "CONTENT READY" to "CONTENT APPROVED"`);
+        }
+    } catch (err) {
+        console.error('❌ Migration Exception:', err);
+    }
+})();
+
+
 const NodeCache = require("node-cache");
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
@@ -41,7 +61,7 @@ const authenticateUser = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     // Fast path: Check cache first
     const cachedUser = myCache.get(`auth_${token}`);
     if (cachedUser) {
@@ -134,7 +154,9 @@ const requireRoles = (allowedRoles) => {
 
 const STATUS_FLOWS = {
     'Reel': [
-        'CONTENT READY',
+        'PENDING',
+        'CONTENT NOT STARTED',
+        'CONTENT APPROVED',
         'SHOOT DONE',
         'EDITING IN PROGRESS',
         'EDITED',
@@ -144,7 +166,9 @@ const STATUS_FLOWS = {
         'POSTED'
     ],
     'YouTube': [
-        'CONTENT READY',
+        'PENDING',
+        'CONTENT NOT STARTED',
+        'CONTENT APPROVED',
         'SHOOT DONE',
         'EDITING IN PROGRESS',
         'EDITED',
@@ -154,6 +178,8 @@ const STATUS_FLOWS = {
         'POSTED'
     ],
     'Post': [
+        'PENDING',
+        'CONTENT NOT STARTED',
         'CONTENT APPROVED',
         'DESIGNING IN PROGRESS',
         'DESIGNING COMPLETED',
@@ -307,7 +333,7 @@ app.get('/api/gm/master-calendar', async (req, res) => {
 // ─── GM: Content CRUD ───
 app.post('/api/gm/content', async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
-    const initial_status = content_type === 'Post' ? 'CONTENT APPROVED' : 'CONTENT READY';
+    const initial_status = 'PENDING';
 
     try {
         // Check monthly limit
@@ -852,7 +878,7 @@ app.post('/api/admin/content/:id/undo-status', requireRoles(['ADMIN']), async (r
 
 app.post('/api/admin/content', requireRoles(['ADMIN']), async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
-    const initial_status = content_type === 'Post' ? 'CONTENT APPROVED' : 'CONTENT READY';
+    const initial_status = 'PENDING';
 
     try {
         // Check monthly limit

@@ -931,16 +931,26 @@ export default function GMDashboard() {
                                 </div>
 
                                 <div className="status-pipeline">
-                                    {Object.entries(stats.statusBreakdown).map(([status, count]: any) => (
-                                        <div key={status} className="pipeline-item">
-                                            <div className="pipeline-info">
-                                                <span className="pipeline-label">{status}</span>
-                                                <span className="pipeline-count" style={{ fontWeight: 800, color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px' }}>
-                                                    {count} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {stats.monthlyContent}</span>
-                                                </span>
+                                    {(() => {
+                                        const breakdown = stats.statusBreakdown || {};
+                                        const normalized: Record<string, number> = {};
+                                        Object.entries(breakdown).forEach(([status, count]) => {
+                                            const s = status === 'CONTENT READY' ? 'CONTENT APPROVED' : status;
+                                            normalized[s] = (normalized[s] || 0) + (count as number);
+                                        });
+                                        
+                                        return Object.entries(normalized).map(([status, count]) => (
+                                            <div key={status} className="pipeline-item">
+                                                <div className="pipeline-info">
+                                                    <span className="pipeline-label">{status}</span>
+                                                    <span className="pipeline-count" style={{ fontWeight: 800, color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px' }}>
+                                                        {count} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {stats.monthlyContent}</span>
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ));
+                                    })()}
+
                                     {Object.keys(stats.statusBreakdown).length === 0 && (
                                         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                                             No content data available for this month.
@@ -1480,21 +1490,16 @@ export default function GMDashboard() {
                                     {(() => {
                                         const flows: any = {
                                             'Reel': [
-                                                'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                                 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
                                             'YouTube': [
-                                                'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                                 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
                                             'Post': [
-                                                'CONTENT APPROVED',
-                                                'DESIGNING IN PROGRESS',
-                                                'DESIGNING COMPLETED',
-                                                'WAITING FOR APPROVAL',
-                                                'APPROVED',
-                                                'WAITING FOR POSTING',
-                                                'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ]
                                         };
                                         const flow = flows[activeItem.item.content_type];
@@ -1584,15 +1589,15 @@ export default function GMDashboard() {
                                 {(() => {
                                     const flows: any = {
                                         'Reel': [
-                                            'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                             'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ],
                                         'YouTube': [
-                                            'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                             'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ],
                                         'Post': [
-                                            'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
                                             'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ]
                                     };

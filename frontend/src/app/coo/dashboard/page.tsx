@@ -279,15 +279,24 @@ export default function CooDashboard() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {Object.entries(stats?.statusSummary || {}).map(([status, count]) => (
-                            <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>{status}</span>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                                    <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>{count}</span>
-                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>/ {stats?.totalItemsThisMonth || 0}</span>
-                                </div>
+                {(() => {
+                    const summary = stats?.statusSummary || {};
+                    const normalized: Record<string, number> = {};
+                    Object.entries(summary).forEach(([status, count]) => {
+                        const s = status === 'CONTENT READY' ? 'CONTENT APPROVED' : status;
+                        normalized[s] = (normalized[s] || 0) + (count as number);
+                    });
+                    
+                    return Object.entries(normalized).map(([status, count]) => (
+                        <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>{status}</span>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>{count}</span>
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>/ {stats?.totalItemsThisMonth || 0}</span>
                             </div>
-                        ))}
+                        </div>
+                    ));
+                })()}
                         {Object.keys(stats?.statusSummary || {}).length === 0 && (
                             <p style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>No content items this month.</p>
                         )}

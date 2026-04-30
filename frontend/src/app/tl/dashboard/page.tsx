@@ -837,23 +837,16 @@ export default function TLDashboard() {
                                     {(() => {
                                         const flows: any = {
                                             'Reel': [
-                                                'CONTENT READY',
-                                                'SHOOT DONE',
-                                                'EDITING IN PROGRESS',
-                                                'EDITED',
-                                                'WAITING FOR APPROVAL',
-                                                'APPROVED',
-                                                'WAITING FOR POSTING',
-                                                'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            'YouTube': [
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
                                             'Post': [
-                                                'CONTENT APPROVED',
-                                                'DESIGNING IN PROGRESS',
-                                                'DESIGNING COMPLETED',
-                                                'WAITING FOR APPROVAL',
-                                                'APPROVED',
-                                                'WAITING FOR POSTING',
-                                                'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ]
                                         };
                                         const flow = flows[activeItem.item.content_type];
@@ -950,11 +943,15 @@ export default function TLDashboard() {
                                 {(() => {
                                     const flows: any = {
                                         'Reel': [
-                                            'CONTENT READY', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                            'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                        ],
+                                        'YouTube': [
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
                                             'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ],
                                         'Post': [
-                                            'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
                                             'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ]
                                     };

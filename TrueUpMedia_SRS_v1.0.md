@@ -374,24 +374,58 @@ order:
   ---------------------------------------------------------------------------
   **Step**   **Status**          **Description**
   ---------- ------------------- --------------------------------------------
-  1          CONTENT READY       Script or creative brief has been finalized
+  1          CONTENT NOT STARTED Initial state when content is scheduled but
+                                 work has not yet begun.
+
+  2          CONTENT APPROVED    Script or creative brief has been finalized
                                  and is ready for shoot.
 
-  2          SHOOT DONE          Filming/recording of the reel has been
+  3          SHOOT DONE          Filming/recording of the reel has been
                                  completed.
 
-  3          EDITING IN PROGRESS Video editing is currently underway.
+  4          EDITING IN PROGRESS Video editing is currently underway.
 
-  4          EDITED              Editing is complete; reel is ready for
+  5          EDITED              Editing is complete; reel is ready for
                                  internal review.
 
-  5          WAITING FOR         Reel has been submitted to the client for
+  6          WAITING FOR         Reel has been submitted to the client for
              APPROVAL            approval.
 
-  6          APPROVED            Client has approved the reel.
+  7          APPROVED            Client has approved the reel.
 
-  7          POSTED              Reel has been published on the client\'s
+  8          WAITING FOR POSTING Reel is approved and waiting for the posting
+                                 team to publish.
+
+  9          POSTED              Reel has been published on the client\'s
                                  social media platform.
+  ---------------------------------------------------------------------------
+
+**3.4.3 YouTube Status Workflow**
+
+The following statuses apply to all YouTube content items in sequential
+order (identical to Reel workflow):
+
+  ---------------------------------------------------------------------------
+  **Step**   **Status**          **Description**
+  ---------- ------------------- --------------------------------------------
+  1          CONTENT NOT STARTED Initial state when content is scheduled.
+
+  2          CONTENT APPROVED    Script/brief finalized.
+
+  3          SHOOT DONE          Filming completed.
+
+  4          EDITING IN PROGRESS Editing underway.
+
+  5          EDITED              Ready for review.
+
+  6          WAITING FOR         Submitted for approval.
+             APPROVAL            
+
+  7          APPROVED            Client approved.
+
+  8          WAITING FOR POSTING Waiting for publication.
+
+  9          POSTED              Published.
   ---------------------------------------------------------------------------
 
 **3.4.2 Post (Poster) Status Workflow**
@@ -402,20 +436,25 @@ order:
   ---------------------------------------------------------------------------
   **Step**   **Status**          **Description**
   ---------- ------------------- --------------------------------------------
-  1          CONTENT APPROVED    The copy/text content has been approved and
+  1          CONTENT NOT STARTED Initial state when content is scheduled.
+
+  2          CONTENT APPROVED    The copy/text content has been approved and
                                  is ready for design.
 
-  2          DESIGNING IN        Graphic design for the post is currently
+  3          DESIGNING IN        Graphic design for the post is currently
              PROGRESS            underway.
 
-  3          DESIGNING COMPLETED Design is finalized; post is ready for
+  4          DESIGNING COMPLETED Design is finalized; post is ready for
                                  internal review.
 
-  4          WAITING FOR         Post has been submitted to the client for
+  5          WAITING FOR         Post has been submitted to the client for
              APPROVAL            approval.
 
-  5          APPROVED            Client has approved the post; ready for
-                                 publishing.
+  6          APPROVED            Client has approved the post.
+
+  7          WAITING FOR POSTING Approved and waiting for publication.
+
+  8          POSTED              Post has been published.
   ---------------------------------------------------------------------------
 
 **3.4.3 Status Management Requirements**
