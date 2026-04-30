@@ -67,6 +67,9 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     // Force dark theme for login page
@@ -115,6 +118,30 @@ export default function Login() {
     }
   };
 
+  const handleResetPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setResetMessage('');
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) {
+        setError(resetError.message);
+      } else {
+        setResetMessage('Password reset link sent to your email. Please check your inbox.');
+      }
+    } catch {
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className={styles.container}>
       {/* Animated Background Blobs */}
@@ -152,10 +179,11 @@ export default function Login() {
         {/* Right Login Section */}
         <div className={styles.loginSection}>
           <div className={styles.loginHeader}>
-            <h2>Select your role</h2>
-            <p>Choose your workspace to continue</p>
+            <h2>{isForgotPassword ? 'Reset Password' : 'Select your role'}</h2>
+            <p>{isForgotPassword ? 'Enter your email to receive a reset link' : 'Choose your workspace to continue'}</p>
           </div>
 
+          {!isForgotPassword && (
           <div className={styles.roleDropdownContainer}>
             <label className={styles.dropdownLabel}>Workspace Role</label>
             <div
@@ -198,6 +226,7 @@ export default function Login() {
               </div>
             )}
           </div>
+          )}
 
           {error && (
             <div className={styles.errorMessage}>
@@ -206,6 +235,54 @@ export default function Login() {
             </div>
           )}
 
+          {resetMessage && (
+            <div style={{ color: '#10b981', padding: '1rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              {resetMessage}
+            </div>
+          )}
+
+          {isForgotPassword ? (
+            <form onSubmit={handleResetPassword}>
+              <div className={styles.formGroup}>
+                <label htmlFor="reset-email">Email Address</label>
+                <div className={styles.inputWrapper}>
+                  <svg className={styles.inputIcon} xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
+                  <input
+                    type="email"
+                    id="reset-email"
+                    className={styles.input}
+                    placeholder="name@trueupmedia.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className={styles.submitBtn} disabled={loading}>
+                {loading ? (
+                  <>
+                    <span className={styles.spinner}></span>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    Send Reset Link
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+                  </>
+                )}
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={() => { setIsForgotPassword(false); setError(''); setResetMessage(''); }}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', width: '100%', marginTop: '1rem', cursor: 'pointer', fontSize: '0.875rem' }}
+              >
+                Back to Login
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleLogin}>
             <div className={styles.formGroup}>
               <label htmlFor="email">Email Address</label>
@@ -231,7 +308,7 @@ export default function Login() {
               <div className={styles.inputWrapper}>
                 <svg className={styles.inputIcon} xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   id="password"
                   className={styles.input}
                   placeholder="••••••••"
@@ -240,10 +317,22 @@ export default function Login() {
                   maxLength={128}
                   required
                 />
+                <button
+                  type="button"
+                  className={styles.togglePasswordBtn}
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  )}
+                </button>
               </div>
             </div>
 
-            <a href="#" className={styles.forgotPassword}>Forgot password?</a>
+            <a href="#" className={styles.forgotPassword} onClick={(e) => { e.preventDefault(); setIsForgotPassword(true); setError(''); setResetMessage(''); }}>Forgot password?</a>
 
             <button type="submit" className={styles.submitBtn} disabled={loading}>
               {loading ? (
@@ -259,6 +348,7 @@ export default function Login() {
               )}
             </button>
           </form>
+          )}
         </div>
       </div>
     </div>
