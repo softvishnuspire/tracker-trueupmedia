@@ -164,6 +164,83 @@ const STATUS_FLOWS = {
     ]
 };
 
+/**
+ * Utility to check if a client has reached their monthly content limit
+ * for a specific content type (Post, Reel, YouTube) within their batch period.
+ */
+async function checkContentLimit(client_id, content_type, scheduled_datetime) {
+    // 1. Fetch client's limits and batch type
+    const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .select('batch_type, posts_per_month, reels_per_month, youtube_per_month')
+        .eq('id', client_id)
+        .single();
+
+    if (clientError || !client) {
+        console.error('Error fetching client limits:', clientError);
+        throw new Error('Could not verify client limits');
+    }
+
+    // 2. Determine the limit for the given content type
+    let limit = 0;
+    if (content_type === 'Post') limit = client.posts_per_month || 0;
+    else if (content_type === 'Reel') limit = client.reels_per_month || 0;
+    else if (content_type === 'YouTube') limit = client.youtube_per_month || 0;
+
+    // 3. Calculate period boundaries based on batch_type
+    const date = new Date(scheduled_datetime);
+    let startDate, endDate;
+
+    if (client.batch_type === '15-15') {
+        const day = date.getUTCDate();
+        const month = date.getUTCMonth();
+        const year = date.getUTCFullYear();
+
+        if (day >= 15) {
+            // Current cycle: 15th of this month to 14th of next month
+            startDate = new Date(Date.UTC(year, month, 15, 0, 0, 0));
+            endDate = new Date(Date.UTC(year, month + 1, 14, 23, 59, 59));
+        } else {
+            // Current cycle: 15th of last month to 14th of this month
+            startDate = new Date(Date.UTC(year, month - 1, 15, 0, 0, 0));
+            endDate = new Date(Date.UTC(year, month, 14, 23, 59, 59));
+        }
+    } else {
+        // Standard 1-1 cycle: 1st of the month to last day of the month
+        const month = date.getUTCMonth();
+        const year = date.getUTCFullYear();
+        startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+        endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59));
+    }
+
+    const startISO = startDate.toISOString();
+    const endISO = endDate.toISOString();
+
+    // 4. Count existing items in this period
+    const { count, error: countError } = await supabase
+        .from('content_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('client_id', client_id)
+        .eq('content_type', content_type)
+        .gte('scheduled_datetime', startISO)
+        .lte('scheduled_datetime', endISO);
+
+    if (countError) {
+        console.error('Error counting items for limit check:', countError);
+        throw new Error('Failed to validate content limit');
+    }
+
+    const periodStr = `${startDate.getUTCDate()}/${startDate.getUTCMonth() + 1} to ${endDate.getUTCDate()}/${endDate.getUTCMonth() + 1}`;
+
+    return {
+        allowed: count < limit,
+        limit,
+        count,
+        period: periodStr
+    };
+}
+
+
 // ─── GM: Clients ───
 app.get('/api/gm/clients', async (req, res) => {
     const cached = myCache.get("gm_clients");
@@ -232,13 +309,25 @@ app.post('/api/gm/content', async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
     const initial_status = content_type === 'Post' ? 'CONTENT APPROVED' : 'CONTENT READY';
 
-    const { data, error } = await supabase
-        .from('content_items')
-        .insert([{ client_id, title, description, content_type, scheduled_datetime, status: initial_status }])
-        .select();
+    try {
+        // Check monthly limit
+        const limitCheck = await checkContentLimit(client_id, content_type, scheduled_datetime);
+        if (!limitCheck.allowed) {
+            return res.status(400).json({ 
+                error: `Monthly ${content_type} limit reached (${limitCheck.limit}). Already have ${limitCheck.count} items for the period ${limitCheck.period}.` 
+            });
+        }
 
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data[0]);
+        const { data, error } = await supabase
+            .from('content_items')
+            .insert([{ client_id, title, description, content_type, scheduled_datetime, status: initial_status }])
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data[0]);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
 app.put('/api/gm/content/:id', async (req, res) => {
@@ -765,13 +854,25 @@ app.post('/api/admin/content', requireRoles(['ADMIN']), async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
     const initial_status = content_type === 'Post' ? 'CONTENT APPROVED' : 'CONTENT READY';
 
-    const { data, error } = await supabase
-        .from('content_items')
-        .insert([{ client_id, title, description, content_type, scheduled_datetime, status: initial_status }])
-        .select();
+    try {
+        // Check monthly limit
+        const limitCheck = await checkContentLimit(client_id, content_type, scheduled_datetime);
+        if (!limitCheck.allowed) {
+            return res.status(400).json({ 
+                error: `Monthly ${content_type} limit reached (${limitCheck.limit}). Already have ${limitCheck.count} items for the period ${limitCheck.period}.` 
+            });
+        }
 
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data[0]);
+        const { data, error } = await supabase
+            .from('content_items')
+            .insert([{ client_id, title, description, content_type, scheduled_datetime, status: initial_status }])
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data[0]);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
 app.put('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
