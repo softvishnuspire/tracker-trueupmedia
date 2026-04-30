@@ -609,4 +609,27 @@ Standardized the `15-15` bi-monthly batch logic across all major dashboards (GM,
    - `COOClientCalendar`: Consistent rendering for individual client bi-monthly periods.
 
 4. **Helper Synchronization**:
-   - Standardized `getPeriodLabel`, `isDayInPeriod`, and `getClientBatchType` logic across the codebase to ensure UI/UX consistency for cross-role users.
+   - Standardized `getPeriodLabel`, `isDayInPeriod`, and `getClientBatchType` logic across the codebase to ensure UI/UX consistency for cross-role users.
+
+## Recent Changes: Monthly Content Quota Enforcement
+### Implementation Overview
+Restored and re-implemented the server-side validation to enforce client-specific monthly limits for Posts, Reels, and YouTube content. This logic was previously lost during a repository synchronization but has now been fully restored in `backend/index.js`.
+
+### Key Technical Decisions
+1. **Restored Server-Side Validation Helper (`checkContentLimit`)**:
+   - Re-implemented the utility in `backend/index.js` to calculate batch windows (Standard or 15-15) and count existing content items.
+   - Respects `posts_per_month`, `reels_per_month`, and `youtube_per_month` defined in the `clients` table.
+   - Uses UTC-based date boundaries (`getUTCDate`, `getUTCMonth`, etc.) to ensure consistency between server and database.
+   - Standardizes the period calculation for both `1-1` and `15-15` batch types.
+
+2. **Endpoint Integration**:
+   - Integrated validation into `POST /api/gm/content` and `POST /api/admin/content`.
+   - Returns `400 Bad Request` with a descriptive error message when limits are reached, preventing database bloat and over-scheduling.
+
+3. **Frontend Feedback**:
+   - Verified that `handleAddContent` (Admin Client Calendar) and `handleSubmit` (GM Dashboard) catch and display these backend validation errors via user alerts.
+
+### Affected Components
+- **Backend Entry Point (`backend/index.js`)**: Core logic and API enforcement.
+- **AdminDashboard (`frontend/src/app/admin/client-calendar/[id]/page.tsx`)**: Error handling in creation flow.
+- **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Error handling in creation flow.

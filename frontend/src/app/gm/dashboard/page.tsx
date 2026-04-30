@@ -501,7 +501,10 @@ export default function GMDashboard() {
             setIsModalOpen(false);
             setIsRescheduling(false);
             if (view === 'master') fetchMasterCalendar(); else fetchClientCalendar();
-        } catch (err) { alert('Error saving item'); }
+        } catch (err: any) { 
+            const errorMsg = err.response?.data?.error || 'Error saving item';
+            alert(errorMsg); 
+        }
     };
 
     const getClientName = () => {

@@ -246,7 +246,11 @@ export default function ClientCalendarPage() {
                 description: ''
             });
             fetchCalendarData();
-        } catch (err) { console.error(err); alert('Error saving content'); }
+        } catch (err: any) { 
+            console.error(err); 
+            const errorMsg = err.response?.data?.error || 'Error saving content';
+            alert(errorMsg); 
+        }
     };
 
     const monthStatusCounts = calendarData.reduce(
