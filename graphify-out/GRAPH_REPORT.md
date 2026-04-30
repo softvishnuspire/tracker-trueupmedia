@@ -611,6 +611,11 @@ Standardized the `15-15` bi-monthly batch logic across all major dashboards (GM,
 4. **Helper Synchronization**:
    - Standardized `getPeriodLabel`, `isDayInPeriod`, and `getClientBatchType` logic across the codebase to ensure UI/UX consistency for cross-role users.
 
+### Team Lead Dashboard Enhancements
+- **Sidebar Scrolling**: Implemented a robust, edge-to-edge vertical scroll for the sidebar navigation area to handle long client lists.
+- **Refactored Layout**: Transitioned sidebar to a structured flex column with fixed header/footer and a `flex: 1` scrollable nav region.
+- **Premium UI**: Added custom, theme-aware premium scrollbars and improved padding/spacing for a more polished look.
+
 ## Recent Changes: Monthly Content Quota Enforcement
 ### Implementation Overview
 Restored and re-implemented the server-side validation to enforce client-specific monthly limits for Posts, Reels, and YouTube content. This logic was previously lost during a repository synchronization but has now been fully restored in `backend/index.js`.
@@ -632,4 +637,4 @@ Restored and re-implemented the server-side validation to enforce client-specifi
 ### Affected Components
 - **Backend Entry Point (`backend/index.js`)**: Core logic and API enforcement.
 - **AdminDashboard (`frontend/src/app/admin/client-calendar/[id]/page.tsx`)**: Error handling in creation flow.
-- **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Error handling in creation flow.
+- **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Error handling in creation flow.

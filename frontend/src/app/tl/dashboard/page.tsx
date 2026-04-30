@@ -44,6 +44,7 @@ import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
+import './tl.css'; // Team Lead specific styles (including scrolling)
 
 interface ContentDetails {
     item: ContentItem;
@@ -380,7 +381,7 @@ export default function TLDashboard() {
 
             {/* Sidebar */}
             <aside className={`sidebar ${isSidebarOpen ? 'mobile-open' : ''}`}>
-                <div className="logo-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '0 8px' }}>
+                <div className="logo-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <img src="/logo.png" alt="TrueUp Media" className="logo-img" style={{ height: '28px', width: 'auto' }} />
                         <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>TL</span>
@@ -390,7 +391,7 @@ export default function TLDashboard() {
                     </button>
                 </div>
 
-                <nav className="flex-1">
+                <nav className="sidebar-nav">
                     <p className="sidebar-label">Navigation</p>
                     <div 
                         onClick={() => setView('dashboard')}
@@ -424,57 +425,59 @@ export default function TLDashboard() {
                     {view === 'client' && (
                         <>
                             <p className="sidebar-label">Your Clients</p>
-                            <div className="search-input-box" style={{ width: '100%', marginBottom: '12px' }}>
-                                <Search size={14} className="search-icon" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search clients..." 
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    style={{ padding: '8px 12px 8px 36px', fontSize: '12px' }}
-                                />
-                            </div>
-                            <div className="client-list-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                {loading ? (
-                                    <>
-                                        {[1, 2, 3, 4, 5].map((i) => (
-                                            <div key={i} className="nav-item" style={{ padding: '8px 12px' }}>
-                                                <Skeleton className="h-6 w-6 rounded-md mr-3" />
-                                                <Skeleton className="h-4 w-32" />
-                                            </div>
-                                        ))}
-                                    </>
-                                ) : (
-                                    <>
-                                        {filteredClients.length === 0 && (
-                                            <p style={{ fontSize: 11, color: '#94a3b8', padding: '8px 12px', textAlign: 'center' }}>No clients found</p>
-                                        )}
-                                        {filteredClients.map(c => (
-                                            <div 
-                                                key={c.id}
-                                                onClick={() => setSelectedClient(c.id)}
-                                                className={`nav-item ${selectedClient === c.id ? 'active' : ''}`}
-                                                style={{ padding: '8px 12px', fontSize: '13px' }}
-                                            >
-                                                <div style={{ 
-                                                    width: '24px', 
-                                                    height: '24px', 
-                                                    borderRadius: '6px', 
-                                                    background: selectedClient === c.id ? 'var(--accent)' : 'var(--bg-elevated)',
-                                                    color: selectedClient === c.id ? 'white' : 'var(--text-secondary)',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    fontSize: '10px',
-                                                    fontWeight: 800
-                                                }}>
-                                                    {c.company_name?.charAt(0) || '?'}
+                            <div className="client-sidebar-section">
+                                <div className="search-input-box" style={{ width: '100%', marginBottom: '12px' }}>
+                                    <Search size={14} className="search-icon" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search clients..." 
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        style={{ padding: '8px 12px 8px 36px', fontSize: '12px' }}
+                                    />
+                                </div>
+                                <div className="client-list-sidebar">
+                                    {loading ? (
+                                        <>
+                                            {[1, 2, 3, 4, 5].map((i) => (
+                                                <div key={i} className="nav-item" style={{ padding: '8px 12px' }}>
+                                                    <Skeleton className="h-6 w-6 rounded-md mr-3" />
+                                                    <Skeleton className="h-4 w-32" />
                                                 </div>
-                                                <span className="truncate">{c.company_name}</span>
-                                            </div>
-                                        ))}
-                                    </>
-                                )}
+                                            ))}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {filteredClients.length === 0 && (
+                                                <p style={{ fontSize: 11, color: '#94a3b8', padding: '8px 12px', textAlign: 'center' }}>No clients found</p>
+                                            )}
+                                            {filteredClients.map(c => (
+                                                <div 
+                                                    key={c.id}
+                                                    onClick={() => setSelectedClient(c.id)}
+                                                    className={`nav-item ${selectedClient === c.id ? 'active' : ''}`}
+                                                    style={{ padding: '8px 12px', fontSize: '13px' }}
+                                                >
+                                                    <div style={{ 
+                                                        width: '24px', 
+                                                        height: '24px', 
+                                                        borderRadius: '6px', 
+                                                        background: selectedClient === c.id ? 'var(--accent)' : 'var(--bg-elevated)',
+                                                        color: selectedClient === c.id ? 'white' : 'var(--text-secondary)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: '10px',
+                                                        fontWeight: 800
+                                                    }}>
+                                                        {c.company_name?.charAt(0) || '?'}
+                                                    </div>
+                                                    <span className="truncate">{c.company_name}</span>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </>
                     )}
