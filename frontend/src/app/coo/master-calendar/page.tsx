@@ -209,6 +209,7 @@ export default function CooMasterCalendar() {
                             data={calendarData}
                             clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find((c) => c.id === selectedClient)?.company_name || 'Client'}
                             month={currentMonth}
+                            batchType={selectedClient !== 'all' ? clients.find((c) => c.id === selectedClient)?.batch_type : '1-1'}
                         />
                     </div>
 

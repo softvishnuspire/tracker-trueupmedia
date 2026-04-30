@@ -542,6 +542,7 @@ export default function TLDashboard() {
                             data={calendarData}
                             clientName={selectedClient ? clients.find(c => c.id === selectedClient)?.company_name || 'Client' : 'TrueUp Media'}
                             month={currentMonth}
+                            batchType={selectedClient ? getClientBatchType(selectedClient) : '1-1'}
                         />
                     </div>
                 </header>

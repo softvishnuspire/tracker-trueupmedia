@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { gmApi, adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
+import ScheduleExport from '@/components/ScheduleExport';
 
 export default function ClientCalendarPage() {
     const params = useParams();
@@ -301,6 +302,13 @@ export default function ClientCalendarPage() {
                                 <ChevronRight size={20}/>
                             </button>
                         </div>
+
+                        <ScheduleExport 
+                            data={calendarData}
+                            clientName={client?.company_name || 'Client'}
+                            month={currentMonth}
+                            batchType={client?.batch_type}
+                        />
                     </div>
                 </div>
             </header>
