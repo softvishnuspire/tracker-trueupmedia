@@ -161,7 +161,7 @@ app.get('/api/gm/clients', async (req, res) => {
 
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name')
+        .select('id, company_name, batch_type')
         .eq('is_active', true)
         .eq('is_deleted', false);
 
@@ -370,8 +370,10 @@ app.get('/api/admin/clients', async (req, res) => {
 });
 
 app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
-    const { company_name, phone, email, address, posts_per_month, reels_per_month } = req.body;
+    const { company_name, phone, email, address, posts_per_month, reels_per_month, batch_type } = req.body;
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
+    const validBatchTypes = ['1-1', '15-15'];
+    const resolvedBatch = validBatchTypes.includes(batch_type) ? batch_type : '1-1';
     const { data, error } = await supabase.from('clients').insert([{
         company_name,
         phone,
@@ -379,6 +381,7 @@ app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
         address,
         posts_per_month: parseInt(posts_per_month) || 0,
         reels_per_month: parseInt(reels_per_month) || 0,
+        batch_type: resolvedBatch,
         is_active: true,
         is_deleted: false
     }]).select();
@@ -389,8 +392,9 @@ app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
 
 app.put('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
     const { id } = req.params;
-    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month } = req.body;
-    const { data, error } = await supabase.from('clients').update({
+    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, batch_type } = req.body;
+    const validBatchTypes = ['1-1', '15-15'];
+    const updateObj = {
         company_name,
         phone,
         email,
@@ -398,7 +402,9 @@ app.put('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
         is_active,
         posts_per_month: parseInt(posts_per_month) || 0,
         reels_per_month: parseInt(reels_per_month) || 0
-    }).eq('id', id).select();
+    };
+    if (validBatchTypes.includes(batch_type)) updateObj.batch_type = batch_type;
+    const { data, error } = await supabase.from('clients').update(updateObj).eq('id', id).select();
     if (error) return res.status(500).json({ error: error.message });
     myCache.del(["gm_clients", "admin_clients"]);
     res.json(data[0]);
