@@ -332,7 +332,9 @@ export default function Login() {
               </div>
             </div>
 
-            <a href="#" className={styles.forgotPassword} onClick={(e) => { e.preventDefault(); setIsForgotPassword(true); setError(''); setResetMessage(''); }}>Forgot password?</a>
+            {selectedRole !== 'tl' && (
+              <a href="#" className={styles.forgotPassword} onClick={(e) => { e.preventDefault(); setIsForgotPassword(true); setError(''); setResetMessage(''); }}>Forgot password?</a>
+            )}
 
             <button type="submit" className={styles.submitBtn} disabled={loading}>
               {loading ? (
