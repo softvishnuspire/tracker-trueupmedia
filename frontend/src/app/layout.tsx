@@ -10,8 +10,11 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "TrueUp Media | Premium Content Management",
+  title: "Tracker",
   description: "Next-generation media management and workflow automation platform.",
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({
