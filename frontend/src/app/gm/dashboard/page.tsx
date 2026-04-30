@@ -15,7 +15,9 @@ import {
     parseISO,
     isPast,
     isBefore,
-    startOfDay
+    startOfDay,
+    getDate,
+    lastDayOfMonth
 } from 'date-fns';
 import {
     ChevronLeft,
@@ -45,8 +47,18 @@ import {
     ShieldAlert,
     Activity
 } from 'lucide-react';
-import { gmApi, emergencyApi, ContentItem, PocNote, StatusHistoryItem } from '@/lib/api';
+import {
+    gmApi,
+    emergencyApi,
+    ContentItem,
+    PocNote,
+    StatusHistoryItem,
+    Client,
+    TeamMember,
+    ContentDetails
+} from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
+import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,13 +67,12 @@ import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
 import './gm.css';
 
-interface ContentDetails {
-    item: ContentItem;
-    history: StatusHistoryItem[];
+interface TeamLead extends TeamMember {
+    clients: Client[];
 }
 
 export default function GMDashboard() {
-    const [clients, setClients] = useState<any[]>([]);
+    const [clients, setClients] = useState<Client[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [selectedType, setSelectedType] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -81,9 +92,9 @@ export default function GMDashboard() {
     const supabase = createClient();
 
     // Team leads state
-    const [teamLeads, setTeamLeads] = useState<any[]>([]);
+    const [teamLeads, setTeamLeads] = useState<TeamLead[]>([]);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-    const [assignTarget, setAssignTarget] = useState<any>(null); // { client, teamLead }
+    const [assignTarget, setAssignTarget] = useState<{ teamLead: TeamLead } | null>(null);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -91,7 +102,7 @@ export default function GMDashboard() {
     const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
     const [activeItem, setActiveItem] = useState<ContentDetails | null>(null);
     const [statusNote, setStatusNote] = useState('');
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<User | null>(null);
     const [isRescheduling, setIsRescheduling] = useState(false);
 
     const isMasterMode = view === 'master';
@@ -102,6 +113,87 @@ export default function GMDashboard() {
         title: '',
         description: ''
     });
+
+    // Batch cycle helpers
+    const getClientBatchType = (clientId: string) => {
+        const client = clients.find(c => c.id === clientId);
+        return client?.batch_type || '1-1';
+    };
+    // Period helpers
+    const isBiMonthlyView = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+
+    const periodStart = isBiMonthlyView
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+    
+    const periodEnd = isBiMonthlyView
+        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
+        : endOfMonth(currentMonth);
+
+    const isDayInPeriod = (day: Date, clientId?: string): boolean => {
+        const targetClientId = clientId || selectedClient;
+        if (!targetClientId || targetClientId === 'all') {
+            return isSameMonth(day, currentMonth);
+        }
+
+        const batchType = getClientBatchType(targetClientId);
+        if (batchType !== '15-15') return isSameMonth(day, currentMonth);
+        
+        // For 15-15, we define the period as 15th of currentMonth to 14th of nextMonth
+        const pStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
+        const pEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59);
+        return day >= pStart && day <= pEnd;
+    };
+
+    const getPeriodLabel = () => {
+        if (!isBiMonthlyView) return format(currentMonth, 'MMMM yyyy');
+        return `${format(periodStart, 'd MMM')} - ${format(periodEnd, 'd MMM yyyy')}`;
+    };
+
+    const fetchClientCalendar = async () => {
+        if (!selectedClient || selectedClient === 'all') return;
+        setLoading(true);
+        try {
+            const isBiMonthly = getClientBatchType(selectedClient) === '15-15';
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            
+            if (isBiMonthly) {
+                const nextMonth = addMonths(currentMonth, 1);
+                const nextMonthStr = format(nextMonth, 'yyyy-MM');
+                
+                // Fetch sequentially to avoid 401 race condition in interceptor
+                const resCurr = await gmApi.getCalendar(selectedClient, currentMonthStr);
+                const resNext = await gmApi.getCalendar(selectedClient, nextMonthStr);
+                
+                setCalendarData([...(resCurr.data || []), ...(resNext.data || [])]);
+            } else {
+                const res = await gmApi.getCalendar(selectedClient, currentMonthStr);
+                setCalendarData(res.data || []);
+            }
+        } catch (err: any) { 
+            console.error('Error fetching calendar:', err);
+        } finally { setLoading(false); }
+    };
+
+    const fetchMasterCalendar = async () => {
+        setLoading(true);
+        try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            const clientId = selectedClient === 'all' ? undefined : selectedClient;
+            const type = selectedType === 'all' ? undefined : selectedType;
+            const isBiMonthly = clientId && getClientBatchType(clientId) === '15-15';
+            
+            if (isBiMonthly && clientId) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const resCurr = await gmApi.getMasterCalendar(currentMonthStr, clientId, type);
+                const resNext = await gmApi.getMasterCalendar(nextMonthStr, clientId, type);
+                setCalendarData([...(resCurr.data || []), ...(resNext.data || [])]);
+            } else {
+                const res = await gmApi.getMasterCalendar(currentMonthStr, clientId, type);
+                setCalendarData(res.data || []);
+            }
+        } catch (err) { console.error(err); } finally { setLoading(false); }
+    };
 
 
     useEffect(() => {
@@ -138,7 +230,7 @@ export default function GMDashboard() {
         try {
             const res = await gmApi.getTeamLeads();
             // For each team lead, fetch their assigned clients
-            const leadsWithClients = await Promise.all(res.data.map(async (lead: any) => {
+            const leadsWithClients = await Promise.all(res.data.map(async (lead: TeamMember) => {
                 const clientsRes = await gmApi.getTeamLeadClients(lead.user_id);
                 return { ...lead, clients: clientsRes.data };
             }));
@@ -158,31 +250,12 @@ export default function GMDashboard() {
         } catch (err) { console.error('Error fetching clients:', err); }
     };
 
-    const fetchClientCalendar = async () => {
-        setLoading(true);
-        try {
-            const res = await gmApi.getCalendar(selectedClient, format(currentMonth, 'yyyy-MM'));
-            setCalendarData(res.data);
-        } catch (err) { console.error(err); } finally { setLoading(false); }
-    };
-
-    const fetchMasterCalendar = async () => {
-        setLoading(true);
-        try {
-            const res = await gmApi.getMasterCalendar(
-                format(currentMonth, 'yyyy-MM'),
-                selectedClient === 'all' ? undefined : selectedClient,
-                selectedType === 'all' ? undefined : selectedType
-            );
-            setCalendarData(res.data);
-        } catch (err) { console.error(err); } finally { setLoading(false); }
-    };
 
     const [stats, setStats] = useState({
         totalClients: 0,
         totalTeams: 0,
         monthlyContent: 0,
-        statusBreakdown: {} as any
+        statusBreakdown: {} as Record<string, number>
     });
 
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
@@ -197,7 +270,9 @@ export default function GMDashboard() {
             );
             const data = res.data as ContentItem[];
 
-            const breakdown = data.reduce((acc: any, item) => {
+            const periodData = data.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
+
+            const breakdown = periodData.reduce((acc: Record<string, number>, item) => {
                 acc[item.status] = (acc[item.status] || 0) + 1;
                 return acc;
             }, {});
@@ -218,7 +293,7 @@ export default function GMDashboard() {
             setStats({
                 totalClients: clients.length,
                 totalTeams: teamLeads.length,
-                monthlyContent: data.length,
+                monthlyContent: periodData.length,
                 statusBreakdown: breakdown
             });
             setCalendarData(data);
@@ -231,20 +306,6 @@ export default function GMDashboard() {
     };
 
     useEffect(() => {
-        if (view === 'master') {
-            fetchMasterCalendar();
-        } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
-            fetchClientCalendar();
-        } else if (view === 'teams') {
-            fetchTeamLeads();
-        } else if (view === 'poc') {
-            fetchPocNotes();
-        } else if (view === 'dashboard') {
-            fetchDashboardStats();
-        }
-    }, [selectedClient, selectedType, currentMonth, view, clients.length, teamLeads.length]);
-
-    useEffect(() => {
         fetchClients();
         const fetchUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -255,15 +316,15 @@ export default function GMDashboard() {
 
     const days = viewMode === 'month'
         ? eachDayOfInterval({
-            start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-            end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+            start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+            end: endOfWeek(periodEnd, { weekStartsOn: 1 })
         })
         : eachDayOfInterval({
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
         });
 
-    const monthStatusCounts = calendarData.reduce(
+    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime))).reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             if (normalizedStatus.includes('CONTENT')) acc.content += 1;
@@ -346,7 +407,7 @@ export default function GMDashboard() {
         try {
             // Get the current authenticated user ID directly to ensure it's not null
             const { data: { user: authUser } } = await supabase.auth.getUser();
-            const actorId = authUser?.id || user?.user_id;
+            const actorId = authUser?.id || user?.id;
 
             console.log('Updating status (GM):', { newStatus, note: statusNote, actorId });
 
@@ -690,9 +751,9 @@ export default function GMDashboard() {
 
                                     <div className="month-nav">
                                         <button onClick={handlePrev} className="month-btn"><ChevronLeft size={20} /></button>
-                                        <span className="month-label">
+                                        <span className="month-label" style={{ minWidth: '180px', textAlign: 'center' }}>
                                             {viewMode === 'month'
-                                                ? format(currentMonth, 'MMMM yyyy')
+                                                ? getPeriodLabel()
                                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                             }
                                         </span>
@@ -848,7 +909,7 @@ export default function GMDashboard() {
                                     <h3 className="card-title">Production Pipeline</h3>
                                     <span className="card-badge">Live Status</span>
                                 </div>
-                                
+
                                 <div className="pipeline-summary">
                                     <div className="summary-item" style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border)' }}>
                                         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Total Tasks</p>
@@ -988,7 +1049,7 @@ export default function GMDashboard() {
                                                 {lead.clients?.length === 0 && (
                                                     <p className="empty-assigned">No clients assigned</p>
                                                 )}
-                                                {lead.clients?.map((c: any) => (
+                                                {lead.clients?.map((c: Client) => (
                                                     <div key={c.id} className="assigned-item">
                                                         <span>{c.company_name}</span>
                                                         <button
@@ -1028,7 +1089,7 @@ export default function GMDashboard() {
                                                 defaultValue=""
                                             >
                                                 <option value="" disabled>Choose a client...</option>
-                                                {clients.filter(c => !teamLeads.some(l => l.clients?.some((lc: any) => lc.id === c.id))).map(c => (
+                                                {clients.filter(c => !teamLeads.some(l => l.clients?.some((lc: Client) => lc.id === c.id))).map(c => (
                                                     <option key={c.id} value={c.id}>{c.company_name}</option>
                                                 ))}
                                             </select>
@@ -1073,23 +1134,29 @@ export default function GMDashboard() {
                                                 const itemDate = parseISO(item.scheduled_datetime);
                                                 return isSameDay(itemDate, day);
                                             });
+                                        const isOutOfPeriod = !isDayInPeriod(day, selectedClient);
+
                                         return (
                                             <div
                                                 key={idx}
                                                 onClick={() => {
+                                                    if (isOutOfPeriod) return;
                                                     if (dayContent.length > 0 && !isPocView) {
-                                                        const contentItems = dayContent as ContentItem[];
                                                         if (window.innerWidth <= 768) {
                                                             setDailyAgenda({ date: day, items: dayContent as ContentItem[] });
                                                         } else {
                                                             handleItemClick(dayContent[0] as ContentItem);
                                                         }
-                                                    } else if (view === 'client') {
+                                                    } else if (view === 'client' && !isPocView) {
                                                         handleAddClick(day);
                                                     }
                                                 }}
-                                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (dayContent.length > 0 || view === 'client') ? 'pointer' : 'default' }}
+                                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                                style={{
+                                                    minHeight: viewMode === 'week' ? '300px' : '110px',
+                                                    cursor: isOutOfPeriod ? 'default' : 'pointer',
+                                                    position: 'relative'
+                                                }}
                                             >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                                     <span className="day-number">{format(day, 'd')}</span>
@@ -1619,6 +1686,17 @@ export default function GMDashboard() {
                     </div>
                 </div>
             )}
+
+            <style jsx>{`
+                @keyframes slideUp {
+                    from { transform: translate(-50%, 20px); opacity: 0; }
+                    to { transform: translate(-50%, 0); opacity: 1; }
+                }
+                .view-mode-btn.active {
+                    background: var(--primary) !important;
+                    color: white !important;
+                }
+            `}</style>
         </div>
     );
 }

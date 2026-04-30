@@ -16,7 +16,9 @@ import {
     parseISO,
     isPast,
     isBefore,
-    startOfDay
+    startOfDay,
+    getDate,
+    lastDayOfMonth
 } from 'date-fns';
 import { 
     ChevronLeft, 
@@ -34,32 +36,20 @@ import {
     CalendarClock,
     Undo2
 } from 'lucide-react';
-import { gmApi, adminApi, emergencyApi } from '@/lib/api';
+import { gmApi, adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
-
-interface ContentItem {
-    id: string;
-    title: string;
-    description: string;
-    content_type: 'Post' | 'Reel';
-    scheduled_datetime: string;
-    status: string;
-    client_id: string;
-    is_rescheduled?: boolean;
-    is_emergency?: boolean;
-}
 
 export default function ClientCalendarPage() {
     const params = useParams();
     const router = useRouter();
     const clientId = params.id as string;
 
-    const [client, setClient] = useState<any>(null);
+    const [client, setClient] = useState<Client | null>(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [selectedItem, setSelectedItem] = useState<{ item: ContentItem; history: StatusHistoryItem[] } | null>(null);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
@@ -76,7 +66,7 @@ export default function ClientCalendarPage() {
     const fetchClientInfo = useCallback(async () => {
         try {
             const res = await adminApi.getClients();
-            const found = res.data.find((c: any) => c.id === clientId);
+            const found = res.data.find((c: Client) => c.id === clientId);
             if (found) setClient(found);
         } catch (err) { console.error(err); }
     }, [clientId]);
@@ -84,38 +74,73 @@ export default function ClientCalendarPage() {
     const fetchCalendarData = useCallback(async () => {
         setLoading(true);
         try {
-            // Fetch for a slightly larger range to ensure we cover the week/month boundaries
-            const res = await adminApi.getMasterCalendar(
-                format(currentMonth, 'yyyy-MM'),
-                clientId
-            );
-            setCalendarData(res.data);
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            const res = await adminApi.getMasterCalendar(currentMonthStr, clientId);
+
+            if (client?.batch_type === '15-15') {
+                // For 15-15 clients, also fetch next month since the period spans two months
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await adminApi.getMasterCalendar(nextMonthStr, clientId);
+                setCalendarData([...res.data, ...nextRes.data]);
+            } else {
+                setCalendarData(res.data);
+            }
         } catch (err) { console.error(err); } finally { setLoading(false); }
-    }, [currentMonth, clientId]);
+    }, [currentMonth, clientId, client?.batch_type]);
 
     useEffect(() => {
         fetchClientInfo();
         fetchCalendarData();
     }, [fetchClientInfo, fetchCalendarData]);
 
+    // For 15-15 clients, the period spans from 15th of current month to 15th of next month
+    const isBiMonthly = (client?.batch_type || '1-1') === '15-15';
+
+    const periodStart = isBiMonthly
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+    const nextMonth = addMonths(currentMonth, 1);
+    const periodEnd = isBiMonthly
+        ? new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 15)
+        : endOfMonth(currentMonth);
+
     const days = viewMode === 'month' 
         ? eachDayOfInterval({
-            start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-            end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+            start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+            end: endOfWeek(periodEnd, { weekStartsOn: 1 })
           })
         : eachDayOfInterval({
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
           });
 
+    // Check if a day falls within the active period
+    const isDayInPeriod = (day: Date): boolean => {
+        if (!isBiMonthly) return isSameMonth(day, currentMonth);
+        return day >= periodStart && day <= periodEnd;
+    };
+
+    const getPeriodLabel = (): string => {
+        if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
+        return `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`;
+    };
+
     const handlePrev = () => {
         if (viewMode === 'month') setCurrentMonth(subMonths(currentMonth, 1));
-        else setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() - 7)));
+        else setCurrentMonth(prev => {
+            const d = new Date(prev);
+            d.setDate(d.getDate() - 7);
+            return d;
+        });
     };
 
     const handleNext = () => {
         if (viewMode === 'month') setCurrentMonth(addMonths(currentMonth, 1));
-        else setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() + 7)));
+        else setCurrentMonth(prev => {
+            const d = new Date(prev);
+            d.setDate(d.getDate() + 7);
+            return d;
+        });
     };
 
     const handleItemClick = async (item: ContentItem) => {
@@ -267,8 +292,8 @@ export default function ClientCalendarPage() {
                                 <ChevronLeft size={20}/>
                             </button>
                             <span className="month-label">
-                                {viewMode === 'month' 
-                                    ? format(currentMonth, 'MMMM yyyy')
+                                {viewMode === 'month'
+                                    ? getPeriodLabel()
                                     : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                 }
                             </span>
@@ -311,11 +336,13 @@ export default function ClientCalendarPage() {
                             const itemDate = parseISO(item.scheduled_datetime);
                             return isSameDay(itemDate, day);
                         });
+                        const isOutOfPeriod = !isDayInPeriod(day);
 
                         return (
-                            <div 
-                                key={idx} 
+                            <div
+                                key={idx}
                                 onClick={() => {
+                                    if (isOutOfPeriod) return;
                                     if (dayContent.length > 0) {
                                         if (window.innerWidth <= 768) {
                                             setDailyAgenda({ date: day, items: dayContent });
@@ -330,8 +357,12 @@ export default function ClientCalendarPage() {
                                         setShowAddModal(true);
                                     }
                                 }}
-                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: 'pointer' }}
+                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                style={{
+                                    minHeight: viewMode === 'week' ? '300px' : '110px',
+                                    cursor: isOutOfPeriod ? 'default' : 'pointer',
+                                    position: 'relative'
+                                }}
                             >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                     <span className="day-number">{format(day, 'd')}</span>
@@ -720,6 +751,17 @@ export default function ClientCalendarPage() {
                     </div>
                 </div>
             )}
+
+            <style jsx>{`
+                @keyframes slideUp {
+                    from { transform: translate(-50%, 20px); opacity: 0; }
+                    to { transform: translate(-50%, 0); opacity: 1; }
+                }
+                .view-mode-btn.active {
+                    background: var(--primary) !important;
+                    color: white !important;
+                }
+            `}</style>
         </div>
     );
 }

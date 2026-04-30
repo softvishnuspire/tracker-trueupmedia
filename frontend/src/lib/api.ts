@@ -26,6 +26,7 @@ export interface Client {
     is_active?: boolean;
     posts_per_month?: number;
     reels_per_month?: number;
+    batch_type?: '1-1' | '15-15';
     created_at: string;
 }
 
@@ -41,6 +42,11 @@ export interface ContentItem {
     is_emergency?: boolean;
     emergency_marked_at?: string;
     clients?: { company_name: string };
+}
+
+export interface ContentDetails {
+    item: ContentItem;
+    history: StatusHistoryItem[];
 }
 
 export interface StatusHistoryItem {
@@ -72,7 +78,7 @@ export const gmApi = {
     getCalendar: (clientId: string, month: string) => api.get(`/api/gm/calendar?client_id=${clientId}&month=${month}`),
     getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
         api.get<ContentItem[]>(`/api/gm/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
-    getContentDetails: (id: string) => api.get<{ item: ContentItem, history: StatusHistoryItem[] }>(`/api/gm/content/${id}`),
+    getContentDetails: (id: string) => api.get<ContentDetails>(`/api/gm/content/${id}`),
     addContent: (data: Partial<ContentItem>) => api.post('/api/gm/content', data),
     updateContent: (id: string, data: Partial<ContentItem>) => api.put(`/api/gm/content/${id}`, data),
     deleteContent: (id: string) => api.delete(`/api/gm/content/${id}`),
@@ -120,7 +126,7 @@ export const adminApi = {
     deleteTeamMember: (id: string) => adminBase.delete(`/api/admin/team/${id}`),
     getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
         adminBase.get<ContentItem[]>(`/api/admin/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
-    getContentDetails: (id: string) => adminBase.get<{ item: ContentItem; history: StatusHistoryItem[] }>(`/api/admin/content/${id}`),
+    getContentDetails: (id: string) => adminBase.get<ContentDetails>(`/api/admin/content/${id}`),
     undoStatus: (contentId: string) => adminBase.post(`/api/admin/content/${contentId}/undo-status`),
     addContent: (data: Partial<ContentItem>) => adminBase.post('/api/admin/content', data),
     updateContent: (id: string, data: Partial<ContentItem>) => adminBase.put(`/api/admin/content/${id}`, data),
@@ -145,7 +151,7 @@ export const cooApi = {
     getTeam: () => cooBase.get<TeamMember[]>('/api/coo/team'),
     getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
         cooBase.get<ContentItem[]>(`/api/coo/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
-    getContentDetails: (id: string) => cooBase.get<{ item: ContentItem; history: StatusHistoryItem[] }>(`/api/coo/content/${id}`),
+    getContentDetails: (id: string) => cooBase.get<ContentDetails>(`/api/coo/content/${id}`),
 };
 
 const tlBase = axios.create({
@@ -192,7 +198,7 @@ export const postingApi = {
     getMasterCalendar: (month: string, client_id?: string, status?: string, all?: boolean) =>
         postingBase.get<ContentItem[]>('master-calendar', { params: { month, client_id, status, all: all ? 'true' : undefined } }),
     getContentDetails: (id: string) =>
-        postingBase.get<{ item: ContentItem; history: StatusHistoryItem[] }>(`content/${id}`),
+        postingBase.get<ContentDetails>(`content/${id}`),
     markAsPosted: (id: string, changedBy?: string) =>
         postingBase.patch(`content/${id}/post`, { changed_by: changedBy }),
     undoStatus: (id: string) =>

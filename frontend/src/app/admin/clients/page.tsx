@@ -2,21 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { adminApi } from '@/lib/api';
+import { adminApi, Client } from '@/lib/api';
 import { Plus, Search, Edit2, Trash2, X, Calendar as CalendarIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface Client {
-  id: string;
-  company_name: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  is_active?: boolean;
-  posts_per_month?: number;
-  reels_per_month?: number;
-  created_at: string;
-}
 
 export default function ClientManagement() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -33,6 +21,7 @@ export default function ClientManagement() {
     address: '',
     posts_per_month: '',
     reels_per_month: '',
+    batch_type: '1-1' as '1-1' | '15-15',
   });
 
   const fetchClients = async () => {
@@ -52,7 +41,7 @@ export default function ClientManagement() {
 
   const handleAddClick = () => {
     setEditingClient(null);
-    setFormData({ company_name: '', phone: '', email: '', address: '', posts_per_month: '', reels_per_month: '' });
+    setFormData({ company_name: '', phone: '', email: '', address: '', posts_per_month: '', reels_per_month: '', batch_type: '1-1' });
     setShowModal(true);
   };
 
@@ -65,6 +54,7 @@ export default function ClientManagement() {
       address: client.address || '',
       posts_per_month: client.posts_per_month?.toString() || '0',
       reels_per_month: client.reels_per_month?.toString() || '0',
+      batch_type: client.batch_type || '1-1',
     });
     setShowModal(true);
   };
@@ -87,6 +77,7 @@ export default function ClientManagement() {
         ...formData,
         posts_per_month: parseInt(formData.posts_per_month) || 0,
         reels_per_month: parseInt(formData.reels_per_month) || 0,
+        batch_type: formData.batch_type,
       };
 
       if (editingClient) {
@@ -146,6 +137,7 @@ export default function ClientManagement() {
                   <th>Contact</th>
                   <th>Email</th>
                   <th>Address</th>
+                  <th>Batch</th>
                   <th>Posts/mo</th>
                   <th>Reels/mo</th>
                   <th>Date Added</th>
@@ -176,6 +168,19 @@ export default function ClientManagement() {
                         <td data-label="Contact"><span>{client.phone || '-'}</span></td>
                         <td data-label="Email"><span>{client.email || '-'}</span></td>
                         <td data-label="Address" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span>{client.address || '-'}</span></td>
+                        <td data-label="Batch">
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '3px 10px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            letterSpacing: '0.3px',
+                            background: (client.batch_type === '15-15') ? 'rgba(139, 92, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                            color: (client.batch_type === '15-15') ? '#8b5cf6' : '#10b981',
+                            border: `1px solid ${(client.batch_type === '15-15') ? 'rgba(139, 92, 246, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                          }}>{client.batch_type || '1-1'}</span>
+                        </td>
                         <td data-label="Posts/mo"><span>{client.posts_per_month || '0'}</span></td>
                         <td data-label="Reels/mo"><span>{client.reels_per_month || '0'}</span></td>
                         <td data-label="Date Added"><span>{new Date(client.created_at).toLocaleDateString()}</span></td>
@@ -196,7 +201,7 @@ export default function ClientManagement() {
                     ))}
                     {filteredClients.length === 0 && (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                           No clients found matching your search.
                         </td>
                       </tr>
@@ -258,6 +263,23 @@ export default function ClientManagement() {
                   placeholder="Office address, city, country"
                   style={{ resize: 'none' }}
                 />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Batch Type *</label>
+                <select
+                  className="form-input"
+                  value={formData.batch_type}
+                  onChange={(e) => setFormData({...formData, batch_type: e.target.value as '1-1' | '15-15'})}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <option value="1-1">1–1 (Full Month)</option>
+                  <option value="15-15">15–15 (Bi-Monthly Cycle)</option>
+                </select>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                  {formData.batch_type === '1-1'
+                    ? 'Standard monthly calendar — content spans the entire month (1st to last day).'
+                    : 'Split into Cycle 1 (1st–15th) and Cycle 2 (16th–end of month). Calendar will show a cycle toggle.'}
+                </p>
               </div>
               <div className="form-row">
                 <div className="form-group">

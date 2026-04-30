@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { cooApi, emergencyApi } from '@/lib/api';
 import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { endOfWeek, format, isSameDay, parseISO, startOfWeek } from 'date-fns';
+import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 
 interface Stats {
     totalClients: number;
@@ -22,6 +22,13 @@ export default function CooDashboard() {
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
 
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+
+    const getClientBatchType = (clientId: string) => {
+        const client = clients.find(c => c.id === clientId);
+        return client?.batch_type || '1-1';
+    };
+
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
@@ -31,15 +38,39 @@ export default function CooDashboard() {
                 setClients(clientsRes.data);
             }
 
-            // Fetch master calendar for the current month to get throughput and status breakdown
+            const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+            
+            // Fetch master calendar
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const calendarRes = await cooApi.getMasterCalendar(
-                format(new Date(), 'yyyy-MM'),
+                currentMonthStr,
                 selectedClient === 'all' ? undefined : selectedClient
             );
-            const data = calendarRes.data;
+            let data = calendarRes.data;
+
+            if (isBiMonthly) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await cooApi.getMasterCalendar(nextMonthStr, selectedClient);
+                data = [...data, ...nextRes.data];
+            }
+            
             setCalendarData(data);
 
-            const breakdown = data.reduce((acc: any, item: any) => {
+            const periodStart = isBiMonthly
+                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+                : startOfMonth(currentMonth);
+            const periodEnd = isBiMonthly
+                ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
+                : endOfMonth(currentMonth);
+
+            const filteredData = isBiMonthly 
+                ? data.filter(item => {
+                    const d = parseISO(item.scheduled_datetime);
+                    return d >= periodStart && d <= periodEnd;
+                  })
+                : data;
+
+            const breakdown = filteredData.reduce((acc: any, item: any) => {
                 acc[item.status] = (acc[item.status] || 0) + 1;
                 return acc;
             }, {});
@@ -63,12 +94,12 @@ export default function CooDashboard() {
                 setStats({
                     ...statsRes.data,
                     statusSummary: breakdown,
-                    totalItemsThisMonth: data.length
+                    totalItemsThisMonth: filteredData.length
                 });
             } else {
                 setStats({
                     totalClients: clients.length,
-                    totalItemsThisMonth: data.length,
+                    totalItemsThisMonth: filteredData.length,
                     statusSummary: breakdown
                 });
             }
@@ -84,11 +115,20 @@ export default function CooDashboard() {
 
     useEffect(() => {
         fetchDashboardData();
-    }, [selectedClient]);
+    }, [selectedClient, currentMonth]);
+
+    const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+    const periodStart = isBiMonthly
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+    const periodEnd = isBiMonthly
+        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
+        : endOfMonth(currentMonth);
 
     const monthTotal = stats?.totalItemsThisMonth || 0;
     const monthCompleted = (stats?.statusSummary?.POSTED || 0) as number;
     const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
+    
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
     const weekItems = calendarData.filter((item: any) => {
@@ -197,6 +237,11 @@ export default function CooDashboard() {
                     <div className="progress-top-row">
                         <div className="progress-main-info">
                             <h3 className="stat-label">Month&apos;s Progress</h3>
+                            {isBiMonthly && (
+                                <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                    {format(periodStart, 'd MMM')} - {format(periodEnd, 'd MMM')}
+                                </p>
+                            )}
                         </div>
                         <div className="progress-values">
                             <span className="current">{monthCompleted}</span>

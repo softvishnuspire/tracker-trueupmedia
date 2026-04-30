@@ -69,41 +69,76 @@ export default function CooClientCalendarPage() {
     const fetchCalendarData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await cooApi.getMasterCalendar(
-                format(currentMonth, 'yyyy-MM'),
-                clientId
-            );
-            setCalendarData(res.data);
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            const res = await cooApi.getMasterCalendar(currentMonthStr, clientId);
+
+            if (client?.batch_type === '15-15') {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await cooApi.getMasterCalendar(nextMonthStr, clientId);
+                setCalendarData([...res.data, ...nextRes.data]);
+            } else {
+                setCalendarData(res.data);
+            }
         } catch (err) {
             console.error(err);
         } finally {
             setLoading(false);
         }
-    }, [currentMonth, clientId]);
+    }, [currentMonth, clientId, client?.batch_type]);
 
     useEffect(() => {
         fetchClientInfo();
         fetchCalendarData();
     }, [fetchClientInfo, fetchCalendarData]);
 
+    const isBiMonthly = (client?.batch_type || '1-1') === '15-15';
+
+    const periodStart = isBiMonthly
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+    const nextMonth = addMonths(currentMonth, 1);
+    const periodEnd = isBiMonthly
+        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
+        : endOfMonth(currentMonth);
+
     const days = viewMode === 'month'
         ? eachDayOfInterval({
-            start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-            end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+            start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+            end: endOfWeek(periodEnd, { weekStartsOn: 1 })
         })
         : eachDayOfInterval({
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
         });
 
+    // Check if a day falls within the active period
+    const isDayInPeriod = (day: Date): boolean => {
+        if (!isBiMonthly) return isSameMonth(day, currentMonth);
+        return day >= periodStart && day <= periodEnd;
+    };
+
+    const getPeriodLabel = (): string => {
+        if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
+        const displayEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14);
+        return `${format(periodStart, 'd MMM')} \u2013 ${format(displayEnd, 'd MMM yyyy')}`;
+    };
+
     const handlePrev = () => {
         if (viewMode === 'month') setCurrentMonth(subMonths(currentMonth, 1));
-        else setCurrentMonth((prev) => new Date(prev.setDate(prev.getDate() - 7)));
+        else setCurrentMonth((prev) => {
+            const d = new Date(prev);
+            d.setDate(d.getDate() - 7);
+            return d;
+        });
     };
 
     const handleNext = () => {
         if (viewMode === 'month') setCurrentMonth(addMonths(currentMonth, 1));
-        else setCurrentMonth((prev) => new Date(prev.setDate(prev.getDate() + 7)));
+        else setCurrentMonth((prev) => {
+            const d = new Date(prev);
+            d.setDate(d.getDate() + 7);
+            return d;
+        });
     };
 
     const handleItemClick = async (item: ContentItem) => {

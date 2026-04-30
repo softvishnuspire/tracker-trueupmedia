@@ -3,11 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, 
-  X, Clock, Undo2, Check, Edit2, Trash2, ChevronDown, Filter 
+  X, Clock, Undo2, Check, Edit2, Trash2, ChevronDown, Filter, ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import { adminApi, emergencyApi, gmApi, ContentItem, StatusHistoryItem } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { endOfWeek, format, isSameDay, parseISO, startOfWeek } from 'date-fns';
+import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, isSameMonth, subMonths, addMonths } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
 
 interface Stats {
@@ -42,6 +42,31 @@ export default function AdminDashboard() {
   });
   
   const supabase = createClient();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const getClientBatchType = (clientId: string) => {
+    if (clientId === 'all') return '1-1';
+    const client = clients.find(c => c.id === clientId);
+    return client?.batch_type || '1-1';
+  };
+
+  const getPeriodLabel = () => {
+    const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+    if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
+
+    const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
+    const periodEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14);
+    return `${format(periodStart, 'd MMM')} - ${format(periodEnd, 'd MMM yyyy')}`;
+  };
+
+  const isDayInPeriod = (date: Date) => {
+    const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+    if (!isBiMonthly) return isSameMonth(date, currentMonth);
+
+    const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
+    const periodEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59);
+    return date >= periodStart && date <= periodEnd;
+  };
 
   const fetchEmergencyTasks = async () => {
     try {
@@ -63,14 +88,30 @@ export default function AdminDashboard() {
       }
 
       // Fetch master calendar for the current month to get throughput and status breakdown
-      const calendarRes = await adminApi.getMasterCalendar(
-        format(new Date(), 'yyyy-MM'),
-        selectedClient === 'all' ? undefined : selectedClient
-      );
-      const data = calendarRes.data;
+      const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+      const currentMonthStr = format(currentMonth, 'yyyy-MM');
+      let data: ContentItem[] = [];
+
+      if (isBiMonthly) {
+        const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+        const resCurr = await adminApi.getMasterCalendar(currentMonthStr, selectedClient);
+        const resNext = await adminApi.getMasterCalendar(nextMonthStr, selectedClient);
+        data = [...(resCurr.data || []), ...(resNext.data || [])];
+      } else {
+        const calendarRes = await adminApi.getMasterCalendar(
+          currentMonthStr,
+          selectedClient === 'all' ? undefined : selectedClient
+        );
+        data = calendarRes.data || [];
+      }
       setCalendarData(data);
 
-      const breakdown = data.reduce((acc: any, item: ContentItem) => {
+      setCalendarData(data);
+
+      // Filter data for the current period stats
+      const periodData = data.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
+
+      const breakdown = periodData.reduce((acc: any, item: ContentItem) => {
         acc[item.status] = (acc[item.status] || 0) + 1;
         return acc;
       }, {});
@@ -94,12 +135,12 @@ export default function AdminDashboard() {
         setStats({
           ...statsRes.data,
           statusSummary: breakdown,
-          totalItemsThisMonth: data.length
+          totalItemsThisMonth: periodData.length
         });
       } else {
         setStats({
           totalClients: clients.length,
-          totalItemsThisMonth: data.length,
+          totalItemsThisMonth: periodData.length,
           statusSummary: breakdown
         });
       }
@@ -117,7 +158,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [selectedClient]);
+  }, [selectedClient, currentMonth]);
 
   const handleTaskClick = async (taskId: string) => {
     try {
@@ -212,10 +253,15 @@ export default function AdminDashboard() {
 
   return (
     <div className="dashboard-view">
-      <header className="page-header" style={{ marginBottom: '32px' }}>
+      <header className="page-header" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 className="page-title">Admin Dashboard</h1>
           <p className="page-subtitle">Overview of system activity and client pipelines</p>
+        </div>
+        <div className="month-nav" style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'var(--bg-surface)', padding: '8px 16px', borderRadius: '16px', border: '1px solid var(--border)' }}>
+            <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}><ChevronLeft size={20} /></button>
+            <span className="month-label" style={{ fontWeight: 700, fontSize: '14px', minWidth: '140px', textAlign: 'center' }}>{getPeriodLabel()}</span>
+            <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}><ChevronRight size={20} /></button>
         </div>
       </header>
 
@@ -312,7 +358,7 @@ export default function AdminDashboard() {
         <div className="progress-meter-card">
           <div className="progress-top-row">
             <div className="progress-main-info">
-              <h3 className="stat-label">Month&apos;s Progress</h3>
+              <h3 className="stat-label">Period Progress</h3>
             </div>
             <div className="progress-values">
               <span className="current">{monthCompleted}</span>

@@ -119,12 +119,27 @@ export default function TLDashboard() {
         } catch (err) { console.error('Error fetching clients:', err); }
     };
 
+    const getClientBatchType = (clientId: string) => {
+        const client = clients.find(c => c.id === clientId);
+        return client?.batch_type || '1-1';
+    };
+
     const fetchClientCalendar = async () => {
         if (!user || !selectedClient) return;
         setLoading(true);
         try {
-            const res = await tlApi.getCalendar(selectedClient, format(currentMonth, 'yyyy-MM'), user.id);
-            setCalendarData(res.data);
+            const isBiMonthly = getClientBatchType(selectedClient) === '15-15';
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            
+            if (isBiMonthly) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const res = await tlApi.getCalendar(selectedClient, currentMonthStr, user.id);
+                const nextRes = await tlApi.getCalendar(selectedClient, nextMonthStr, user.id);
+                setCalendarData([...(res.data || []), ...(nextRes.data || [])]);
+            } else {
+                const res = await tlApi.getCalendar(selectedClient, currentMonthStr, user.id);
+                setCalendarData(res.data || []);
+            }
         } catch (err) { 
             console.error('Error fetching calendar:', err);
         } finally { 
@@ -137,8 +152,14 @@ export default function TLDashboard() {
         if (!user) return;
         setLoading(true);
         try {
-            const res = await tlApi.getMasterCalendar(format(currentMonth, 'yyyy-MM'), user.id);
-            setCalendarData(res.data);
+            // For master calendar, we fetch two months just in case any client is 15-15
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+            
+            const res = await tlApi.getMasterCalendar(currentMonthStr, user.id);
+            const nextRes = await tlApi.getMasterCalendar(nextMonthStr, user.id);
+            
+            setCalendarData([...(res.data || []), ...(nextRes.data || [])]);
             
             // Fetch and filter emergency tasks for assigned clients
             const emergencyRes = await emergencyApi.getAll();
@@ -152,8 +173,15 @@ export default function TLDashboard() {
         if (!user) return;
         setLoading(true);
         try {
-            const res = await tlApi.getPocNotes(format(currentMonth, 'yyyy-MM'), user.id);
-            setPocNotes(res.data || []);
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+            
+            const [res, nextRes] = await Promise.all([
+                tlApi.getPocNotes(currentMonthStr, user.id),
+                tlApi.getPocNotes(nextMonthStr, user.id)
+            ]);
+            
+            setPocNotes([...(res.data || []), ...(nextRes.data || [])]);
         } catch (err) {
             console.error('Error fetching POC notes:', err);
         } finally {
@@ -278,12 +306,40 @@ export default function TLDashboard() {
         router.push('/');
     };
 
+    const isBiMonthly = (view === 'client' || view === 'poc') && selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+
+    const periodStart = isBiMonthly
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+    const periodEnd = isBiMonthly
+        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
+        : endOfMonth(currentMonth);
+
     const days = eachDayOfInterval({
-        start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-        end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+        start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+        end: endOfWeek(periodEnd, { weekStartsOn: 1 })
     });
 
-    const monthStatusCounts = calendarData.reduce(
+    const isDayInPeriod = (day: Date): boolean => {
+        if (!isBiMonthly) return isSameMonth(day, currentMonth);
+        return day >= periodStart && day <= periodEnd;
+    };
+
+    const getPeriodLabel = (): string => {
+        if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
+        // For label, we use the 14th
+        const displayEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14);
+        return `${format(periodStart, 'd MMM')} \u2013 ${format(displayEnd, 'd MMM yyyy')}`;
+    };
+
+    const filteredCalendarData = isBiMonthly 
+        ? calendarData.filter(item => {
+            const d = parseISO(item.scheduled_datetime);
+            return d >= periodStart && d <= periodEnd;
+          })
+        : calendarData;
+
+    const monthStatusCounts = filteredCalendarData.reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             if (normalizedStatus.includes('CONTENT')) acc.content += 1;
@@ -293,9 +349,11 @@ export default function TLDashboard() {
         },
         { content: 0, design: 0, posted: 0 }
     );
-    const monthTotal = calendarData.length;
+
+    const monthTotal = filteredCalendarData.length;
     const monthCompleted = monthStatusCounts.posted;
     const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
+    
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
     const weekItems = calendarData.filter(item => {
@@ -475,7 +533,7 @@ export default function TLDashboard() {
                         <div className="month-nav">
                             <button onClick={handlePrev} className="month-btn"><ChevronLeft size={18}/></button>
                             <span className="month-label">
-                                {format(currentMonth, 'MMMM yyyy')}
+                                {getPeriodLabel()}
                             </span>
                             <button onClick={handleNext} className="month-btn"><ChevronRight size={18}/></button>
                         </div>
@@ -688,7 +746,7 @@ export default function TLDashboard() {
                                                         handlePocDayClick(day);
                                                     }
                                                 }}
-                                                className={`calendar-day ${!isSameMonth(day, currentMonth) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                                className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
                                             >
                                                 <span className="day-number">{format(day, 'd')}</span>
                                                 <div className="day-items desktop-only">

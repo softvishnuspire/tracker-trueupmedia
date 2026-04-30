@@ -75,9 +75,35 @@ export default function PostingDashboard() {
     const router = useRouter();
     const supabase = createClient();
 
+    const getClientBatchType = (clientId: string) => {
+        if (clientId === 'all') return '1-1';
+        const client = clients.find(c => c.id === clientId);
+        return client?.batch_type || '1-1';
+    };
+
+    const getPeriodLabel = () => {
+        const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+        if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
+
+        const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
+        const periodEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14);
+        return `${format(periodStart, 'd MMM')} - ${format(periodEnd, 'd MMM yyyy')}`;
+    };
+
+    const isDayInPeriod = (date: Date) => {
+        const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+        if (!isBiMonthly) return isSameMonth(date, currentMonth);
+
+        const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
+        const periodEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59);
+        return date >= periodStart && date <= periodEnd;
+    };
+
     // Fetch stats for the meter
     const fetchTodayStats = async () => {
         try {
+            // For today's stats, we usually just care about the current calendar month's overview 
+            // but for consistency let's use the same logic if a client is selected
             const res = await postingApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), undefined, undefined, true);
             const data = res.data as ContentItem[];
             const today = new Date();
@@ -140,8 +166,18 @@ export default function PostingDashboard() {
         if (selectedClient === 'all') return;
         setLoading(true);
         try {
-            const res = await postingApi.getCalendar(selectedClient, format(currentMonth, 'yyyy-MM'), 'WAITING FOR POSTING');
-            setCalendarData(res.data);
+            const isBiMonthly = getClientBatchType(selectedClient) === '15-15';
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            
+            if (isBiMonthly) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const resCurr = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
+                const resNext = await postingApi.getCalendar(selectedClient, nextMonthStr, 'WAITING FOR POSTING');
+                setCalendarData([...(resCurr.data || []), ...(resNext.data || [])]);
+            } else {
+                const res = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
+                setCalendarData(res.data || []);
+            }
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
@@ -149,12 +185,22 @@ export default function PostingDashboard() {
     const fetchMasterCalendar = async () => {
         setLoading(true);
         try {
-            const res = await postingApi.getMasterCalendar(
-                format(currentMonth, 'yyyy-MM'),
-                selectedClient === 'all' ? undefined : selectedClient,
-                'WAITING FOR POSTING'
-            );
-            setCalendarData(res.data);
+            const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            
+            if (isBiMonthly) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const resCurr = await postingApi.getMasterCalendar(currentMonthStr, selectedClient, 'WAITING FOR POSTING');
+                const resNext = await postingApi.getMasterCalendar(nextMonthStr, selectedClient, 'WAITING FOR POSTING');
+                setCalendarData([...(resCurr.data || []), ...(resNext.data || [])]);
+            } else {
+                const res = await postingApi.getMasterCalendar(
+                    currentMonthStr,
+                    selectedClient === 'all' ? undefined : selectedClient,
+                    'WAITING FOR POSTING'
+                );
+                setCalendarData(res.data || []);
+            }
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
@@ -221,10 +267,25 @@ export default function PostingDashboard() {
         router.push('/');
     };
 
-    const days = eachDayOfInterval({
-        start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-        end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
-    });
+    const getDays = () => {
+        const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+        if (!isBiMonthly) {
+            return eachDayOfInterval({
+                start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
+                end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+            });
+        }
+
+        const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15);
+        const periodEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 14);
+        
+        return eachDayOfInterval({
+            start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+            end: endOfWeek(periodEnd, { weekStartsOn: 1 })
+        });
+    };
+
+    const days = getDays();
 
     const monthTotal = calendarData.length;
     const monthCompleted = calendarData.filter(i => (i.status || '').toUpperCase() === 'POSTED').length;
@@ -394,7 +455,7 @@ export default function PostingDashboard() {
                             {view !== 'dashboard' && (
                                 <div className="month-nav">
                                     <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn"><ChevronLeft size={20} /></button>
-                                    <span className="month-label">{format(currentMonth, 'MMMM yyyy')}</span>
+                                    <span className="month-label">{getPeriodLabel()}</span>
                                     <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn"><ChevronRight size={20} /></button>
                                 </div>
                             )}
@@ -432,7 +493,7 @@ export default function PostingDashboard() {
                             </div>
 
                             <div className="progress-meter-card" style={{ padding: '20px' }}>
-                                <h3 className="stat-label">Month&apos;s Progress</h3>
+                                <h3 className="stat-label">Period Progress</h3>
                                 <div className="progress-values">
                                     <span className="current">{monthCompleted}</span>
                                     <span className="separator">/</span>
@@ -580,7 +641,7 @@ export default function PostingDashboard() {
                                         <div
                                             key={idx}
                                             onClick={() => { if (dayContent.length > 0) handleItemClick(dayContent[0]); }}
-                                            className={`calendar-day ${!isSameMonth(day, currentMonth) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                            className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
                                             style={{ minHeight: '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
                                         >
                                             <span className="day-number">{format(day, 'd')}</span>
