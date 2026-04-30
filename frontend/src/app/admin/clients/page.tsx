@@ -28,6 +28,7 @@ export default function ClientManagement() {
   const fetchClients = async () => {
     try {
       const res = await adminApi.getClients();
+      console.log('Fetched Clients raw data:', res.data);
       setClients(res.data);
     } catch (err: any) {
       setError(err.message);
