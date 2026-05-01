@@ -134,6 +134,7 @@ export default function GMDashboard() {
         const targetClientId = clientId || selectedClient;
         if (!targetClientId || targetClientId === 'all') {
             return isSameMonth(day, currentMonth);
+        }
         const start = startOfMonth(currentMonth);
         const end = endOfMonth(currentMonth);
         return day >= start && day <= end;
