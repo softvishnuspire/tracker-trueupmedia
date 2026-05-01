@@ -9,6 +9,7 @@ import { adminApi, emergencyApi, gmApi, ContentItem, StatusHistoryItem } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, isSameMonth, subMonths, addMonths } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
+import NotificationBell from '@/components/NotificationBell';
 
 interface Stats {
   totalClients: number;
@@ -300,6 +301,9 @@ export default function AdminDashboard() {
             <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}><ChevronLeft size={20} /></button>
             <span className="month-label" style={{ fontWeight: 700, fontSize: '14px', minWidth: '140px', textAlign: 'center' }}>{getPeriodLabel()}</span>
             <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}><ChevronRight size={20} /></button>
+        </div>
+        <div style={{ marginLeft: '16px' }}>
+          <NotificationBell />
         </div>
       </header>
 

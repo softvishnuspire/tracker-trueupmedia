@@ -140,7 +140,7 @@ const getRequesterRole = async (user) => {
     // If role is generic but identifier is specific, use identifier
     const upperId = resolvedIdentifier.toUpperCase();
     if (upperId === 'ADMIN') resolvedRole = 'ADMIN';
-    else if (upperId === 'GM' || upperId === 'GENERAL MANAGER') resolvedRole = 'GENERAL MANAGER';
+    else if (upperId === 'GM' || upperId === 'GENERAL MANAGER') resolvedRole = 'GM';
     else if (upperId === 'PRODUCTION HEAD' || upperId === 'PH' || resolvedRole === 'PH') resolvedRole = 'PRODUCTION HEAD';
     else if (upperId === 'POSTING TEAM' || upperId === 'POSTING') resolvedRole = 'POSTING TEAM';
 
@@ -154,10 +154,12 @@ const getRequesterRole = async (user) => {
     return resolvedRole;
 };
 
-// HELPER: Permissive check for PH during debugging
-const isProductionHead = (role) => {
-    return role === 'PRODUCTION HEAD' || role === 'PH' || role === 'ADMIN';
-};
+const ADMIN_ROLES = ['ADMIN'];
+const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN'];
+const COO_ROLES = ['COO', 'ADMIN'];
+const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER'];
 
 const requireRoles = (allowedRoles) => {
     const normalizedAllowed = allowedRoles.map((role) => normalizeRole(role));
@@ -300,7 +302,7 @@ async function checkContentLimit(client_id, content_type, scheduled_datetime) {
 
 
 // ─── GM: Clients ───
-app.get('/api/gm/clients', requireRoles(['GM', 'ADMIN']), async (req, res) => {
+app.get('/api/gm/clients', requireRoles(GM_ROLES), async (req, res) => {
     const cached = myCache.get("gm_clients");
     if (cached) return res.json(cached);
 
@@ -316,7 +318,7 @@ app.get('/api/gm/clients', requireRoles(['GM', 'ADMIN']), async (req, res) => {
 });
 
 // ─── GM: Calendar ───
-app.get('/api/gm/calendar', requireRoles(['GM', 'ADMIN']), async (req, res) => {
+app.get('/api/gm/calendar', requireRoles(GM_ROLES), async (req, res) => {
     const { client_id, month } = req.query;
     if (!client_id || !month) return res.status(400).json({ error: 'Missing client_id or month' });
 
@@ -338,7 +340,7 @@ app.get('/api/gm/calendar', requireRoles(['GM', 'ADMIN']), async (req, res) => {
 });
 
 // ─── GM: Master Calendar ───
-app.get('/api/gm/master-calendar', requireRoles(['GM', 'ADMIN']), async (req, res) => {
+app.get('/api/gm/master-calendar', requireRoles(GM_ROLES), async (req, res) => {
     const { month, client_id, content_type } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
@@ -363,7 +365,7 @@ app.get('/api/gm/master-calendar', requireRoles(['GM', 'ADMIN']), async (req, re
 });
 
 // ─── GM: Content CRUD ───
-app.post('/api/gm/content', requireRoles(['GM', 'ADMIN']), async (req, res) => {
+app.post('/api/gm/content', requireRoles(GM_ROLES), async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
     const initial_status = 'PENDING';
 
@@ -388,7 +390,7 @@ app.post('/api/gm/content', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     }
 });
 
-app.put('/api/gm/content/:id', requireRoles(['GM', 'ADMIN']), async (req, res) => {
+app.put('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
     const { id } = req.params;
     const { title, description, scheduled_datetime, is_rescheduled } = req.body;
     const { data, error } = await supabase
@@ -400,7 +402,7 @@ app.put('/api/gm/content/:id', requireRoles(['GM', 'ADMIN']), async (req, res) =
     res.json(data[0]);
 });
 
-app.delete('/api/gm/content/:id', requireRoles(['GM', 'ADMIN']), async (req, res) => {
+app.delete('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('content_items').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
@@ -422,7 +424,7 @@ app.get('/api/gm/content/:id', async (req, res) => {
     }
 });
 
-app.patch('/api/gm/content/:id/status', requireRoles(['GM', 'ADMIN']), async (req, res) => {
+app.patch('/api/gm/content/:id/status', requireRoles(GM_ROLES), async (req, res) => {
     const { id } = req.params;
     const { new_status, note, changed_by } = req.body;
 
@@ -526,7 +528,7 @@ app.get('/api/admin/clients', async (req, res) => {
     res.json(data);
 });
 
-app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
+app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
     console.log('POST /api/admin/clients - Body:', req.body);
     const { company_name, phone, email, address, posts_per_month, reels_per_month, youtube_per_month, batch_type } = req.body;
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
@@ -549,7 +551,7 @@ app.post('/api/admin/clients', requireRoles(['ADMIN']), async (req, res) => {
     res.json(data[0]);
 });
 
-app.put('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
+app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     console.log(`PUT /api/admin/clients/${id} - Body:`, req.body);
     const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, youtube_per_month, batch_type } = req.body;
@@ -571,7 +573,7 @@ app.put('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
     res.json(data[0]);
 });
 
-app.delete('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) => {
+app.delete('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('clients').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
@@ -604,7 +606,7 @@ app.get('/api/admin/team', async (req, res) => {
     res.json(teamMembers);
 });
 
-app.post('/api/admin/team', requireRoles(['ADMIN']), async (req, res) => {
+app.post('/api/admin/team', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { name, email, password, role, role_identifier } = req.body;
     if (!name || !email || !password || !role) return res.status(400).json({ error: 'Missing fields' });
 
@@ -642,7 +644,7 @@ app.post('/api/admin/team', requireRoles(['ADMIN']), async (req, res) => {
     }
 });
 
-app.put('/api/admin/team/:id', requireRoles(['ADMIN']), async (req, res) => {
+app.put('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     const { name, email, password, role_identifier } = req.body;
 
@@ -696,7 +698,7 @@ app.put('/api/admin/team/:id', requireRoles(['ADMIN']), async (req, res) => {
     }
 });
 
-app.delete('/api/admin/team/:id', requireRoles(['ADMIN']), async (req, res) => {
+app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     console.log(`[Admin] Delete request for user: ${id}`);
 
@@ -804,13 +806,13 @@ app.get('/api/admin/content/:id', async (req, res) => {
 });
 
 // ─── COO: Read-only Monitoring ───
-app.get('/api/coo/clients', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+app.get('/api/coo/clients', requireRoles(COO_ROLES), async (req, res) => {
     const { data, error } = await supabase.from('clients').select('*').eq('is_deleted', false).order('company_name');
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
 
-app.get('/api/coo/team', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+app.get('/api/coo/team', requireRoles(COO_ROLES), async (req, res) => {
     const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -821,7 +823,7 @@ app.get('/api/coo/team', requireRoles(['COO', 'ADMIN']), async (req, res) => {
     res.json(teamLeads);
 });
 
-app.get('/api/coo/stats', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+app.get('/api/coo/stats', requireRoles(COO_ROLES), async (req, res) => {
     const now = new Date();
     const year = now.getFullYear();
     const mon = String(now.getMonth() + 1).padStart(2, '0');
@@ -851,7 +853,7 @@ app.get('/api/coo/stats', requireRoles(['COO', 'ADMIN']), async (req, res) => {
     }
 });
 
-app.get('/api/coo/master-calendar', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+app.get('/api/coo/master-calendar', requireRoles(COO_ROLES), async (req, res) => {
     const { month, client_id, content_type } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
@@ -874,7 +876,7 @@ app.get('/api/coo/master-calendar', requireRoles(['COO', 'ADMIN']), async (req, 
     res.json(data);
 });
 
-app.get('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
+app.get('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
         const [itemRes, logsRes] = await Promise.all([
@@ -889,7 +891,7 @@ app.get('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
     }
 });
 
-app.get('/api/coo/content/:id', requireRoles(['COO', 'ADMIN']), async (req, res) => {
+app.get('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
         const [itemRes, logsRes] = await Promise.all([
@@ -904,7 +906,7 @@ app.get('/api/coo/content/:id', requireRoles(['COO', 'ADMIN']), async (req, res)
     }
 });
 
-app.post('/api/admin/content/:id/undo-status', requireRoles(['ADMIN']), async (req, res) => {
+app.post('/api/admin/content/:id/undo-status', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: latestLog, error: logFetchError } = await supabase
@@ -930,7 +932,7 @@ app.post('/api/admin/content/:id/undo-status', requireRoles(['ADMIN']), async (r
     }
 });
 
-app.post('/api/admin/content', requireRoles(['ADMIN']), async (req, res) => {
+app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
     const initial_status = 'PENDING';
 
@@ -955,7 +957,7 @@ app.post('/api/admin/content', requireRoles(['ADMIN']), async (req, res) => {
     }
 });
 
-app.put('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
+app.put('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     const { title, description, scheduled_datetime, is_rescheduled, content_type } = req.body;
     const { data, error } = await supabase
@@ -967,7 +969,7 @@ app.put('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
     res.json(data[0]);
 });
 
-app.delete('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
+app.delete('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('content_items').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
@@ -1047,8 +1049,6 @@ app.get('/api/gm/team-leads/:id/clients', async (req, res) => {
 });
 
 // ─── Production Head: Endpoints ───
-const PH_ROLES = ['PRODUCTION HEAD', 'ADMIN'];
-
 // PH: Monthly Stats
 app.get('/api/ph/stats', requireRoles(PH_ROLES), async (req, res) => {
     const { month } = req.query;
@@ -1281,7 +1281,6 @@ app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) =>
 });
 
 // ─── Team Lead Endpoints ───
-const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GENERAL MANAGER'];
 app.get('/api/tl/clients', requireRoles(TL_ROLES), async (req, res) => {
     const { tlId } = req.query;
     console.log('Fetching TL clients for ID:', tlId);
@@ -1522,7 +1521,7 @@ app.post('/api/tl/poc-notes', requireRoles(TL_ROLES), async (req, res) => {
     res.json(data);
 });
 
-app.get('/api/gm/poc-notes', requireRoles(['GM', 'ADMIN']), async (req, res) => {
+app.get('/api/gm/poc-notes', requireRoles(GM_ROLES), async (req, res) => {
     const { month, team_lead_id, client_id } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
@@ -1576,8 +1575,6 @@ app.get('/api/gm/poc-notes', requireRoles(['GM', 'ADMIN']), async (req, res) => 
 
 // ─── Posting Team Endpoints ───
 
-// Today's Posting Queue
-const POSTING_ROLES = ['POSTING TEAM', 'ADMIN'];
 app.get('/api/posting/today', requireRoles(POSTING_ROLES), async (req, res) => {
     try {
         const now = new Date();
@@ -1811,20 +1808,16 @@ app.post('/api/notifications/send', async (req, res) => {
         const senderRole = normalizeRole(senderData.role);
         const senderRoleIdentifier = normalizeRole(senderData.role_identifier);
         const isAdmin = senderRole === 'ADMIN';
-        const isGM = senderRole === 'GENERAL MANAGER' || senderRole === 'GM' || senderRoleIdentifier === 'GM';
-        const isPH = senderRole === 'PRODUCTION HEAD';
+        const isGM = senderRole === 'GENERAL MANAGER' || senderRole === 'GM' || senderRoleIdentifier === 'GM' || senderRoleIdentifier === 'GENERAL MANAGER';
 
-        if (!isAdmin && !isGM && !isPH) {
+        if (!isAdmin && !isGM) {
             return res.status(403).json({ error: 'Unauthorized to send notifications' });
         }
 
         const targetType = target.type.toString().toUpperCase();
         const targetValue = target.value;
 
-        if (isGM || isPH) {
-            if (targetType === 'ALL') {
-                return res.status(403).json({ error: 'GM/PH cannot broadcast to all users' });
-            }
+        if (isGM) {
             if (targetType === 'ROLE') {
                 const normalizedTargetRole = normalizeRole(targetValue);
                 const allowedRoles = ['TEAM LEAD', 'POSTING TEAM'];
@@ -1851,6 +1844,8 @@ app.post('/api/notifications/send', async (req, res) => {
                 if (!allowedDirectTargets) {
                     return res.status(403).json({ error: 'GM can only message TL1/TL2/Posting Team users' });
                 }
+            } else if (targetType === 'ALL') {
+                // Allowed for GM
             } else {
                 return res.status(400).json({ error: 'Invalid target type' });
             }

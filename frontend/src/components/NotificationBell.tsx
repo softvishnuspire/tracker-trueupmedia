@@ -43,7 +43,7 @@ export default function NotificationBell() {
     const [targetType, setTargetType] = useState<NotificationTarget['type']>('ALL');
     const [targetValue, setTargetValue] = useState('');
 
-    const canSend = senderRole === 'ADMIN' || senderRole === 'GM' || senderRole === 'PH';
+    const canSend = senderRole === 'ADMIN' || senderRole === 'GM';
 
     const targetOptions = useMemo(() => {
         if (senderRole === 'ADMIN') {
@@ -59,17 +59,10 @@ export default function NotificationBell() {
         }
         if (senderRole === 'GM') {
             return [
+                { label: 'All Users', type: 'ALL' as const, value: '' },
                 { label: 'Team Leads (all)', type: 'ROLE' as const, value: 'TEAM LEAD' },
                 { label: 'TL1 only', type: 'ROLE_IDENTIFIER' as const, value: 'TL1' },
                 { label: 'TL2 only', type: 'ROLE_IDENTIFIER' as const, value: 'TL2' },
-                { label: 'Posting Team', type: 'ROLE' as const, value: 'POSTING TEAM' },
-            ];
-        }
-        if (senderRole === 'PH') {
-            return [
-                { label: 'Admin', type: 'ROLE' as const, value: 'ADMIN' },
-                { label: 'General Manager', type: 'ROLE' as const, value: 'GENERAL MANAGER' },
-                { label: 'Team Leads (all)', type: 'ROLE' as const, value: 'TEAM LEAD' },
                 { label: 'Posting Team', type: 'ROLE' as const, value: 'POSTING TEAM' },
             ];
         }
@@ -91,27 +84,51 @@ export default function NotificationBell() {
 
     useEffect(() => {
         load();
-        const timer = setInterval(load, 30000);
+        const timer = setInterval(load, 10000);
         return () => clearInterval(timer);
     }, [load]);
 
     useEffect(() => {
         const loadRole = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            if (!user) {
+                console.log('[NotificationBell] No user found');
+                return;
+            }
 
-            const { data: profile } = await supabase
+            console.log('[NotificationBell] User ID:', user.id);
+
+            const { data: profile, error } = await supabase
                 .from('users')
                 .select('role, role_identifier')
                 .eq('user_id', user.id)
                 .single();
 
-            const role = normalizeRole(profile?.role);
-            const roleIdentifier = normalizeRole(profile?.role_identifier);
-            if (role === 'ADMIN') setSenderRole('ADMIN');
-            else if (role === 'GENERAL MANAGER' || role === 'GM' || roleIdentifier === 'GM') setSenderRole('GM');
-            else if (role === 'PRODUCTION HEAD' || roleIdentifier === 'PH') setSenderRole('PH');
-            else setSenderRole('OTHER');
+            if (error) {
+                console.warn('[NotificationBell] Profile fetch error:', error.message);
+            }
+
+            const rawRole = profile?.role || user.user_metadata?.role || user.app_metadata?.role;
+            const rawIdentifier = profile?.role_identifier || user.user_metadata?.role_identifier;
+
+            const role = normalizeRole(rawRole);
+            const identifier = normalizeRole(rawIdentifier);
+            
+            console.log(`[NotificationBell] Resolved Role: "${role}", Identifier: "${identifier}"`);
+
+            // Prioritize identifier if it contains key roles
+            if (role === 'ADMIN' || identifier === 'ADMIN') {
+                setSenderRole('ADMIN');
+            } else if (
+                role === 'GM' || 
+                role === 'GENERAL MANAGER' || 
+                identifier === 'GM' || 
+                identifier === 'GENERAL MANAGER'
+            ) {
+                setSenderRole('GM');
+            } else {
+                setSenderRole('OTHER');
+            }
         };
 
         loadRole();
@@ -176,7 +193,11 @@ export default function NotificationBell() {
     return (
         <div style={{ position: 'relative' }}>
             <button
-                onClick={() => setOpen((v) => !v)}
+                onClick={() => {
+                    const nextOpen = !open;
+                    setOpen(nextOpen);
+                    if (nextOpen) load();
+                }}
                 aria-label="Notifications"
                 className="nav-icon-btn"
                 style={{
