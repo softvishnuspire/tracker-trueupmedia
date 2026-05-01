@@ -660,17 +660,49 @@ Fixed a critical build error in the General Manager dashboard that prevented the
 
 ## Recent Changes: Admin Dashboard Analytics Update (May 2026)
 ### Implementation Overview
-Replaced the "Active Pipelines" metric in the Admin Dashboard with two granular metrics: **Number of Reels** and **Number of Posts** for the current month. This provides more actionable insights into content production volume per category.
+Enhanced the Admin Dashboard analytics by adding granular tracking for monthly deliverable progress. In addition to total Reels and Posts, the dashboard now tracks **Pending** and **Completed** status breakdowns.
+- **Completed**: Defined as items in "WAITING FOR POSTING" or "POSTED" states.
+- **Pending**: Defined as all other items in the current month's pipeline.
 
 ### Key Technical Decisions
-1. **Dynamic Metric Calculation**:
-   - Updated `AdminDashboard` logic to calculate specific counts for Reels and Posts by filtering the existing `calendarData` (the single source of truth for the current month).
-   - Metrics are computed on the fly within the `fetchDashboardData` function, ensuring they reflect both individual client selections and global views.
+1. **Granular Metric Calculation**:
+   - Updated `AdminDashboard` to compute counts for:
+     - Pending vs Completed totals for the month.
+     - Breakdown of Pending Reels and Posts.
+     - Breakdown of Completed Reels and Posts.
+   - Calculations are derived from the standardized `calendarData` source of truth.
 
 2. **UI/UX Enhancement**:
-   - Replaced the aggregated "Active Pipelines" card with two distinct cards in the `stats-grid`.
-   - Utilized descriptive icons (`Video` for Reels, `FileText` for Posts) and harmonious color schemes (Warning/Amber for Reels, Cyan for Posts) to enhance scannability.
-   - Updated the loading skeleton states to accommodate the new card layout, maintaining a premium user experience during data fetching.
+   - Expanded the `stats-grid` from 4 to 6 cards.
+   - Added two new dedicated cards for **Pending** and **Completed** deliverables.
+   - Included sub-labels (e.g., "12 R | 8 P") within these cards to provide at-a-glance category breakdowns without cluttering the main grid.
+   - Utilized semantic coloring (Red/Danger for Pending, Green/Success for Completed) and distinct iconography.
 
 ### Affected Components
-- **AdminDashboard (`frontend/src/app/admin/dashboard/page.tsx`)**: Updated `Stats` interface, data fetching logic, and stats grid UI.
+- **AdminDashboard (`frontend/src/app/admin/dashboard/page.tsx`)**: Updated `Stats` interface, data aggregation logic, and card grid UI.
+
+## Recent Changes: Deliverable Metrics Indicators Enhancement (May 2026)
+### Implementation Overview
+Expanded granular deliverable metrics ("Number of Reels" and "Number of Posts") across the entire dashboard ecosystem. This enhancement adds specific count indicators (status pills) to all role-based calendars (Admin, GM, TL, COO, Posting), providing at-a-glance visibility into content production volume alongside existing workflow statuses.
+
+### Key Technical Decisions
+1. **Granular Status Aggregation**:
+   - Updated `.reduce()` logic in all dashboard components to calculate `reels` and `posts` counts based on the `content_type` field ('Reel' or 'Post').
+   - **Data Integrity**: Integrated `isDayInPeriod` filters into the reduction logic for all client-specific views (Admin Client Calendar, TL Dashboard, Posting Dashboard) to ensure counts accurately reflect the current 15-15 or calendar-month reporting window.
+
+2. **UI/UX Standardization**:
+   - Integrated `.status-pill-reels` (Orange/Warning) and `.status-pill-posts` (Green/Success) badges into the `status-summary-row` of all calendar views.
+   - Standardized these pill styles across all role-specific CSS files (`admin.css`, `gm.css`, `tl.css`, `posting.css`) to maintain visual uniformity.
+
+3. **Expanded Module Coverage**:
+   - **Admin Dashboard & Master/Client Calendars**: Added metrics to the global master view and individual client calendars.
+   - **GM & COO Dashboards**: Expanded status summary rows to include Reels/Posts totals.
+   - **TL & Posting Dashboards**: Integrated summary pills above calendar grids for team lead and posting operator visibility.
+
+### Affected Components
+- **Admin Dashboards**: `frontend/src/app/admin/master-calendar/page.tsx`, `frontend/src/app/admin/client-calendar/[id]/page.tsx`.
+- **GM Dashboard**: `frontend/src/app/gm/dashboard/page.tsx`.
+- **COO Calendar**: `frontend/src/app/coo/master-calendar/page.tsx`.
+- **TL Dashboard**: `frontend/src/app/tl/dashboard/page.tsx`.
+- **Posting Dashboard**: `frontend/src/app/posting/dashboard/page.tsx`.
+- **Style Sheets**: `admin.css`, `gm.css`, `tl.css`, `posting.css`.

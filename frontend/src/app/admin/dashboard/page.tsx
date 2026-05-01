@@ -16,6 +16,12 @@ interface Stats {
   statusSummary: Record<string, number>;
   reelsCount: number;
   postsCount: number;
+  pendingCount: number;
+  completedCount: number;
+  pendingReels: number;
+  pendingPosts: number;
+  completedReels: number;
+  completedPosts: number;
 }
 
 interface ContentDetails {
@@ -113,6 +119,25 @@ export default function AdminDashboard() {
       const reelsCount = periodData.filter(item => item.content_type === 'Reel').length;
       const postsCount = periodData.filter(item => item.content_type === 'Post').length;
 
+      // Pending vs Completed logic
+      // Completed: Waiting for Posting or Posted
+      const isItemCompleted = (status: string) => {
+        const s = status.toUpperCase();
+        return s === 'WAITING FOR POSTING' || s === 'POSTED';
+      };
+
+      const completedItems = periodData.filter(item => isItemCompleted(item.status));
+      const pendingItems = periodData.filter(item => !isItemCompleted(item.status));
+
+      const completedCount = completedItems.length;
+      const pendingCount = pendingItems.length;
+
+      const completedReels = completedItems.filter(item => item.content_type === 'Reel').length;
+      const completedPosts = completedItems.filter(item => item.content_type === 'Post').length;
+
+      const pendingReels = pendingItems.filter(item => item.content_type === 'Reel').length;
+      const pendingPosts = pendingItems.filter(item => item.content_type === 'Post').length;
+
       // Calculate today's stats
       const today = new Date();
       const todayItems = data.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
@@ -134,7 +159,13 @@ export default function AdminDashboard() {
           statusSummary: breakdown,
           totalItemsThisMonth: periodData.length,
           reelsCount,
-          postsCount
+          postsCount,
+          completedCount,
+          pendingCount,
+          completedReels,
+          completedPosts,
+          pendingReels,
+          pendingPosts
         });
       } else {
         setStats({
@@ -142,7 +173,13 @@ export default function AdminDashboard() {
           totalItemsThisMonth: periodData.length,
           statusSummary: breakdown,
           reelsCount,
-          postsCount
+          postsCount,
+          completedCount,
+          pendingCount,
+          completedReels,
+          completedPosts,
+          pendingReels,
+          pendingPosts
         });
       }
 
@@ -276,7 +313,7 @@ export default function AdminDashboard() {
       <div className="stats-grid" style={{ marginBottom: '32px' }}>
         {loading ? (
           <>
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="stat-card">
                 <Skeleton className="h-12 w-12 rounded-xl" />
                 <div className="space-y-2 flex-1">
@@ -322,6 +359,38 @@ export default function AdminDashboard() {
               <div className="stat-info">
                 <h3>Total Posts</h3>
                 <p className="stat-value">{stats?.postsCount || 0}</p>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon-box" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                <Clock size={28} />
+              </div>
+              <div className="stat-info">
+                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  Pending
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
+                </h3>
+                <p className="stat-value">{stats?.pendingCount || 0}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.totalItemsThisMonth || 0}</span></p>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  <span style={{ color: 'var(--warning)' }}>{stats?.pendingReels || 0} R</span>
+                  <span style={{ color: 'var(--accent-secondary)' }}>{stats?.pendingPosts || 0} P</span>
+                </div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
+                <Check size={28} />
+              </div>
+              <div className="stat-info">
+                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  Completed
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
+                </h3>
+                <p className="stat-value">{stats?.completedCount || 0}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.totalItemsThisMonth || 0}</span></p>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  <span style={{ color: 'var(--warning)' }}>{stats?.completedReels || 0} R</span>
+                  <span style={{ color: 'var(--accent-secondary)' }}>{stats?.completedPosts || 0} P</span>
+                </div>
               </div>
             </div>
           </>

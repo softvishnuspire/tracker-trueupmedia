@@ -143,9 +143,11 @@ export default function MasterCalendar() {
             if (normalizedStatus.includes('CONTENT')) acc.content += 1;
             if (normalizedStatus.includes('DESIGN')) acc.design += 1;
             if (normalizedStatus === 'POSTED') acc.posted += 1;
+            if (item.content_type === 'Reel') acc.reels += 1;
+            if (item.content_type === 'Post') acc.posts += 1;
             return acc;
         },
-        { content: 0, design: 0, posted: 0 }
+        { content: 0, design: 0, posted: 0, reels: 0, posts: 0 }
     );
 
     return (
@@ -250,6 +252,14 @@ export default function MasterCalendar() {
                 <div className="status-pill status-pill-posted">
                     <span className="status-pill-label">Posted</span>
                     <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                </div>
+                <div className="status-pill status-pill-reels">
+                    <span className="status-pill-label">Reels</span>
+                    <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                </div>
+                <div className="status-pill status-pill-posts">
+                    <span className="status-pill-label">Posts</span>
+                    <span className="status-pill-count">{monthStatusCounts.posts}</span>
                 </div>
             </div>
 

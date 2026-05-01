@@ -274,6 +274,20 @@ export default function PostingDashboard() {
     const weekTotal = weekItems.length;
     const weekCompleted = weekItems.filter(i => (i.status || '').toUpperCase() === 'POSTED').length;
     const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
+    
+    const monthStatusCounts = calendarData.reduce(
+        (acc, item) => {
+            if (!isDayInPeriod(parseISO(item.scheduled_datetime))) return acc;
+            const normalizedStatus = (item.status || '').toUpperCase();
+            if (normalizedStatus.includes('CONTENT')) acc.content += 1;
+            if (normalizedStatus.includes('DESIGN')) acc.design += 1;
+            if (normalizedStatus === 'POSTED') acc.posted += 1;
+            if (item.content_type === 'Reel') acc.reels += 1;
+            if (item.content_type === 'Post') acc.posts += 1;
+            return acc;
+        },
+        { content: 0, design: 0, posted: 0, reels: 0, posts: 0 }
+    );
 
     return (
         <div className="dashboard-container">
@@ -591,6 +605,28 @@ export default function PostingDashboard() {
 
                 {(view === 'client' || view === 'master') && (
                     <div className="calendar-card">
+                        <div className="status-summary-row" style={{ padding: '24px 24px 0 24px' }}>
+                            <div className="status-pill status-pill-content">
+                                <span className="status-pill-label">Content</span>
+                                <span className="status-pill-count">{monthStatusCounts.content}</span>
+                            </div>
+                            <div className="status-pill status-pill-design">
+                                <span className="status-pill-label">Design</span>
+                                <span className="status-pill-count">{monthStatusCounts.design}</span>
+                            </div>
+                            <div className="status-pill status-pill-posted">
+                                <span className="status-pill-label">Posted</span>
+                                <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                            </div>
+                            <div className="status-pill status-pill-reels">
+                                <span className="status-pill-label">Reels</span>
+                                <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                            </div>
+                            <div className="status-pill status-pill-posts">
+                                <span className="status-pill-label">Posts</span>
+                                <span className="status-pill-count">{monthStatusCounts.posts}</span>
+                            </div>
+                        </div>
                         <div className="calendar-grid">
                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
                                 <div key={day} className="calendar-header-cell">

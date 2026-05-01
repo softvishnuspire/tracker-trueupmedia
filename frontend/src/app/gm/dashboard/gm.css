@@ -1084,6 +1084,14 @@
     border-color: rgba(16, 185, 129, 0.32);
 }
 
+.status-pill-reels {
+    border-color: rgba(245, 158, 11, 0.28);
+}
+
+.status-pill-posts {
+    border-color: rgba(16, 185, 129, 0.32);
+}
+
 /* ─── Loading ─── */
 .loading-bar {
     text-align: center;

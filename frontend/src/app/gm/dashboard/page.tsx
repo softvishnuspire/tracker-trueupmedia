@@ -295,12 +295,18 @@ export default function GMDashboard() {
     const monthStatusCounts = calendarData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime))).reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
+            const type = (item.content_type || '').toUpperCase();
+            
             if (normalizedStatus.includes('CONTENT')) acc.content += 1;
             if (normalizedStatus.includes('DESIGN')) acc.design += 1;
             if (normalizedStatus === 'POSTED') acc.posted += 1;
+            
+            if (type === 'REEL') acc.reels += 1;
+            if (type === 'POST') acc.posts += 1;
+            
             return acc;
         },
-        { content: 0, design: 0, posted: 0 }
+        { content: 0, design: 0, posted: 0, reels: 0, posts: 0 }
     );
 
 
@@ -757,6 +763,14 @@ export default function GMDashboard() {
                         <div className="status-pill status-pill-posted">
                             <span className="status-pill-label">Posted</span>
                             <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                        </div>
+                        <div className="status-pill status-pill-reels">
+                            <span className="status-pill-label">Reels</span>
+                            <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                        </div>
+                        <div className="status-pill status-pill-posts">
+                            <span className="status-pill-label">Posts</span>
+                            <span className="status-pill-count">{monthStatusCounts.posts}</span>
                         </div>
                     </div>
                 )}

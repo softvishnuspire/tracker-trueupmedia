@@ -133,12 +133,18 @@ export default function CooMasterCalendar() {
     const monthStatusCounts = calendarData.reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
+            const normalizedType = (item.content_type || '').toUpperCase();
+
             if (normalizedStatus.includes('CONTENT')) acc.content += 1;
             if (normalizedStatus.includes('DESIGN')) acc.design += 1;
             if (normalizedStatus === 'POSTED') acc.posted += 1;
+
+            if (normalizedType === 'REEL') acc.reels += 1;
+            if (normalizedType === 'POST') acc.posts += 1;
+
             return acc;
         },
-        { content: 0, design: 0, posted: 0 }
+        { content: 0, design: 0, posted: 0, reels: 0, posts: 0 }
     );
 
     return (
@@ -232,6 +238,14 @@ export default function CooMasterCalendar() {
             </header>
 
             <div className="status-summary-row">
+                <div className="status-pill status-pill-reels">
+                    <span className="status-pill-label">Reels</span>
+                    <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                </div>
+                <div className="status-pill status-pill-posts">
+                    <span className="status-pill-label">Posts</span>
+                    <span className="status-pill-count">{monthStatusCounts.posts}</span>
+                </div>
                 <div className="status-pill status-pill-content">
                     <span className="status-pill-label">Content</span>
                     <span className="status-pill-count">{monthStatusCounts.content}</span>
