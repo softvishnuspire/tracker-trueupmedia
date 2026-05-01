@@ -307,6 +307,11 @@ export default function TLDashboard() {
 
     const filteredCalendarData = calendarData;
 
+    const isItemCompleted = (status: string) => {
+        const s = (status || '').toUpperCase();
+        return s === 'WAITING FOR POSTING' || s === 'POSTED';
+    };
+
     const monthStatusCounts = filteredCalendarData.reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
@@ -319,9 +324,25 @@ export default function TLDashboard() {
             if (normalizedType === 'REEL') acc.reels += 1;
             if (normalizedType === 'POST') acc.posts += 1;
 
+            const completed = isItemCompleted(item.status);
+            if (completed) {
+                acc.completedCount += 1;
+                if (normalizedType === 'REEL') acc.completedReels += 1;
+                if (normalizedType === 'POST') acc.completedPosts += 1;
+            } else {
+                acc.pendingCount += 1;
+                if (normalizedType === 'REEL') acc.pendingReels += 1;
+                if (normalizedType === 'POST') acc.pendingPosts += 1;
+            }
+
             return acc;
         },
-        { content: 0, design: 0, posted: 0, reels: 0, posts: 0 }
+        { 
+            content: 0, design: 0, posted: 0, reels: 0, posts: 0,
+            pendingCount: 0, completedCount: 0, 
+            pendingReels: 0, pendingPosts: 0, 
+            completedReels: 0, completedPosts: 0 
+        }
     );
 
     const monthTotal = filteredCalendarData.length;
@@ -570,12 +591,35 @@ export default function TLDashboard() {
                                 </div>
                             </div>
                             <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
-                                    <ShieldAlert size={28} />
+                                <div className="stat-icon-box" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                                    <Clock size={28} />
                                 </div>
                                 <div className="stat-info">
-                                    <h3>Active Pipelines</h3>
-                                    <p className="stat-value">{monthTotal}</p>
+                                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        Pending
+                                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
+                                    </h3>
+                                    <p className="stat-value">{monthStatusCounts.pendingCount}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {monthTotal}</span></p>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                        <span style={{ color: 'var(--warning)' }}>{monthStatusCounts.pendingReels} R</span>
+                                        <span style={{ color: 'var(--accent-secondary)' }}>{monthStatusCounts.pendingPosts} P</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
+                                    <Check size={28} />
+                                </div>
+                                <div className="stat-info">
+                                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        Completed
+                                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
+                                    </h3>
+                                    <p className="stat-value">{monthStatusCounts.completedCount}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {monthTotal}</span></p>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                        <span style={{ color: 'var(--warning)' }}>{monthStatusCounts.completedReels} R</span>
+                                        <span style={{ color: 'var(--accent-secondary)' }}>{monthStatusCounts.completedPosts} P</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

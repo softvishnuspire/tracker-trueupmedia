@@ -223,7 +223,13 @@ export default function GMDashboard() {
         totalClients: 0,
         totalTeams: 0,
         monthlyContent: 0,
-        statusBreakdown: {} as Record<string, number>
+        statusBreakdown: {} as Record<string, number>,
+        pendingCount: 0,
+        completedCount: 0,
+        pendingReels: 0,
+        pendingPosts: 0,
+        completedReels: 0,
+        completedPosts: 0
     });
 
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
@@ -258,11 +264,34 @@ export default function GMDashboard() {
                 percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
             });
 
+            const isItemCompleted = (status: string) => {
+                const s = (status || '').toUpperCase();
+                return s === 'WAITING FOR POSTING' || s === 'POSTED';
+            };
+
+            const completedItems = periodData.filter(item => isItemCompleted(item.status));
+            const pendingItems = periodData.filter(item => !isItemCompleted(item.status));
+
+            const completedCount = completedItems.length;
+            const pendingCount = pendingItems.length;
+
+            const completedReels = completedItems.filter(item => (item.content_type || '').toUpperCase() === 'REEL').length;
+            const completedPosts = completedItems.filter(item => (item.content_type || '').toUpperCase() === 'POST').length;
+
+            const pendingReels = pendingItems.filter(item => (item.content_type || '').toUpperCase() === 'REEL').length;
+            const pendingPosts = pendingItems.filter(item => (item.content_type || '').toUpperCase() === 'POST').length;
+
             setStats({
                 totalClients: clients.length,
                 totalTeams: teamLeads.length,
                 monthlyContent: periodData.length,
-                statusBreakdown: breakdown
+                statusBreakdown: breakdown,
+                completedCount,
+                pendingCount,
+                completedReels,
+                completedPosts,
+                pendingReels,
+                pendingPosts
             });
             setCalendarData(calendarData);
 
@@ -827,12 +856,35 @@ export default function GMDashboard() {
                                 </div>
                             </div>
                             <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
-                                    <Activity size={28} />
+                                <div className="stat-icon-box" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                                    <Clock size={28} />
                                 </div>
                                 <div className="stat-info">
-                                    <h3>Active Pipelines</h3>
-                                    <p className="stat-value">{stats.monthlyContent}</p>
+                                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        Pending
+                                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
+                                    </h3>
+                                    <p className="stat-value">{stats.pendingCount}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats.monthlyContent}</span></p>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                        <span style={{ color: 'var(--warning)' }}>{stats.pendingReels} R</span>
+                                        <span style={{ color: 'var(--accent-secondary)' }}>{stats.pendingPosts} P</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
+                                    <Check size={28} />
+                                </div>
+                                <div className="stat-info">
+                                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        Completed
+                                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
+                                    </h3>
+                                    <p className="stat-value">{stats.completedCount}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats.monthlyContent}</span></p>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                        <span style={{ color: 'var(--warning)' }}>{stats.completedReels} R</span>
+                                        <span style={{ color: 'var(--accent-secondary)' }}>{stats.completedPosts} P</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

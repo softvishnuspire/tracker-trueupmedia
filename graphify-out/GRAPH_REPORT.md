@@ -717,4 +717,28 @@ Expanded granular deliverable metrics ("Number of Reels" and "Number of Posts") 
 716:    - This ensures type safety and eliminates build-time errors related to implicit `any` types.
 717: 
 718: ### Affected Components
-719: - **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Fixed type annotations in dashboard stats aggregation logic.
+719: - **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Fixed type annotations in dashboard stats aggregation logic.
+
+## Recent Changes: Standardization of Role-Based Dashboard Metrics (May 2026)
+### Implementation Overview
+Completed the standardization of deliverable metrics across the General Manager (GM) and Team Lead (TL) dashboards to align with the Admin panel's reporting format. This ensures consistent tracking of monthly content production (Pending vs. Completed) across all leadership roles.
+
+### Key Technical Decisions
+1. **Universal Metric Logic**:
+   - Implemented consistent "Completed" vs. "Pending" categorization across all dashboards.
+   - **Completed**: WAITING FOR POSTING, POSTED.
+   - **Pending**: All other pipeline statuses.
+   - Added granular Reels (R) and Posts (P) breakdowns for both status categories.
+
+2. **Role-Specific Scoping**:
+   - **GM Dashboard**: Operates on global data (or filtered by client), mirroring the Admin panel's visibility.
+   - **TL Dashboard**: Logic is strictly restricted to clients assigned to the logged-in Team Lead, ensuring data privacy and operational focus.
+
+3. **UI/UX Alignment**:
+   - Standardized the `stats-grid` layout to include dedicated cards for **Pending Deliverables** and **Completed Deliverables**.
+   - Used semantic coloring (Red/Danger for Pending, Green/Success for Completed) and consistent icons (`Clock` and `Check`).
+   - Integrated MTD (Month-To-Date) labels and total deliverable ratios (e.g., "15 / 20") for immediate context.
+
+### Affected Components
+- **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Updated stats state, aggregation logic, and dashboard grid UI.
+- **TLDashboard (`frontend/src/app/tl/dashboard/page.tsx`)**: Enhanced `monthStatusCounts` reduction logic and updated the overview stats grid to mirror leadership metrics while maintaining assigned client scoping.
