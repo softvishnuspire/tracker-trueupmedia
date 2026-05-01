@@ -79,7 +79,7 @@ export default function GMDashboard() {
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'teams' | 'poc'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc'>('dashboard');
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -106,7 +106,8 @@ export default function GMDashboard() {
     const [isRescheduling, setIsRescheduling] = useState(false);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
 
-    const isMasterMode = view === 'master';
+    const isMasterMode = view === 'master' || view === 'company';
+    const isCompanyMode = view === 'company';
 
     const [formData, setFormData] = useState({
         content_type: 'Post' as 'Post' | 'Reel' | 'YouTube',
@@ -159,7 +160,13 @@ export default function GMDashboard() {
     const fetchMasterCalendar = async () => {
         try {
             const monthStr = format(currentMonth, 'yyyy-MM');
-            const res = await gmApi.getMasterCalendar(monthStr);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+            const res = await gmApi.getMasterCalendar(monthStr, selectedClient === 'all' ? undefined : selectedClient, selectedType === 'all' ? undefined : selectedType, asOfDate);
             return res.data || [];
         } catch (error) {
             console.error('Error fetching master calendar:', error);
@@ -168,7 +175,7 @@ export default function GMDashboard() {
     };
 
     useEffect(() => {
-        if (view === 'master') {
+        if (view === 'master' || view === 'company') {
             fetchMasterCalendar().then(setCalendarData);
         } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
             fetchClientCalendar(selectedClient).then(setCalendarData);
@@ -377,7 +384,14 @@ export default function GMDashboard() {
             
             setDayTasks(tasksOnDay);
 
-            const res = await gmApi.getContentDetails(item.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+
+            const res = await gmApi.getContentDetails(item.id, asOfDate);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
         } catch (err) { console.error(err); }
@@ -394,8 +408,14 @@ export default function GMDashboard() {
         
         const nextTask = dayTasks[nextIndex];
         try {
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
             // Clear current item first to show loading or just keep current while fetching
-            const res = await gmApi.getContentDetails(nextTask.id);
+            const res = await gmApi.getContentDetails(nextTask.id, asOfDate);
             setActiveItem(res.data);
             // Ensure status note is cleared when switching tasks
             setStatusNote('');
@@ -610,6 +630,13 @@ export default function GMDashboard() {
                         <span>Master Calendar</span>
                     </div>
                     <div
+                        onClick={() => setView('company')}
+                        className={`nav-item ${view === 'company' ? 'active' : ''}`}
+                    >
+                        <CalendarClock size={20} />
+                        <span>Company Calendar</span>
+                    </div>
+                    <div
                         onClick={() => setView('teams')}
                         className={`nav-item ${view === 'teams' ? 'active' : ''}`}
                     >
@@ -694,6 +721,7 @@ export default function GMDashboard() {
                                 {view === 'dashboard' && 'Dashboard Overview'}
                                 {view === 'client' && 'Client Calendar'}
                                 {view === 'master' && 'Master Calendar'}
+                                {view === 'company' && 'Company Calendar'}
                                 {view === 'teams' && 'Team Management'}
                                 {view === 'poc' && 'POC Communication'}
                             </h1>
@@ -701,6 +729,7 @@ export default function GMDashboard() {
                                 {view === 'dashboard' && 'Monitor operational health and pipeline metrics'}
                                 {view === 'client' && 'Detailed content planning for individual clients'}
                                 {view === 'master' && 'Review and manage content production flow'}
+                                {view === 'company' && 'Historical view of content pipeline (-7 days)'}
                                 {view === 'teams' && 'Assign clients and manage team lead performance'}
                                 {view === 'poc' && 'Read communication notes added by Team Leads'}
                             </p>
@@ -723,7 +752,7 @@ export default function GMDashboard() {
                                 </div>
                             )}
 
-                            {view === 'master' && (
+                            {(view === 'master' || view === 'company') && (
                                 <div className="master-filters-container">
                                     <div className="filter-icon-box">
                                         <Filter size={14} />
@@ -815,7 +844,7 @@ export default function GMDashboard() {
                     </div>
                 </header>
 
-                {(view === 'client' || view === 'master') && (
+                {(view === 'client' || view === 'master' || view === 'company') && (
                     <div className="status-summary-row">
                         <div className="status-pill status-pill-content">
                             <span className="status-pill-label">Content</span>
@@ -1618,7 +1647,7 @@ export default function GMDashboard() {
                                                     <p className="status-label">Current</p>
                                                     <p className="status-value">{activeItem.item.status}</p>
                                                 </div>
-                                                {nextStatus && activeItem.item.status !== 'WAITING FOR POSTING' && (
+                                                {nextStatus && activeItem.item.status !== 'WAITING FOR POSTING' && (view !== 'company' || (activeItem.item.status !== 'SHOOT DONE' && activeItem.item.status !== 'POSTED')) && (
                                                     <div className="advance-section">
                                                         <div className="note-input-container">
                                                             <label className="detail-label">Add a note (optional)</label>

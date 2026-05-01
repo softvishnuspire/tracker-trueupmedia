@@ -94,6 +94,49 @@ const authenticateUser = async (req, res, next) => {
     }
 };
 
+/**
+ * Transformation layer for historical status
+ * @param {Array} items - List of content items
+ * @param {String} asOfDate - ISO date string
+ */
+async function applyHistoricalStatus(items, asOfDate) {
+    if (!items || !items.length || !asOfDate) return items;
+    try {
+        const itemIds = Array.isArray(items) ? items.map(item => item.id) : [items.id];
+        const { data: logs, error } = await supabase
+            .from('status_logs')
+            .select('item_id, new_status, changed_at')
+            .in('item_id', itemIds)
+            .lte('changed_at', asOfDate)
+            .order('changed_at', { ascending: false });
+
+        if (error) {
+            console.error('[History] Error:', error.message);
+            return items;
+        }
+
+        const statusMap = {};
+        if (logs) {
+            logs.forEach(log => {
+                if (!statusMap[log.item_id]) statusMap[log.item_id] = log.new_status;
+            });
+        }
+
+        if (Array.isArray(items)) {
+            return items.map(item => {
+                if (statusMap[item.id]) return { ...item, status: statusMap[item.id] };
+                return item;
+            });
+        } else {
+            if (statusMap[items.id]) return { ...items, status: statusMap[items.id] };
+            return items;
+        }
+    } catch (err) {
+        console.error('[History] Exception:', err);
+        return items;
+    }
+}
+
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
 });
@@ -343,7 +386,7 @@ app.get('/api/gm/calendar', requireRoles(GM_ROLES), async (req, res) => {
 
 // ─── GM: Master Calendar ───
 app.get('/api/gm/master-calendar', requireRoles(GM_ROLES), async (req, res) => {
-    const { month, client_id, content_type } = req.query;
+    const { month, client_id, content_type, asOfDate } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
     const [year, mon] = String(month).split('-');
@@ -363,7 +406,9 @@ app.get('/api/gm/master-calendar', requireRoles(GM_ROLES), async (req, res) => {
     const { data, error } = await query.order('scheduled_datetime');
 
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+
+    const transformedData = await applyHistoricalStatus(data, asOfDate);
+    res.json(transformedData);
 });
 
 // ─── GM: Content CRUD ───
@@ -413,6 +458,7 @@ app.delete('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
 
 app.get('/api/gm/content/:id', async (req, res) => {
     const { id } = req.params;
+    const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
             supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
@@ -420,7 +466,9 @@ app.get('/api/gm/content/:id', async (req, res) => {
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        res.json({ item: itemRes.data, history: logsRes.data || [] });
+        
+        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
+        res.json({ item: transformedItem, history: logsRes.data || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -865,7 +913,7 @@ app.get('/api/admin/stats', async (req, res) => {
 
 // ─── Admin: Master Calendar ───
 app.get('/api/admin/master-calendar', async (req, res) => {
-    const { month, client_id, content_type } = req.query;
+    const { month, client_id, content_type, asOfDate } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
     const [year, mon] = String(month).split('-');
@@ -885,11 +933,14 @@ app.get('/api/admin/master-calendar', async (req, res) => {
     const { data, error } = await query.order('scheduled_datetime');
 
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+
+    const transformedData = await applyHistoricalStatus(data, asOfDate);
+    res.json(transformedData);
 });
 
 app.get('/api/admin/content/:id', async (req, res) => {
     const { id } = req.params;
+    const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
             supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
@@ -897,7 +948,9 @@ app.get('/api/admin/content/:id', async (req, res) => {
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        res.json({ item: itemRes.data, history: logsRes.data || [] });
+        
+        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
+        res.json({ item: transformedItem, history: logsRes.data || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -952,7 +1005,7 @@ app.get('/api/coo/stats', requireRoles(COO_ROLES), async (req, res) => {
 });
 
 app.get('/api/coo/master-calendar', requireRoles(COO_ROLES), async (req, res) => {
-    const { month, client_id, content_type } = req.query;
+    const { month, client_id, content_type, asOfDate } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
     const [year, mon] = String(month).split('-');
@@ -971,11 +1024,14 @@ app.get('/api/coo/master-calendar', requireRoles(COO_ROLES), async (req, res) =>
 
     const { data, error } = await query.order('scheduled_datetime');
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+
+    const transformedData = await applyHistoricalStatus(data, asOfDate);
+    res.json(transformedData);
 });
 
 app.get('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
+    const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
             supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
@@ -983,52 +1039,90 @@ app.get('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        res.json({ item: itemRes.data, history: logsRes.data || [] });
+        
+        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
+        res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.get('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
+app.patch('/api/admin/content/:id/status', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
+    const { new_status, note, changed_by } = req.body;
     try {
-        const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
-            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
-        ]);
+        const { data: item, error: fetchError } = await supabase.from('content_items').select('status, content_type').eq('id', id).single();
+        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
 
-        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        res.json({ item: itemRes.data, history: logsRes.data || [] });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+        const { error: updateError } = await supabase.from('content_items').update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
+        if (updateError) return res.status(500).json({ error: 'Failed to update status' });
+
+        await supabase.from('status_logs').insert([{ item_id: id, old_status: item.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
+        res.json({ message: 'Status updated successfully' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/admin/content/:id/undo-status', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
-        const { data: latestLog, error: logFetchError } = await supabase
-            .from('status_logs')
-            .select('*')
-            .eq('item_id', id)
-            .order('changed_at', { ascending: false })
-            .limit(1)
-            .single();
+        const { data: latestLog, error: logFetchError } = await supabase.from('status_logs').select('*').eq('item_id', id).order('changed_at', { ascending: false }).limit(1).single();
+        if (logFetchError || !latestLog) return res.status(404).json({ error: 'No history found' });
 
-        if (logFetchError || !latestLog) return res.status(404).json({ error: 'No status history found' });
-
-        const { error: revertError } = await supabase
-            .from('content_items')
-            .update({ status: latestLog.old_status, updated_at: new Date().toISOString() })
-            .eq('id', id);
-
+        const { error: revertError } = await supabase.from('content_items').update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id);
         if (revertError) return res.status(500).json({ error: 'Failed to revert' });
+
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
-        res.json({ message: 'Success', previous_status: latestLog.old_status });
+        res.json({ message: 'Success', status: latestLog.old_status });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { asOfDate } = req.query;
+    try {
+        const [itemRes, logsRes] = await Promise.all([
+            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
+        ]);
+
+        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        
+        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
+        res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
+app.patch('/api/coo/content/:id/status', requireRoles(COO_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { new_status, note, changed_by } = req.body;
+    try {
+        const { data: item, error: fetchError } = await supabase.from('content_items').select('status, content_type').eq('id', id).single();
+        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
+
+        const { error: updateError } = await supabase.from('content_items').update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
+        if (updateError) return res.status(500).json({ error: 'Failed to update status' });
+
+        await supabase.from('status_logs').insert([{ item_id: id, old_status: item.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
+        res.json({ message: 'Status updated successfully' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/coo/content/:id/undo', requireRoles(COO_ROLES), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: latestLog, error: logFetchError } = await supabase.from('status_logs').select('*').eq('item_id', id).order('changed_at', { ascending: false }).limit(1).single();
+        if (logFetchError || !latestLog) return res.status(404).json({ error: 'No history found' });
+
+        const { error: revertError } = await supabase.from('content_items').update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id);
+        if (revertError) return res.status(500).json({ error: 'Failed to revert' });
+
+        await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+        res.json({ message: 'Success', status: latestLog.old_status });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 
 app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
@@ -1179,7 +1273,7 @@ app.get('/api/ph/stats', requireRoles(PH_ROLES), async (req, res) => {
 
 // PH: Master Calendar
 app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
-    const { month, client_id, content_type } = req.query;
+    const { month, client_id, content_type, asOfDate } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
     try {
@@ -1200,7 +1294,9 @@ app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
 
         const { data, error } = await query.order('scheduled_datetime');
         if (error) return res.status(500).json({ error: error.message });
-        res.json(data);
+
+        const transformedData = await applyHistoricalStatus(data, asOfDate);
+        res.json(transformedData);
     } catch (err) {
         console.error(`[PH Master Calendar] ERROR:`, err.stack || err.message);
         res.status(500).json({ error: err.message });
@@ -1288,6 +1384,7 @@ app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
 // PH: Content Details
 app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
     const { id } = req.params;
+    const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
             supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
@@ -1295,7 +1392,9 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        res.json({ item: itemRes.data, history: logsRes.data || [] });
+        
+        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
+        res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1477,7 +1576,7 @@ app.get('/api/tl/calendar-duplicate', requireRoles(TL_ROLES), async (req, res) =
 });
 
 app.get('/api/tl/master-calendar', requireRoles(TL_ROLES), async (req, res) => {
-    const { month, tlId, content_type } = req.query;
+    const { month, tlId, content_type, asOfDate } = req.query;
     console.log(`Fetching master calendar for month ${month}, TL ${tlId}`);
 
     if (!month || !tlId) return res.status(400).json({ error: 'Missing month or tlId' });
@@ -1510,7 +1609,9 @@ app.get('/api/tl/master-calendar', requireRoles(TL_ROLES), async (req, res) => {
     const { data, error } = await query.order('scheduled_datetime');
 
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+    
+    const transformedData = await applyHistoricalStatus(data, asOfDate);
+    res.json(transformedData);
 });
 
 // ─── POC Communication (Team Lead + GM) ───
@@ -1731,7 +1832,7 @@ app.get('/api/posting/calendar', requireRoles(POSTING_ROLES), async (req, res) =
 
 // Posting Team: Master Calendar (filtered to WAITING FOR POSTING only)
 app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req, res) => {
-    const { month, client_id, status, all } = req.query;
+    const { month, client_id, status, all, asOfDate } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
     const [year, mon] = String(month).split('-');
@@ -1759,7 +1860,9 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
     const { data, error } = await query.order('scheduled_datetime');
 
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+    
+    const transformedData = await applyHistoricalStatus(data, asOfDate);
+    res.json(transformedData);
 });
 
 // Posting Team: Clients list (for calendar dropdown)
@@ -1778,6 +1881,7 @@ app.get('/api/posting/clients', requireRoles(POSTING_ROLES), async (req, res) =>
 // Posting Team: Content Details (for status history)
 app.get('/api/posting/content/:id', requireRoles(POSTING_ROLES), async (req, res) => {
     const { id } = req.params;
+    const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
             supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
@@ -1785,10 +1889,27 @@ app.get('/api/posting/content/:id', requireRoles(POSTING_ROLES), async (req, res
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        res.json({ item: itemRes.data, history: logsRes.data || [] });
+        
+        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
+        res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+});
+
+app.patch('/api/posting/content/:id/status', requireRoles(POSTING_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { new_status, note, changed_by } = req.body;
+    try {
+        const { data: item, error: fetchError } = await supabase.from('content_items').select('status, content_type').eq('id', id).single();
+        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
+
+        const { error: updateError } = await supabase.from('content_items').update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
+        if (updateError) return res.status(500).json({ error: 'Failed to update status' });
+
+        await supabase.from('status_logs').insert([{ item_id: id, old_status: item.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
+        res.json({ message: 'Status updated successfully' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Posting Team: Mark as Posted (ONLY allowed transition)

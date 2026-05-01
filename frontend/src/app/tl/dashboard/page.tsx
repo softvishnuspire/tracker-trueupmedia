@@ -34,7 +34,8 @@ import {
     Check,
     ShieldAlert,
     AlertTriangle,
-    Menu
+    Menu,
+    CalendarClock
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { tlApi, gmApi, emergencyApi, ContentItem, PocNote, StatusHistoryItem } from '@/lib/api';
@@ -63,7 +64,7 @@ export default function TLDashboard() {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'poc'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'poc'>('dashboard');
     const [searchQuery, setSearchQuery] = useState('');
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
@@ -101,7 +102,7 @@ export default function TLDashboard() {
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
 
 
-    const isMasterMode = view === 'master';
+    const isMasterMode = view === 'master' || view === 'company';
 
 
 
@@ -146,7 +147,13 @@ export default function TLDashboard() {
         setLoading(true);
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await tlApi.getMasterCalendar(currentMonthStr, user.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+            const res = await tlApi.getMasterCalendar(currentMonthStr, user.id, undefined, asOfDate);
             setCalendarData(res.data || []);
             
             // Fetch and filter emergency tasks for assigned clients
@@ -173,7 +180,7 @@ export default function TLDashboard() {
 
     useEffect(() => {
         if (user) {
-            if (view === 'master' || view === 'dashboard') {
+            if (view === 'master' || view === 'company' || view === 'dashboard') {
                 fetchMasterCalendar();
             } else if (view === 'poc') {
                 fetchPocNotes();
@@ -271,7 +278,14 @@ export default function TLDashboard() {
             
             setDayTasks(tasksOnDay);
 
-            const res = await gmApi.getContentDetails(item.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+
+            const res = await gmApi.getContentDetails(item.id, asOfDate);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
         } catch (err) { console.error(err); }
@@ -288,7 +302,13 @@ export default function TLDashboard() {
         
         const nextTask = dayTasks[nextIndex];
         try {
-            const res = await gmApi.getContentDetails(nextTask.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+            const res = await gmApi.getContentDetails(nextTask.id, asOfDate);
             setActiveItem(res.data);
             setStatusNote('');
         } catch (err) { console.error(err); }
@@ -442,6 +462,13 @@ export default function TLDashboard() {
                         <CalendarIcon size={18} />
                         <span>Master Calendar</span>
                     </div>
+                    <div 
+                        onClick={() => setView('company')}
+                        className={`nav-item ${view === 'company' ? 'active' : ''}`}
+                    >
+                        <CalendarClock size={18} />
+                        <span>Company Calendar</span>
+                    </div>
                     <div
                         onClick={() => setView('poc')}
                         className={`nav-item ${view === 'poc' ? 'active' : ''}`}
@@ -548,11 +575,13 @@ export default function TLDashboard() {
                 <header className="page-header page-header-safe">
                     <div>
                         <h1 className="page-title">
-                            {view === 'master' ? 'Master Calendar' : view === 'poc' ? 'POC Communication' : 'Client Dashboard'}
+                            {view === 'master' ? 'Master Calendar' : view === 'company' ? 'Company Calendar' : view === 'poc' ? 'POC Communication' : 'Client Dashboard'}
                         </h1>
                         <p className="page-subtitle">
                             {view === 'master'
                                 ? 'Unified view of all assigned client schedules' 
+                                : view === 'company'
+                                ? 'Historical view of content statuses (-7 days)'
                                 : view === 'poc'
                                 ? 'Click any date to add communication notes for GM visibility'
                                 : `Managing content for ${clients.find(c => c.id === selectedClient)?.company_name || 'Client'}`
@@ -578,7 +607,7 @@ export default function TLDashboard() {
                     </div>
                 </header>
 
-                {(view === 'client' || view === 'master') && (
+                {(view === 'client' || view === 'master' || view === 'company') && (
                     <div className="status-summary-row">
                         <div className="status-pill status-pill-reels">
                             <span className="status-pill-label">Reels</span>
@@ -769,7 +798,7 @@ export default function TLDashboard() {
 
                 {/* Global loading bar removed in favor of inline skeletons */}
 
-                {view !== 'dashboard' && (
+                {(view === 'client' || view === 'master' || view === 'company' || view === 'poc') && (
                     <div className="calendar-card">
                         <div className="calendar-grid">
                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -979,7 +1008,7 @@ export default function TLDashboard() {
                                                         />
                                                     </div>
                                                 )}
-                                                {nextStatus ? (
+                                                {nextStatus && (view !== 'company' || (activeItem.item.status !== 'SHOOT DONE' && activeItem.item.status !== 'POSTED')) ? (
                                                     activeItem.item.status === 'WAITING FOR POSTING' ? (
                                                         <div className="workflow-waiting-posting" style={{ 
                                                             marginTop: '16px', 

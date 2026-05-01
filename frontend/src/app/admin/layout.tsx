@@ -12,7 +12,8 @@ import {
     UserCircle,
     Menu,
     X,
-    UserPlus
+    UserPlus,
+    CalendarClock
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
@@ -63,6 +64,7 @@ export default function AdminLayout({
     { name: 'Client Calendars', path: '/admin/client-calendar', icon: <CalendarIcon size={20} /> },
     { name: 'Team Management', path: '/admin/team', icon: <UserCircle size={20} /> },
     { name: 'Master Calendar', path: '/admin/master-calendar', icon: <CalendarIcon size={20} /> },
+    { name: 'Company Calendar', path: '/admin/company-calendar', icon: <CalendarClock size={20} /> },
   ];
 
   return (

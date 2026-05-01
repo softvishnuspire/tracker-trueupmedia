@@ -30,7 +30,8 @@ import {
     Menu,
     Clock,
     ShieldAlert,
-    ArrowRight
+    ArrowRight,
+    CalendarClock
 } from 'lucide-react';
 import { phApi, emergencyApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -53,7 +54,7 @@ interface ContentItem {
 }
 
 export default function ProductionHeadDashboard() {
-    const [view, setView] = useState<'dashboard' | 'client' | 'master'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company'>('dashboard');
     const [queue, setQueue] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
@@ -65,6 +66,7 @@ export default function ProductionHeadDashboard() {
     const [toast, setToast] = useState<string | null>(null);
     const [activeItem, setActiveItem] = useState<any>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [statusNote, setStatusNote] = useState('');
     const [user, setUser] = useState<any>(null);
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
     const [weekStats, setWeekStats] = useState({ total: 0, completed: 0, percentage: 0 });
@@ -150,7 +152,7 @@ export default function ProductionHeadDashboard() {
             fetchTodayQueue();
         } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
             fetchClientCalendar();
-        } else if (view === 'master') {
+        } else if (view === 'master' || view === 'company') {
             fetchMasterCalendar();
         }
     }, [view, selectedClient, currentMonth]);
@@ -186,7 +188,13 @@ export default function ProductionHeadDashboard() {
         setLoading(true);
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+            const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient, undefined, asOfDate);
             setCalendarData(res.data || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -260,7 +268,14 @@ export default function ProductionHeadDashboard() {
             
             setDayTasks(tasksOnDay);
 
-            const res = await phApi.getContentDetails(item.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+
+            const res = await phApi.getContentDetails(item.id, asOfDate);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
         } catch (err) { console.error(err); }
@@ -277,7 +292,13 @@ export default function ProductionHeadDashboard() {
         
         const nextTask = dayTasks[nextIndex];
         try {
-            const res = await phApi.getContentDetails(nextTask.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+            const res = await phApi.getContentDetails(nextTask.id, asOfDate);
             setActiveItem(res.data);
         } catch (err) { console.error(err); }
     };
@@ -331,6 +352,10 @@ export default function ProductionHeadDashboard() {
                         <Globe size={20} />
                         <span>Master Schedule</span>
                     </div>
+                    <div onClick={() => setView('company')} className={`nav-item ${view === 'company' ? 'active' : ''}`}>
+                        <CalendarClock size={20} />
+                        <span>Company Calendar</span>
+                    </div>
 
                     {view === 'client' && (
                         <>
@@ -379,11 +404,13 @@ export default function ProductionHeadDashboard() {
                                 {view === 'dashboard' && "Today's Shoot Queue"}
                                 {view === 'client' && 'Client Production'}
                                 {view === 'master' && 'Master Production Schedule'}
+                                {view === 'company' && 'Company Calendar'}
                             </h1>
                             <p className="page-subtitle">
                                 {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Content ready for shooting`}
                                 {view === 'client' && 'Manage shoot schedule for individual clients'}
                                 {view === 'master' && 'Review company-wide production pipeline'}
+                                {view === 'company' && 'Historical view of production schedule (-7 days)'}
                             </p>
                         </div>
 
@@ -398,7 +425,7 @@ export default function ProductionHeadDashboard() {
                                 </div>
                             )}
 
-                            {view === 'master' && (
+                            {(view === 'master' || view === 'company') && (
                                 <div className="master-filters-container">
                                     <div className="filter-icon-box"><Filter size={14} /></div>
                                     <div className="client-dropdown-wrapper">
@@ -556,7 +583,7 @@ export default function ProductionHeadDashboard() {
                     </div>
                 )}
 
-                {(view === 'client' || view === 'master') && (
+                {(view === 'client' || view === 'master' || view === 'company') && (
                     <div className="calendar-card">
                         <div className="calendar-grid">
                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -582,7 +609,7 @@ export default function ProductionHeadDashboard() {
                                                 {dayContent.map(item => (
                                                     <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}>
                                                         <Video size={10} />
-                                                        <span className="truncate">{view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}{item.title}</span>
+                                                        <span className="truncate">{(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}{item.title}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -644,7 +671,7 @@ export default function ProductionHeadDashboard() {
                                         </button>
                                     </div>
                                 )}
-                                <button onClick={() => setIsDetailsOpen(false)} className="modal-close"><X size={20} /></button>
+                                <button onClick={() => { setIsDetailsOpen(false); setStatusNote(''); }} className="modal-close"><X size={20} /></button>
                             </div>
                         </div>
                         
@@ -672,11 +699,54 @@ export default function ProductionHeadDashboard() {
                                         </div>
                                     </div>
                                     
-                                    {activeItem.item.status === 'CONTENT READY' && (
+                                    {activeItem.item.status === 'CONTENT READY' && view !== 'company' && (
                                         <button className="btn-mark-posted" style={{ width: '100%', marginTop: '24px', padding: '16px', fontSize: '16px', background: 'var(--accent)' }} onClick={() => handleMarkShootDone(activeItem.item.id)} disabled={actionId === activeItem.item.id}>
                                             {actionId === activeItem.item.id ? 'Saving...' : 'Mark Shoot Done'}
                                         </button>
                                     )}
+
+                                    {view === 'company' && (() => {
+                                        const flows: any = {
+                                            'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                        };
+                                        const flow = flows[activeItem.item.content_type] || [];
+                                        const currentIdx = flow.indexOf(activeItem.item.status);
+                                        const nextStatus = flow[currentIdx + 1];
+                                        const isSpecialStatus = activeItem.item.status === 'SHOOT DONE' || activeItem.item.status === 'POSTED';
+
+                                        if (!nextStatus || isSpecialStatus) return null;
+
+                                        return (
+                                            <div style={{ marginTop: '24px', padding: '16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                                                <label className="detail-label">Advance to Next Step</label>
+                                                <textarea 
+                                                    placeholder="Add a note (optional)..."
+                                                    value={statusNote}
+                                                    onChange={(e) => setStatusNote(e.target.value)}
+                                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px', marginBottom: '12px', resize: 'none', height: '60px' }}
+                                                />
+                                                <button 
+                                                    className="btn-mark-posted"
+                                                    style={{ width: '100%', padding: '12px', background: 'var(--accent)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                                    onClick={async () => {
+                                                        try {
+                                                            await phApi.updateStatus(activeItem.item.id, nextStatus, statusNote.trim() || undefined);
+                                                            const d = new Date(); d.setDate(d.getDate() - 7);
+                                                            const res = await phApi.getContentDetails(activeItem.item.id, d.toISOString());
+                                                            setActiveItem(res.data);
+                                                            setStatusNote('');
+                                                            fetchMasterCalendar();
+                                                        } catch (err) { alert('Failed to update status'); }
+                                                    }}
+                                                >
+                                                    Advance to {nextStatus}
+                                                    <ChevronRight size={18} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 

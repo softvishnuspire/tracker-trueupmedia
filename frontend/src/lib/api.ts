@@ -78,9 +78,9 @@ export interface PocNote {
 export const gmApi = {
     getClients: () => api.get<Client[]>('/api/gm/clients'),
     getCalendar: (clientId: string, month: string) => api.get(`/api/gm/calendar?client_id=${clientId}&month=${month}`),
-    getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
-        api.get<ContentItem[]>(`/api/gm/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
-    getContentDetails: (id: string) => api.get<ContentDetails>(`/api/gm/content/${id}`),
+    getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
+        api.get<ContentItem[]>(`/api/gm/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
+    getContentDetails: (id: string, asOfDate?: string) => api.get<ContentDetails>(`/api/gm/content/${id}${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
     addContent: (data: Partial<ContentItem>) => api.post('/api/gm/content', data),
     updateContent: (id: string, data: Partial<ContentItem>) => api.put(`/api/gm/content/${id}`, data),
     deleteContent: (id: string) => api.delete(`/api/gm/content/${id}`),
@@ -135,9 +135,11 @@ export const adminApi = {
     addTeamMember: (data: Partial<TeamMember>) => adminBase.post('/api/admin/team', data),
     updateTeamMember: (id: string, data: Record<string, unknown>) => adminBase.put(`/api/admin/team/${id}`, data),
     deleteTeamMember: (id: string) => adminBase.delete(`/api/admin/team/${id}`),
-    getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
-        adminBase.get<ContentItem[]>(`/api/admin/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
-    getContentDetails: (id: string) => adminBase.get<ContentDetails>(`/api/admin/content/${id}`),
+    getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
+        adminBase.get<ContentItem[]>(`/api/admin/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
+    getContentDetails: (id: string, asOfDate?: string) => adminBase.get<ContentDetails>(`/api/admin/content/${id}${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
+    updateStatus: (id: string, newStatus: string, note?: string, changedBy?: string) =>
+        adminBase.patch(`/api/admin/content/${id}/status`, { new_status: newStatus, note, changed_by: changedBy }),
     undoStatus: (contentId: string) => adminBase.post(`/api/admin/content/${contentId}/undo-status`),
     addContent: (data: Partial<ContentItem>) => adminBase.post('/api/admin/content', data),
     updateContent: (id: string, data: Partial<ContentItem>) => adminBase.put(`/api/admin/content/${id}`, data),
@@ -163,9 +165,12 @@ export const cooApi = {
     getClients: () => cooBase.get<Client[]>('/api/coo/clients'),
     getStats: () => cooBase.get('/api/coo/stats'),
     getTeam: () => cooBase.get<TeamMember[]>('/api/coo/team'),
-    getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
-        cooBase.get<ContentItem[]>(`/api/coo/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
-    getContentDetails: (id: string) => cooBase.get<ContentDetails>(`/api/coo/content/${id}`),
+    getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
+        cooBase.get<ContentItem[]>(`/api/coo/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
+    getContentDetails: (id: string, asOfDate?: string) => cooBase.get<ContentDetails>(`/api/coo/content/${id}${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
+    updateStatus: (id: string, newStatus: string, note?: string, changedBy?: string) =>
+        cooBase.patch(`/api/coo/content/${id}/status`, { new_status: newStatus, note, changed_by: changedBy }),
+    undoStatus: (id: string) => cooBase.post(`/api/coo/content/${id}/undo`),
 };
 
 const phBase = axios.create({
@@ -186,9 +191,9 @@ export const phApi = {
     getCalendar: (clientId: string, month: string, status?: string, all?: boolean) =>
         phBase.get<ContentItem[]>('/api/ph/calendar', { params: { client_id: clientId, month, status, all: all ? 'true' : undefined } }),
     getStats: (month?: string) => phBase.get(`/api/ph/stats${month ? `?month=${month}` : ''}`),
-    getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
-        phBase.get<ContentItem[]>(`/api/ph/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
-    getContentDetails: (id: string) => phBase.get<ContentDetails>(`/api/ph/content/${id}`),
+    getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
+        phBase.get<ContentItem[]>(`/api/ph/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
+    getContentDetails: (id: string, asOfDate?: string) => phBase.get<ContentDetails>(`/api/ph/content/${id}${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
     updateStatus: (id: string, newStatus: string, changedBy?: string) => 
         phBase.patch(`/api/ph/content/${id}/status`, { new_status: newStatus, changed_by: changedBy }),
     undoStatus: (id: string) => phBase.post(`/api/ph/content/${id}/undo`),
@@ -209,8 +214,8 @@ tlBase.interceptors.request.use(async (config) => {
 export const tlApi = {
     getClients: (tlId: string) => tlBase.get<Client[]>(`clients?tlId=${tlId}`),
     getCalendar: (clientId: string, month: string, tlId: string) => tlBase.get(`calendar?client_id=${clientId}&month=${month}&tlId=${tlId}`),
-    getMasterCalendar: (month: string, tlId: string, contentType?: string) =>
-        tlBase.get<ContentItem[]>(`master-calendar?month=${month}&tlId=${tlId}${contentType ? `&content_type=${contentType}` : ''}`),
+    getMasterCalendar: (month: string, tlId: string, contentType?: string, asOfDate?: string) =>
+        tlBase.get<ContentItem[]>(`master-calendar?month=${month}&tlId=${tlId}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
     getPocNotes: (month: string, tlId: string, clientId?: string) =>
         tlBase.get<PocNote[]>(`poc-notes?month=${month}&tlId=${tlId}${clientId ? `&client_id=${clientId}` : ''}`),
     addPocNote: (data: { tlId: string; client_id: string; note_date: string; note_text: string }) =>
@@ -235,10 +240,12 @@ export const postingApi = {
     getClients: () => postingBase.get<Client[]>('clients'),
     getCalendar: (clientId: string, month: string, status?: string, all?: boolean) =>
         postingBase.get<ContentItem[]>('calendar', { params: { client_id: clientId, month, status, all: all ? 'true' : undefined } }),
-    getMasterCalendar: (month: string, client_id?: string, status?: string, all?: boolean) =>
-        postingBase.get<ContentItem[]>('master-calendar', { params: { month, client_id, status, all: all ? 'true' : undefined } }),
-    getContentDetails: (id: string) =>
-        postingBase.get<ContentDetails>(`content/${id}`),
+    getMasterCalendar: (month: string, client_id?: string, status?: string, all?: boolean, asOfDate?: string) =>
+        postingBase.get<ContentItem[]>('master-calendar', { params: { month, client_id, status, all: all ? 'true' : undefined, asOfDate } }),
+    getContentDetails: (id: string, asOfDate?: string) =>
+        postingBase.get<ContentDetails>(`content/${id}${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
+    updateStatus: (id: string, newStatus: string, note?: string, changedBy?: string) =>
+        postingBase.patch(`content/${id}/status`, { new_status: newStatus, note, changed_by: changedBy }),
     markAsPosted: (id: string, changedBy?: string) =>
         postingBase.patch(`content/${id}/post`, { changed_by: changedBy }),
     undoStatus: (id: string) =>

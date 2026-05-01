@@ -33,7 +33,8 @@ import {
     UserCircle,
     ShieldAlert,
     AlertTriangle,
-    ArrowRight
+    ArrowRight,
+    CalendarClock
 } from 'lucide-react';
 import { postingApi, emergencyApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -56,7 +57,7 @@ interface ContentItem {
 }
 
 export default function PostingDashboard() {
-    const [view, setView] = useState<'dashboard' | 'client' | 'master'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company'>('dashboard');
     const [queue, setQueue] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
@@ -69,6 +70,7 @@ export default function PostingDashboard() {
     const [toast, setToast] = useState<string | null>(null);
     const [activeItem, setActiveItem] = useState<any>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [statusNote, setStatusNote] = useState('');
     const [user, setUser] = useState<any>(null);
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
@@ -132,7 +134,7 @@ export default function PostingDashboard() {
             fetchTodayQueue();
         } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
             fetchClientCalendar();
-        } else if (view === 'master') {
+        } else if (view === 'master' || view === 'company') {
             fetchMasterCalendar();
         }
     }, [view, selectedClient, currentMonth]);
@@ -171,10 +173,18 @@ export default function PostingDashboard() {
         setLoading(true);
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
             const res = await postingApi.getMasterCalendar(
                 currentMonthStr,
                 selectedClient === 'all' ? undefined : selectedClient,
-                'WAITING FOR POSTING'
+                view === 'company' ? undefined : 'WAITING FOR POSTING',
+                undefined,
+                asOfDate
             );
             setCalendarData(res.data || []);
         } catch (err) { console.error(err); }
@@ -251,7 +261,14 @@ export default function PostingDashboard() {
             
             setDayTasks(tasksOnDay);
 
-            const res = await postingApi.getContentDetails(item.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+
+            const res = await postingApi.getContentDetails(item.id, asOfDate);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
         } catch (err) { console.error(err); }
@@ -268,7 +285,13 @@ export default function PostingDashboard() {
         
         const nextTask = dayTasks[nextIndex];
         try {
-            const res = await postingApi.getContentDetails(nextTask.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+            const res = await postingApi.getContentDetails(nextTask.id, asOfDate);
             setActiveItem(res.data);
         } catch (err) { console.error(err); }
     };
@@ -370,6 +393,13 @@ export default function PostingDashboard() {
                         <Globe size={20} />
                         <span>Master Calendar</span>
                     </div>
+                    <div
+                        onClick={() => setView('company')}
+                        className={`nav-item ${view === 'company' ? 'active' : ''}`}
+                    >
+                        <CalendarClock size={20} />
+                        <span>Company Calendar</span>
+                    </div>
 
                     {view === 'client' && (
                         <>
@@ -431,11 +461,13 @@ export default function PostingDashboard() {
                                 {view === 'dashboard' && "Today's Posting Queue"}
                                 {view === 'client' && 'Client Calendar'}
                                 {view === 'master' && 'Master Calendar'}
+                                {view === 'company' && 'Company Calendar'}
                             </h1>
                             <p className="page-subtitle">
                                 {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Content ready for publishing`}
                                 {view === 'client' && 'Manage posting schedule for individual clients'}
                                 {view === 'master' && 'Review company-wide posting pipeline'}
+                                {view === 'company' && 'Historical view of content statuses (-7 days)'}
                             </p>
                         </div>
 
@@ -456,7 +488,7 @@ export default function PostingDashboard() {
                                 </div>
                             )}
 
-                            {view === 'master' && (
+                            {(view === 'master' || view === 'company') && (
                                 <div className="master-filters-container">
                                     <div className="filter-icon-box">
                                         <Filter size={14} />
@@ -639,7 +671,7 @@ export default function PostingDashboard() {
                     </div>
                 )}
 
-                {(view === 'client' || view === 'master') && (
+                {(view === 'client' || view === 'master' || view === 'company') && (
                     <div className="calendar-card">
                         <div className="status-summary-row" style={{ padding: '24px 24px 0 24px' }}>
                             <div className="status-pill status-pill-content">
@@ -701,7 +733,7 @@ export default function PostingDashboard() {
                                                     >
                                                         {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                         <span className="truncate">
-                                                            {view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
+                                                            {(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
                                                             {item.title}
                                                         </span>
                                                     </div>
@@ -766,7 +798,7 @@ export default function PostingDashboard() {
                                         </button>
                                     </div>
                                 )}
-                                <button onClick={() => setIsDetailsOpen(false)} className="modal-close"><X size={20} /></button>
+                                <button onClick={() => { setIsDetailsOpen(false); setStatusNote(''); }} className="modal-close"><X size={20} /></button>
                             </div>
                         </div>
                         
@@ -799,7 +831,7 @@ export default function PostingDashboard() {
                                         </div>
                                     </div>
                                     
-                                    {activeItem.item.status === 'WAITING FOR POSTING' && (
+                                    {activeItem.item.status === 'WAITING FOR POSTING' && view !== 'company' && (
                                         <button
                                             className="btn-mark-posted"
                                             style={{ width: '100%', marginTop: '24px', padding: '16px', fontSize: '16px' }}
@@ -809,6 +841,49 @@ export default function PostingDashboard() {
                                             {postingId === activeItem.item.id ? 'Posting...' : 'Mark as Posted'}
                                         </button>
                                     )}
+
+                                    {view === 'company' && (() => {
+                                        const flows: any = {
+                                            'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                        };
+                                        const flow = flows[activeItem.item.content_type] || [];
+                                        const currentIdx = flow.indexOf(activeItem.item.status);
+                                        const nextStatus = flow[currentIdx + 1];
+                                        const isSpecialStatus = activeItem.item.status === 'SHOOT DONE' || activeItem.item.status === 'POSTED';
+
+                                        if (!nextStatus || isSpecialStatus) return null;
+
+                                        return (
+                                            <div style={{ marginTop: '24px', padding: '16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                                                <label className="detail-label">Advance to Next Step</label>
+                                                <textarea 
+                                                    placeholder="Add a note (optional)..."
+                                                    value={statusNote}
+                                                    onChange={(e) => setStatusNote(e.target.value)}
+                                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px', marginBottom: '12px', resize: 'none', height: '60px' }}
+                                                />
+                                                <button 
+                                                    className="btn-mark-posted"
+                                                    style={{ width: '100%', padding: '12px', background: 'var(--accent)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                                    onClick={async () => {
+                                                        try {
+                                                            await postingApi.updateStatus(activeItem.item.id, nextStatus, statusNote.trim() || undefined);
+                                                            const d = new Date(); d.setDate(d.getDate() - 7);
+                                                            const res = await postingApi.getContentDetails(activeItem.item.id, d.toISOString());
+                                                            setActiveItem(res.data);
+                                                            setStatusNote('');
+                                                            fetchMasterCalendar();
+                                                        } catch (err) { alert('Failed to update status'); }
+                                                    }}
+                                                >
+                                                    Advance to {nextStatus}
+                                                    <ChevronRight size={18} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
