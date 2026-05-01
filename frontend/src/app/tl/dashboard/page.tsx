@@ -98,6 +98,7 @@ export default function TLDashboard() {
     const [activeItem, setActiveItem] = useState<ContentDetails | null>(null);
     const [statusNote, setStatusNote] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
 
 
     const isMasterMode = view === 'master';
@@ -254,9 +255,42 @@ export default function TLDashboard() {
 
     const handleItemClick = async (item: ContentItem) => {
         try {
+            // Find all tasks on the same day as the clicked item
+            const day = parseISO(item.scheduled_datetime);
+            
+            // Collect tasks from available sources
+            const tasksOnDay = calendarData.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
+            
+            // If the item itself isn't in the list (e.g. from emergency tasks and calendar not loaded), add it
+            if (!tasksOnDay.some(t => t.id === item.id)) {
+                tasksOnDay.push(item);
+            }
+
+            // Sort them by time
+            tasksOnDay.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
+            
+            setDayTasks(tasksOnDay);
+
             const res = await gmApi.getContentDetails(item.id);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
+        } catch (err) { console.error(err); }
+    };
+
+    const navigateToTask = async (direction: 'next' | 'prev') => {
+        if (!activeItem || dayTasks.length <= 1) return;
+        
+        const currentIndex = dayTasks.findIndex(t => t.id === activeItem.item.id);
+        let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+        
+        if (nextIndex < 0) nextIndex = dayTasks.length - 1;
+        if (nextIndex >= dayTasks.length) nextIndex = 0;
+        
+        const nextTask = dayTasks[nextIndex];
+        try {
+            const res = await gmApi.getContentDetails(nextTask.id);
+            setActiveItem(res.data);
+            setStatusNote('');
         } catch (err) { console.error(err); }
     };
 
@@ -832,10 +866,48 @@ export default function TLDashboard() {
                                     </span>
                                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>•</span>
                                     <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>{activeItem.item.clients?.company_name}</span>
+                                    {dayTasks.length > 1 && (
+                                        <>
+                                            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>•</span>
+                                            <span className="task-counter" style={{ color: 'var(--accent)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase' }}>
+                                                Task {dayTasks.findIndex(t => t.id === activeItem.item.id) + 1} of {dayTasks.length}
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
-                                <h3 className="modal-title">{activeItem.item.content_type}</h3>
+                                <h3 className="modal-title">{activeItem.item.title}</h3>
                             </div>
-                            <button onClick={() => setIsDetailsOpen(false)} className="btn-icon"><X size={20}/></button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                {dayTasks.length > 1 && (
+                                    <div className="task-nav-buttons" style={{ display: 'flex', gap: '4px', marginRight: '12px', paddingRight: '12px', borderRight: '1px solid var(--border)' }}>
+                                        <button 
+                                            onClick={() => navigateToTask('prev')}
+                                            className="nav-btn"
+                                            style={{ 
+                                                width: '32px', height: '32px', borderRadius: '8px', 
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                                                color: 'var(--text-primary)', cursor: 'pointer'
+                                            }}
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={() => navigateToTask('next')}
+                                            className="nav-btn"
+                                            style={{ 
+                                                width: '32px', height: '32px', borderRadius: '8px', 
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                                                color: 'var(--text-primary)', cursor: 'pointer'
+                                            }}
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
+                                )}
+                                <button onClick={() => setIsDetailsOpen(false)} className="btn-icon"><X size={20}/></button>
+                            </div>
                         </div>
 
                         <div className="detail-grid">

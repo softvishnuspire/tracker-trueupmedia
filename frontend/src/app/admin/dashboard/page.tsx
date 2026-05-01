@@ -43,6 +43,7 @@ export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [statusNote, setStatusNote] = useState('');
   const [isRescheduling, setIsRescheduling] = useState(false);
+  const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -202,11 +203,45 @@ export default function AdminDashboard() {
   const handleTaskClick = async (taskId: string) => {
     try {
       const res = await adminApi.getContentDetails(taskId);
+      const item = res.data.item;
+
+      // Find all tasks on the same day as the clicked item
+      const day = parseISO(item.scheduled_datetime);
+      
+      // Collect tasks from available sources
+      const tasksOnDay = calendarData.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
+      
+      // If the item itself isn't in the list (e.g. from emergency tasks and calendar not loaded), add it
+      if (!tasksOnDay.some(t => t.id === item.id)) {
+          tasksOnDay.push(item);
+      }
+
+      // Sort them by time
+      tasksOnDay.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
+      
+      setDayTasks(tasksOnDay);
       setActiveItem(res.data);
       setIsModalOpen(true);
     } catch (err) {
       console.error('Error fetching details:', err);
     }
+  };
+
+  const navigateToTask = async (direction: 'next' | 'prev') => {
+    if (!activeItem || dayTasks.length <= 1) return;
+    
+    const currentIndex = dayTasks.findIndex(t => t.id === activeItem.item.id);
+    let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    
+    if (nextIndex < 0) nextIndex = dayTasks.length - 1;
+    if (nextIndex >= dayTasks.length) nextIndex = 0;
+    
+    const nextTask = dayTasks[nextIndex];
+    try {
+        const res = await adminApi.getContentDetails(nextTask.id);
+        setActiveItem(res.data);
+        setStatusNote('');
+    } catch (err) { console.error(err); }
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
@@ -590,8 +625,44 @@ export default function AdminDashboard() {
                 </span>
                 <span className="dot">•</span>
                 <span className="client-name">{activeItem.item.clients?.company_name}</span>
+                {dayTasks.length > 1 && (
+                  <>
+                    <span className="dot">•</span>
+                    <span className="task-counter" style={{ color: 'var(--accent)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase' }}>
+                      Task {dayTasks.findIndex(t => t.id === activeItem.item.id) + 1} of {dayTasks.length}
+                    </span>
+                  </>
+                )}
               </div>
               <div className="modal-actions">
+                {dayTasks.length > 1 && (
+                    <div className="task-nav-buttons" style={{ display: 'flex', gap: '4px', marginRight: '8px', paddingRight: '12px', borderRight: '1px solid var(--border)' }}>
+                        <button 
+                            onClick={() => navigateToTask('prev')}
+                            className="nav-btn"
+                            style={{ 
+                                width: '32px', height: '32px', borderRadius: '8px', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                                color: 'var(--text-primary)', cursor: 'pointer'
+                            }}
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
+                        <button 
+                            onClick={() => navigateToTask('next')}
+                            className="nav-btn"
+                            style={{ 
+                                width: '32px', height: '32px', borderRadius: '8px', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                                color: 'var(--text-primary)', cursor: 'pointer'
+                            }}
+                        >
+                            <ChevronRight size={18} />
+                        </button>
+                    </div>
+                )}
                 <button className="action-icon-btn edit" onClick={() => {
                   setFormData({
                     title: activeItem.item.title,

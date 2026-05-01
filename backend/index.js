@@ -772,29 +772,58 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     console.log(`[Admin] Delete request for user: ${id}`);
 
     try {
-        // 1. Unassign this team lead from any clients they manage
+        console.log(`[Admin] Starting deletion sequence for ${id}`);
+
+        // 1. Unassign from clients
         const { error: unassignError } = await supabase
             .from('clients')
             .update({ team_lead_id: null })
             .eq('team_lead_id', id);
+        if (unassignError) console.warn('[Admin] Client unassign warning:', unassignError.message);
 
-        if (unassignError) {
-            console.error(`[Admin] Unassignment error for ${id}:`, unassignError.message);
-        }
+        // 2. Clear references in status_logs (set to null so history is preserved)
+        const { error: logError } = await supabase
+            .from('status_logs')
+            .update({ changed_by: null })
+            .eq('changed_by', id);
+        if (logError) console.warn('[Admin] Status logs cleanup warning:', logError.message);
 
-        // 2. Delete from Auth (prevents future logins)
+        // 3. Clear references in notifications
+        const { error: notifError } = await supabase
+            .from('notifications')
+            .update({ sender_id: null })
+            .eq('sender_id', id);
+        if (notifError) console.warn('[Admin] Notifications cleanup warning:', notifError.message);
+
+        // 4. Delete user notifications (recipient entries)
+        const { error: userNotifError } = await supabase
+            .from('user_notifications')
+            .delete()
+            .eq('user_id', id);
+        if (userNotifError) console.warn('[Admin] User notifications deletion warning:', userNotifError.message);
+
+        // 5. Clear references in emergency logs
+        const { error: emergencyError } = await supabase
+            .from('emergency_logs')
+            .delete()
+            .eq('user_id', id);
+        if (emergencyError) console.warn('[Admin] Emergency logs cleanup warning:', emergencyError.message);
+
+        // 6. Delete from Auth (prevents future logins)
+        // Note: Using service role key, this should work.
         const { error: authError } = await supabase.auth.admin.deleteUser(id);
         if (authError && authError.message !== 'User not found') {
             console.error(`[Admin] Auth deletion error for ${id}:`, authError.message);
         }
 
-        // 3. Delete from users table
+        // 7. Finally delete from users table
         const { error: dbError } = await supabase.from('users').delete().eq('user_id', id);
         if (dbError) {
             console.error(`[Admin] DB deletion error for ${id}:`, dbError.message);
-            return res.status(500).json({ error: dbError.message });
+            return res.status(500).json({ error: `Database error: ${dbError.message}` });
         }
 
+        console.log(`[Admin] Successfully deleted user ${id}`);
         myCache.del("admin_team");
         res.json({ message: 'User deleted successfully' });
     } catch (error) {
