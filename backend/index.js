@@ -58,6 +58,30 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const NodeCache = require("node-cache");
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
+// System Settings Helper
+async function getSystemSetting(key, defaultValue = null) {
+    try {
+        const { data, error } = await supabase
+            .from('system_settings')
+            .select('value')
+            .eq('key', key)
+            .single();
+        
+        if (error) {
+            if (error.code === '42P01') {
+                console.warn(`⚠️ Table system_settings does not exist. Using default for ${key}.`);
+                return defaultValue;
+            }
+            console.error(`Error fetching setting ${key}:`, error.message);
+            return defaultValue;
+        }
+        return data.value;
+    } catch (err) {
+        console.error(`Exception fetching setting ${key}:`, err);
+        return defaultValue;
+    }
+}
+
 const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
@@ -2533,6 +2557,44 @@ app.post('/api/admin/onboarding-requests/:id/reject', requireRoles(ADMIN_ROLES),
 
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: 'Request rejected' });
+});
+
+// ─── System Settings ───
+app.get('/api/settings', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('system_settings')
+            .select('*');
+        
+        if (error) {
+            if (error.code === '42P01') return res.json([]);
+            return res.status(500).json({ error: error.message });
+        }
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.patch('/api/admin/settings', requireRoles(ADMIN_ROLES), async (req, res) => {
+    const { key, value } = req.body;
+    if (!key) return res.status(400).json({ error: 'Key is required' });
+
+    try {
+        const { data, error } = await supabase
+            .from('system_settings')
+            .upsert([{ key, value, updated_at: new Date().toISOString() }], { onConflict: 'key' })
+            .select();
+        
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+        
+        myCache.del(`setting_${key}`);
+        res.json(data[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.use((err, req, res, next) => {
