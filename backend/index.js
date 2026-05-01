@@ -143,6 +143,7 @@ const getRequesterRole = async (user) => {
     else if (upperId === 'GM' || upperId === 'GENERAL MANAGER') resolvedRole = 'GM';
     else if (upperId === 'PRODUCTION HEAD' || upperId === 'PH' || resolvedRole === 'PH') resolvedRole = 'PRODUCTION HEAD';
     else if (upperId === 'POSTING TEAM' || upperId === 'POSTING') resolvedRole = 'POSTING TEAM';
+    else if (upperId === 'CLIENT') resolvedRole = 'CLIENT';
 
     console.log(`[RoleResolver] Final resolved role for ${userId}: "${resolvedRole}"`);
 
@@ -160,6 +161,7 @@ const COO_ROLES = ['COO', 'ADMIN'];
 const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER'];
 const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER'];
 const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+const CLIENT_ROLES = ['CLIENT', 'ADMIN'];
 
 const requireRoles = (allowedRoles) => {
     const normalizedAllowed = allowedRoles.map((role) => normalizeRole(role));
@@ -530,43 +532,105 @@ app.get('/api/admin/clients', async (req, res) => {
 
 app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
     console.log('POST /api/admin/clients - Body:', req.body);
-    const { company_name, phone, email, address, posts_per_month, reels_per_month, youtube_per_month, batch_type } = req.body;
+    const { company_name, phone, email, address, posts_per_month, reels_per_month, youtube_per_month, batch_type, password } = req.body;
+    
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
+    if (!email) return res.status(400).json({ error: 'Email is mandatory' });
+    if (!password) return res.status(400).json({ error: 'Password is mandatory' });
+
     const validBatchTypes = ['1-1', '15-15'];
     const resolvedBatch = validBatchTypes.includes(batch_type) ? batch_type : '1-1';
-    const { data, error } = await supabase.from('clients').insert([{
-        company_name,
-        phone,
-        email,
-        address,
-        posts_per_month: parseInt(posts_per_month) || 0,
-        reels_per_month: parseInt(reels_per_month) || 0,
-        youtube_per_month: parseInt(youtube_per_month) || 0,
-        batch_type: resolvedBatch,
-        is_active: true,
-        is_deleted: false
-    }]).select();
-    if (error) return res.status(500).json({ error: error.message });
-    myCache.del(["gm_clients", "admin_clients"]);
-    res.json(data[0]);
+
+    try {
+        // 1. Create Auth User
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+            email, 
+            password, 
+            email_confirm: true, 
+            user_metadata: { role: 'CLIENT', name: company_name }
+        });
+
+        if (authError) {
+            console.error(`[Admin] Auth creation error for client ${email}:`, authError.message);
+            return res.status(500).json({ error: authError.message });
+        }
+
+        // 2. Insert into users table
+        const { error: userError } = await supabase.from('users').insert([{
+            user_id: authUser.user.id,
+            name: company_name,
+            email,
+            password_hash: password,
+            role: 'CLIENT',
+            role_identifier: 'CLIENT'
+        }]);
+
+        if (userError) {
+            console.error(`[Admin] DB insertion error for user ${email}:`, userError.message);
+            await supabase.auth.admin.deleteUser(authUser.user.id);
+            return res.status(500).json({ error: userError.message });
+        }
+
+        // 3. Insert into clients table
+        const { data, error: clientError } = await supabase.from('clients').insert([{
+            company_name,
+            phone,
+            email,
+            address,
+            posts_per_month: parseInt(posts_per_month) || 0,
+            reels_per_month: parseInt(reels_per_month) || 0,
+            youtube_per_month: parseInt(youtube_per_month) || 0,
+            batch_type: resolvedBatch,
+            is_active: true,
+            is_deleted: false,
+            password_hash: password
+        }]).select();
+
+        if (clientError) {
+            console.error(`[Admin] DB insertion error for client ${email}:`, clientError.message);
+            return res.status(500).json({ error: clientError.message });
+        }
+
+        myCache.del(["gm_clients", "admin_clients"]);
+        res.json(data[0]);
+    } catch (error) {
+        console.error(`[Admin] Crash during client creation of ${email}:`, error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     console.log(`PUT /api/admin/clients/${id} - Body:`, req.body);
-    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, youtube_per_month, batch_type } = req.body;
-    const validBatchTypes = ['1-1', '15-15'];
+    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, youtube_per_month, batch_type, password } = req.body;
+    
     const updateObj = {
         company_name,
         phone,
         email,
         address,
+        posts_per_month: parseInt(posts_per_month),
+        reels_per_month: parseInt(reels_per_month),
+        youtube_per_month: parseInt(youtube_per_month),
+        batch_type,
         is_active,
-        posts_per_month: parseInt(posts_per_month) || 0,
-        reels_per_month: parseInt(reels_per_month) || 0,
-        youtube_per_month: parseInt(youtube_per_month) || 0
+        updated_at: new Date().toISOString()
     };
-    if (validBatchTypes.includes(batch_type)) updateObj.batch_type = batch_type;
+
+    if (password) {
+        updateObj.password_hash = password;
+        
+        try {
+            const { data: dbUser } = await supabase.from('users').select('user_id').eq('email', email).single();
+            if (dbUser) {
+                await supabase.auth.admin.updateUserById(dbUser.user_id, { password });
+                await supabase.from('users').update({ password_hash: password }).eq('user_id', dbUser.user_id);
+            }
+        } catch (err) {
+            console.error('[Admin] Error updating client password in auth/users:', err);
+        }
+    }
+
     const { data, error } = await supabase.from('clients').update(updateObj).eq('id', id).select();
     if (error) return res.status(500).json({ error: error.message });
     myCache.del(["gm_clients", "admin_clients"]);

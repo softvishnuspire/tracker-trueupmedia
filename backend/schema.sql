@@ -14,6 +14,9 @@ CREATE TABLE public.clients (
   team_lead_id uuid,
   posts_per_month integer DEFAULT 0,
   reels_per_month integer DEFAULT 0,
+  batch_type text NOT NULL DEFAULT '1-1'::text CHECK (batch_type = ANY (ARRAY['1-1'::text, '15-15'::text])),
+  youtube_per_month integer DEFAULT 0,
+  password_hash text,
   CONSTRAINT clients_pkey PRIMARY KEY (id),
   CONSTRAINT clients_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id),
   CONSTRAINT clients_team_lead_id_fkey FOREIGN KEY (team_lead_id) REFERENCES public.users(user_id)
@@ -61,13 +64,13 @@ CREATE TABLE public.notifications (
 CREATE TABLE public.poc_communications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   team_lead_id uuid NOT NULL,
-  client_id uuid,
   note_date date NOT NULL,
   note_text text NOT NULL,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  client_id uuid,
   CONSTRAINT poc_communications_pkey PRIMARY KEY (id),
-  CONSTRAINT poc_communications_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
-  CONSTRAINT poc_communications_team_lead_id_fkey FOREIGN KEY (team_lead_id) REFERENCES public.users(user_id)
+  CONSTRAINT poc_communications_team_lead_id_fkey FOREIGN KEY (team_lead_id) REFERENCES public.users(user_id),
+  CONSTRAINT poc_communications_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id)
 );
 CREATE TABLE public.status_logs (
   log_id uuid NOT NULL DEFAULT gen_random_uuid(),
