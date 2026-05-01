@@ -474,7 +474,7 @@ export default function AdminDashboard() {
         <div className="progress-meter-card">
           <div className="progress-top-row">
             <div className="progress-main-info">
-              <h3 className="stat-label">Period Progress</h3>
+              <h3 className="stat-label">Month&apos;s Progress</h3>
             </div>
             <div className="progress-values">
               <span className="current">{monthCompleted}</span>

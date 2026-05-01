@@ -82,6 +82,7 @@ export default function GMDashboard() {
     const [selectedType, setSelectedType] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
+    const [currentCycle, setCurrentCycle] = useState<0 | 1>(0); // 0: 1-15, 1: 16-end
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc'>('dashboard');
@@ -134,21 +135,19 @@ export default function GMDashboard() {
     const isBiMonthlyView = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
 
     const periodStart = isBiMonthlyView
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        ? (currentCycle === 0 
+            ? startOfMonth(currentMonth) 
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 16))
         : startOfMonth(currentMonth);
-    
+
     const periodEnd = isBiMonthlyView
-        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
+        ? (currentCycle === 0 
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15, 23, 59, 59) 
+            : endOfMonth(currentMonth))
         : endOfMonth(currentMonth);
 
-    const isDayInPeriod = (day: Date, clientId?: string): boolean => {
-        const targetClientId = clientId || selectedClient;
-        if (!targetClientId || targetClientId === 'all') {
-            return isSameMonth(day, currentMonth);
-        }
-        const start = startOfMonth(currentMonth);
-        const end = endOfMonth(currentMonth);
-        return day >= start && day <= end;
+    const isDayInPeriod = (day: Date): boolean => {
+        return day >= periodStart && day <= periodEnd;
     };
 
     const getPeriodLabel = () => {
@@ -280,6 +279,12 @@ export default function GMDashboard() {
     });
 
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
+    const [masterWeekStats, setMasterWeekStats] = useState({ total: 0, completed: 0, percentage: 0 });
+    const [companyStats, setCompanyStats] = useState({
+        today: { total: 0, completed: 0, percentage: 0 },
+        week: { total: 0, completed: 0, percentage: 0 },
+        month: { total: 0, completed: 0, percentage: 0 }
+    });
 
     const fetchDashboardStats = async () => {
         setLoading(true);
@@ -298,11 +303,16 @@ export default function GMDashboard() {
                 return acc;
             }, {});
 
+            const isItemCompleted = (status: string) => {
+                const s = (status || '').toUpperCase();
+                return s === 'WAITING FOR POSTING' || s === 'POSTED';
+            };
+
             // Calculate today's stats
             const today = new Date();
             const todayItems = calendarData.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
-            const completedToday = todayItems.filter((item: ContentItem) => item.status === 'POSTED').length;
+            const completedToday = todayItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
 
             setTodayStats({
                 total: totalToday,
@@ -311,10 +321,72 @@ export default function GMDashboard() {
                 percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
             });
 
-            const isItemCompleted = (status: string) => {
-                const s = (status || '').toUpperCase();
-                return s === 'WAITING FOR POSTING' || s === 'POSTED';
-            };
+            // Master Week
+            const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+            const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+            const weekItems = calendarData.filter((item: ContentItem) => {
+                const itemDate = parseISO(item.scheduled_datetime);
+                return itemDate >= weekStart && itemDate <= weekEnd;
+            });
+            const totalWeek = weekItems.length;
+            const completedWeek = weekItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
+            setMasterWeekStats({
+                total: totalWeek,
+                completed: completedWeek,
+                percentage: totalWeek > 0 ? Math.round((completedWeek / totalWeek) * 100) : 0
+            });
+
+            // Calculate Company Stats (Date Shifted - 7 Days Offset)
+            // The Company Calendar shows items 7 days before their scheduled date.
+            const monthStr = format(currentMonth, 'yyyy-MM');
+            const nextMonthDate = addMonths(currentMonth, 1);
+            const nextMonthStr = format(nextMonthDate, 'yyyy-MM');
+            
+            const clientId = selectedClient && selectedClient !== 'all' ? selectedClient : undefined;
+            const [currRes, nextRes] = await Promise.all([
+                gmApi.getMasterCalendar(monthStr, clientId),
+                gmApi.getMasterCalendar(nextMonthStr, clientId)
+            ]);
+            
+            const combinedData = [...(currRes.data || []), ...(nextRes.data || [])];
+            
+            const getCompanyDate = (item: ContentItem) => subDays(parseISO(item.scheduled_datetime), 7);
+
+            // Company Today
+            const companyTodayItems = combinedData.filter((item: ContentItem) => isSameDay(getCompanyDate(item), today));
+            const companyTotalToday = companyTodayItems.length;
+            const companyCompletedToday = companyTodayItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
+
+            // Company Week
+            const companyWeekItems = combinedData.filter((item: ContentItem) => {
+                const cDate = getCompanyDate(item);
+                return cDate >= weekStart && cDate <= weekEnd;
+            });
+            const companyTotalWeek = companyWeekItems.length;
+            const companyCompletedWeek = companyWeekItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
+
+            // Company Month
+            const companyMonthItems = combinedData.filter((item: ContentItem) => isDayInPeriod(getCompanyDate(item)));
+            const companyTotalMonth = companyMonthItems.length;
+            const companyCompletedMonth = companyMonthItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
+
+            setCompanyStats({
+                today: { 
+                    total: companyTotalToday, 
+                    completed: companyCompletedToday, 
+                    percentage: companyTotalToday > 0 ? Math.round((companyCompletedToday / companyTotalToday) * 100) : 0 
+                },
+                week: { 
+                    total: companyTotalWeek, 
+                    completed: companyCompletedWeek, 
+                    percentage: companyTotalWeek > 0 ? Math.round((companyCompletedWeek / companyTotalWeek) * 100) : 0 
+                },
+                month: { 
+                    total: companyTotalMonth, 
+                    completed: companyCompletedMonth, 
+                    percentage: companyTotalMonth > 0 ? Math.round((companyCompletedMonth / companyTotalMonth) * 100) : 0 
+                }
+            });
 
             const completedItems = periodData.filter((item: ContentItem) => isItemCompleted(item.status));
             const pendingItems = periodData.filter((item: ContentItem) => !isItemCompleted(item.status));
@@ -387,13 +459,37 @@ export default function GMDashboard() {
 
 
     const handlePrev = () => {
-        if (viewMode === 'month') setCurrentMonth(subMonths(currentMonth, 1));
-        else setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() - 7)));
+        if (viewMode === 'month') {
+            if (isBiMonthlyView) {
+                if (currentCycle === 1) {
+                    setCurrentCycle(0);
+                } else {
+                    setCurrentMonth(subMonths(currentMonth, 1));
+                    setCurrentCycle(1);
+                }
+            } else {
+                setCurrentMonth(subMonths(currentMonth, 1));
+            }
+        } else {
+            setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() - 7)));
+        }
     };
 
     const handleNext = () => {
-        if (viewMode === 'month') setCurrentMonth(addMonths(currentMonth, 1));
-        else setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() + 7)));
+        if (viewMode === 'month') {
+            if (isBiMonthlyView) {
+                if (currentCycle === 0) {
+                    setCurrentCycle(1);
+                } else {
+                    setCurrentMonth(addMonths(currentMonth, 1));
+                    setCurrentCycle(0);
+                }
+            } else {
+                setCurrentMonth(addMonths(currentMonth, 1));
+            }
+        } else {
+            setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() + 7)));
+        }
     };
 
     const handleAddClick = (date: Date) => {
@@ -853,7 +949,11 @@ export default function GMDashboard() {
                                         <button onClick={handlePrev} className="month-btn"><ChevronLeft size={20} /></button>
                                         <span className="month-label" style={{ minWidth: '180px', textAlign: 'center' }}>
                                             {viewMode === 'month'
-                                                ? format(currentMonth, 'MMMM yyyy')
+                                                ? (isBiMonthlyView 
+                                                    ? (currentCycle === 0 
+                                                        ? `1 - 15 ${format(currentMonth, 'MMM yyyy')}` 
+                                                        : `16 - ${getDate(endOfMonth(currentMonth))} ${format(currentMonth, 'MMM yyyy')}`)
+                                                    : format(currentMonth, 'MMMM yyyy'))
                                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                             }
                                         </span>
@@ -982,11 +1082,17 @@ export default function GMDashboard() {
                             </div>
                         </div>
 
-                        <div className="daily-stats-banner" style={{ marginTop: '24px' }}>
+                        <div className="dashboard-section-header" style={{ marginTop: '32px', marginBottom: '16px' }}>
+                            <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '4px', height: '18px', background: 'var(--accent)', borderRadius: '2px' }}></div>
+                                Master Calendar Progress
+                            </h2>
+                        </div>
+                        <div className="daily-stats-banner" style={{ marginTop: '0px' }}>
                             <div className="progress-meter-card">
                                 <div className="progress-top-row">
                                     <div className="progress-main-info">
-                                        <h3 className="stat-label">Period Progress ({getPeriodLabel()})</h3>
+                                        <h3 className="stat-label">Today&apos;s Progress</h3>
                                     </div>
                                     <div className="progress-values">
                                         <span className="current">{todayStats.completed}</span>
@@ -1006,14 +1112,14 @@ export default function GMDashboard() {
                                         <h3 className="stat-label">Week&apos;s Progress</h3>
                                     </div>
                                     <div className="progress-values">
-                                        <span className="current">{weekCompleted}</span>
+                                        <span className="current">{masterWeekStats.completed}</span>
                                         <span className="separator">/</span>
-                                        <span className="total">{weekTotal}</span>
+                                        <span className="total">{masterWeekStats.total}</span>
                                         <span className="unit">Tasks</span>
                                     </div>
                                 </div>
                                 <div className="meter-labels">
-                                    <span className="percentage">{weekPercentage}% Done</span>
+                                    <span className="percentage">{masterWeekStats.percentage}% Done</span>
                                 </div>
                             </div>
 
@@ -1023,14 +1129,73 @@ export default function GMDashboard() {
                                         <h3 className="stat-label">Month&apos;s Progress</h3>
                                     </div>
                                     <div className="progress-values">
-                                        <span className="current">{monthCompleted}</span>
+                                        <span className="current">{stats.completedCount}</span>
                                         <span className="separator">/</span>
-                                        <span className="total">{monthTotal}</span>
+                                        <span className="total">{stats.monthlyContent}</span>
                                         <span className="unit">Tasks</span>
                                     </div>
                                 </div>
                                 <div className="meter-labels">
-                                    <span className="percentage">{monthPercentage}% Done</span>
+                                    <span className="percentage">{stats.monthlyContent > 0 ? Math.round((stats.completedCount / stats.monthlyContent) * 100) : 0}% Done</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="dashboard-section-header" style={{ marginTop: '32px', marginBottom: '16px' }}>
+                            <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '4px', height: '18px', background: '#a855f7', borderRadius: '2px' }}></div>
+                                Company&apos;s Calendar Progress (7-Day Offset)
+                            </h2>
+                        </div>
+                        <div className="daily-stats-banner" style={{ marginTop: '0px' }}>
+                            <div className="progress-meter-card company-card">
+                                <div className="progress-top-row">
+                                    <div className="progress-main-info">
+                                        <h3 className="stat-label">Today&apos;s Progress</h3>
+                                    </div>
+                                    <div className="progress-values">
+                                        <span className="current">{companyStats.today.completed}</span>
+                                        <span className="separator">/</span>
+                                        <span className="total">{companyStats.today.total}</span>
+                                        <span className="unit">Tasks</span>
+                                    </div>
+                                </div>
+                                <div className="meter-labels">
+                                    <span className="percentage">{companyStats.today.percentage}% Done</span>
+                                </div>
+                            </div>
+
+                            <div className="progress-meter-card company-card">
+                                <div className="progress-top-row">
+                                    <div className="progress-main-info">
+                                        <h3 className="stat-label">Week&apos;s Progress</h3>
+                                    </div>
+                                    <div className="progress-values">
+                                        <span className="current">{companyStats.week.completed}</span>
+                                        <span className="separator">/</span>
+                                        <span className="total">{companyStats.week.total}</span>
+                                        <span className="unit">Tasks</span>
+                                    </div>
+                                </div>
+                                <div className="meter-labels">
+                                    <span className="percentage">{companyStats.week.percentage}% Done</span>
+                                </div>
+                            </div>
+
+                            <div className="progress-meter-card company-card">
+                                <div className="progress-top-row">
+                                    <div className="progress-main-info">
+                                        <h3 className="stat-label">Month&apos;s Progress</h3>
+                                    </div>
+                                    <div className="progress-values">
+                                        <span className="current">{companyStats.month.completed}</span>
+                                        <span className="separator">/</span>
+                                        <span className="total">{companyStats.month.total}</span>
+                                        <span className="unit">Tasks</span>
+                                    </div>
+                                </div>
+                                <div className="meter-labels">
+                                    <span className="percentage">{companyStats.month.percentage}% Done</span>
                                 </div>
                             </div>
                         </div>
@@ -1313,7 +1478,7 @@ export default function GMDashboard() {
                                                 const itemDate = getCalendarItemDate(item);
                                                 return isSameDay(itemDate, day);
                                             });
-                                        const isOutOfPeriod = isCompanyMode ? false : !isDayInPeriod(day, selectedClient);
+                                        const isOutOfPeriod = isCompanyMode ? false : !isDayInPeriod(day);
 
                                         return (
                                             <div

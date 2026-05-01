@@ -2049,6 +2049,11 @@
     box-shadow: 0 0 15px var(--accent-glow);
 }
 
+.progress-meter-card.company-card::before {
+    background: #a855f7;
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+}
+
 .progress-top-row {
     display: flex;
     justify-content: space-between;
