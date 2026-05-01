@@ -2301,7 +2301,10 @@ app.get('/api/emergency/all', async (req, res) => {
             .order('scheduled_datetime');
 
         if (error) return res.status(500).json({ error: error.message });
-        res.json(data || []);
+        const activeEmergencyTasks = (data || []).filter(
+            (item) => (item.status || '').toUpperCase() !== 'POSTED'
+        );
+        res.json(activeEmergencyTasks);
     } catch (err) {
         console.error('Emergency all error:', err);
         res.status(500).json({ error: err.message });
@@ -2324,7 +2327,10 @@ app.get('/api/emergency/today', async (req, res) => {
             .order('scheduled_datetime');
 
         if (error) return res.status(500).json({ error: error.message });
-        res.json(data || []);
+        const activeEmergencyTasks = (data || []).filter(
+            (item) => (item.status || '').toUpperCase() !== 'POSTED'
+        );
+        res.json(activeEmergencyTasks);
     } catch (err) {
         console.error('Emergency today error:', err);
         res.status(500).json({ error: err.message });
@@ -2350,7 +2356,10 @@ app.get('/api/emergency/month', async (req, res) => {
             .order('scheduled_datetime');
 
         if (error) return res.status(500).json({ error: error.message });
-        res.json(data || []);
+        const activeEmergencyTasks = (data || []).filter(
+            (item) => (item.status || '').toUpperCase() !== 'POSTED'
+        );
+        res.json(activeEmergencyTasks);
     } catch (err) {
         console.error('Emergency month error:', err);
         res.status(500).json({ error: err.message });
