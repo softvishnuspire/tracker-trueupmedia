@@ -656,4 +656,21 @@ Successfully synchronized the local repository with remote updates while preserv
 Fixed a critical build error in the General Manager dashboard that prevented the application from compiling. The issue was a syntax error in the `isDayInPeriod` function where a missing closing brace caused the entire component to fail parsing.
 
 ### Affected Components
-- **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Fixed syntax error in `isDayInPeriod` helper function to restore build functionality.
+- **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Fixed syntax error in `isDayInPeriod` helper function to restore build functionality.
+
+## Recent Changes: Admin Dashboard Analytics Update (May 2026)
+### Implementation Overview
+Replaced the "Active Pipelines" metric in the Admin Dashboard with two granular metrics: **Number of Reels** and **Number of Posts** for the current month. This provides more actionable insights into content production volume per category.
+
+### Key Technical Decisions
+1. **Dynamic Metric Calculation**:
+   - Updated `AdminDashboard` logic to calculate specific counts for Reels and Posts by filtering the existing `calendarData` (the single source of truth for the current month).
+   - Metrics are computed on the fly within the `fetchDashboardData` function, ensuring they reflect both individual client selections and global views.
+
+2. **UI/UX Enhancement**:
+   - Replaced the aggregated "Active Pipelines" card with two distinct cards in the `stats-grid`.
+   - Utilized descriptive icons (`Video` for Reels, `FileText` for Posts) and harmonious color schemes (Warning/Amber for Reels, Cyan for Posts) to enhance scannability.
+   - Updated the loading skeleton states to accommodate the new card layout, maintaining a premium user experience during data fetching.
+
+### Affected Components
+- **AdminDashboard (`frontend/src/app/admin/dashboard/page.tsx`)**: Updated `Stats` interface, data fetching logic, and stats grid UI.

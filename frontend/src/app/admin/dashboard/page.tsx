@@ -14,6 +14,8 @@ interface Stats {
   totalClients: number;
   totalItemsThisMonth: number;
   statusSummary: Record<string, number>;
+  reelsCount: number;
+  postsCount: number;
 }
 
 interface ContentDetails {
@@ -108,6 +110,9 @@ export default function AdminDashboard() {
         return acc;
       }, {});
 
+      const reelsCount = periodData.filter(item => item.content_type === 'Reel').length;
+      const postsCount = periodData.filter(item => item.content_type === 'Post').length;
+
       // Calculate today's stats
       const today = new Date();
       const todayItems = data.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
@@ -127,13 +132,17 @@ export default function AdminDashboard() {
         setStats({
           ...statsRes.data,
           statusSummary: breakdown,
-          totalItemsThisMonth: periodData.length
+          totalItemsThisMonth: periodData.length,
+          reelsCount,
+          postsCount
         });
       } else {
         setStats({
           totalClients: clients.length,
           totalItemsThisMonth: periodData.length,
-          statusSummary: breakdown
+          statusSummary: breakdown,
+          reelsCount,
+          postsCount
         });
       }
 
@@ -267,7 +276,7 @@ export default function AdminDashboard() {
       <div className="stats-grid" style={{ marginBottom: '32px' }}>
         {loading ? (
           <>
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3, 4].map((i) => (
               <div key={i} className="stat-card">
                 <Skeleton className="h-12 w-12 rounded-xl" />
                 <div className="space-y-2 flex-1">
@@ -299,13 +308,20 @@ export default function AdminDashboard() {
             </div>
             <div className="stat-card">
               <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
-                <Activity size={28} />
+                <Video size={28} />
               </div>
               <div className="stat-info">
-                <h3>Active Pipelines</h3>
-                <p className="stat-value">
-                  {Object.values(stats?.statusSummary || {}).reduce((a, b) => a + b, 0)}
-                </p>
+                <h3>Total Reels</h3>
+                <p className="stat-value">{stats?.reelsCount || 0}</p>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--accent-secondary)' }}>
+                <FileText size={28} />
+              </div>
+              <div className="stat-info">
+                <h3>Total Posts</h3>
+                <p className="stat-value">{stats?.postsCount || 0}</p>
               </div>
             </div>
           </>
