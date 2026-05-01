@@ -2364,13 +2364,28 @@ app.post('/api/onboarding/submit', async (req, res) => {
 
 // ─── Admin: Onboarding Requests ───
 app.get('/api/admin/onboarding-requests', requireRoles(ADMIN_ROLES), async (req, res) => {
-    const { data, error } = await supabase
-        .from('onboarding_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
+    try {
+        const { data, error } = await supabase
+            .from('onboarding_requests')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+        if (error) {
+            console.error('[Onboarding] Fetch error:', error.message);
+            return res.status(500).json({ error: error.message });
+        }
+
+        // Normalize status to uppercase for frontend consistency
+        const normalizedData = (data || []).map(req => ({
+            ...req,
+            status: (req.status || 'PENDING').toUpperCase()
+        }));
+
+        res.json(normalizedData);
+    } catch (err) {
+        console.error('[Onboarding] Crash:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
 });
 
 app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES), async (req, res) => {
@@ -2432,7 +2447,18 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
 
         if (clientError) {
             console.error(`[Onboarding] DB insertion error for client ${request.email}:`, clientError.message);
-            // Rollback auth/user if needed? Usually just log it.
+            // Rollback auth and public.users record
+            try {
+                await supabase.auth.admin.deleteUser(authUser.user.id);
+                await supabase.from('users').delete().eq('user_id', authUser.user.id);
+            } catch (rollbackErr) {
+                console.error('[Onboarding] Rollback failed:', rollbackErr.message);
+            }
+            
+            // Provide specific error for duplicate company name which is common
+            if (clientError.message.includes('unique_violation') || clientError.message.includes('already exists')) {
+                return res.status(400).json({ error: `A client with company name "${request.full_name}" already exists.` });
+            }
             return res.status(500).json({ error: clientError.message });
         }
 
@@ -2446,7 +2472,9 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
             console.error(`[Onboarding] Status update error for request ${id}:`, updateError.message);
         }
 
-        myCache.del(["gm_clients", "admin_clients"]);
+        myCache.del("admin_clients");
+        myCache.del("gm_clients");
+        
         res.json({ message: 'Client onboarded successfully', client_email: request.email });
 
     } catch (error) {

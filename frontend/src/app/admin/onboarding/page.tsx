@@ -38,9 +38,14 @@ export default function OnboardingPage() {
     const fetchRequests = async () => {
         try {
             const response = await adminApi.getOnboardingRequests();
-            setRequests(response.data);
-        } catch (error) {
+            // Ensure response.data is an array to prevent crashes
+            const data = Array.isArray(response.data) ? response.data : [];
+            console.log('Fetched onboarding requests:', data);
+            setRequests(data);
+        } catch (error: any) {
             console.error('Error fetching onboarding requests:', error);
+            const message = error.response?.data?.error || error.message || 'Failed to fetch requests';
+            // Optional: add a state for error message to show in UI
         } finally {
             setLoading(false);
         }
@@ -50,13 +55,16 @@ export default function OnboardingPage() {
         if (!selectedRequest || !password) return;
         setProcessing(true);
         try {
-            await adminApi.acceptOnboarding(selectedRequest.id, password);
+            const res = await adminApi.acceptOnboarding(selectedRequest.id, password);
             setShowAcceptModal(false);
             setPassword('');
+            setSelectedRequest(null);
             fetchRequests();
-        } catch (error) {
+            alert('Client successfully onboarded!');
+        } catch (error: any) {
             console.error('Error accepting onboarding:', error);
-            alert('Failed to accept onboarding request. Please check if the email is already in use.');
+            const errorMessage = error.response?.data?.error || error.message || 'Failed to accept onboarding request';
+            alert(`Error: ${errorMessage}`);
         } finally {
             setProcessing(false);
         }
@@ -72,9 +80,13 @@ export default function OnboardingPage() {
         }
     };
 
-    const filteredRequests = requests.filter(req => {
-        const matchesSearch = req.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                             req.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const filteredRequests = (requests || []).filter(req => {
+        if (!req) return false;
+        const name = req.full_name || '';
+        const email = req.email || '';
+        
+        const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                             email.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter = filterStatus === 'ALL' || (req.status || '').toUpperCase() === filterStatus;
         return matchesSearch && matchesFilter;
     });
@@ -163,12 +175,12 @@ export default function OnboardingPage() {
                         <div key={req.id} className={styles.requestCard}>
                             <div className={styles.cardHeader}>
                                 <div className={styles.avatar}>
-                                    {req.full_name.charAt(0)}
+                                    {(req.full_name || 'C').charAt(0)}
                                 </div>
                                 <div className={styles.nameSection}>
-                                    <h3>{req.full_name}</h3>
+                                    <h3>{req.full_name || 'Unnamed Client'}</h3>
                                     <span className={`${styles.statusBadge} ${getStatusColor(req.status)}`}>
-                                        {req.status?.toUpperCase()}
+                                        {(req.status || 'PENDING').toUpperCase()}
                                     </span>
                                 </div>
                                 <button className={styles.optionsBtn}>
