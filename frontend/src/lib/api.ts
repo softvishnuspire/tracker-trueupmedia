@@ -28,6 +28,7 @@ export interface Client {
     reels_per_month?: number;
     youtube_per_month?: number;
     batch_type?: '1-1' | '15-15';
+    password?: string; // For adding/updating clients
     created_at: string;
 }
 
@@ -115,6 +116,15 @@ export interface TeamMember {
     created_at: string;
 }
 
+export interface OnboardingRequest {
+    id: string;
+    full_name: string;
+    email: string;
+    phone_number: string;
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+    created_at: string;
+}
+
 export const adminApi = {
     getClients: () => adminBase.get<Client[]>('/api/admin/clients'),
     addClient: (data: Partial<Client>) => adminBase.post('/api/admin/clients', data),
@@ -132,6 +142,9 @@ export const adminApi = {
     addContent: (data: Partial<ContentItem>) => adminBase.post('/api/admin/content', data),
     updateContent: (id: string, data: Partial<ContentItem>) => adminBase.put(`/api/admin/content/${id}`, data),
     deleteContent: (id: string) => adminBase.delete(`/api/admin/content/${id}`),
+    getOnboardingRequests: () => adminBase.get<OnboardingRequest[]>('/api/admin/onboarding-requests'),
+    acceptOnboarding: (id: string, password: string) => adminBase.post(`/api/admin/onboarding-requests/${id}/accept`, { password }),
+    rejectOnboarding: (id: string) => adminBase.post(`/api/admin/onboarding-requests/${id}/reject`),
 };
 
 const cooBase = axios.create({

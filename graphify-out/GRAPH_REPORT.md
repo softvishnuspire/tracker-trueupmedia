@@ -741,4 +741,65 @@ Completed the standardization of deliverable metrics across the General Manager 
 
 ### Affected Components
 - **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Updated stats state, aggregation logic, and dashboard grid UI.
-- **TLDashboard (`frontend/src/app/tl/dashboard/page.tsx`)**: Enhanced `monthStatusCounts` reduction logic and updated the overview stats grid to mirror leadership metrics while maintaining assigned client scoping.
+- **TLDashboard (`frontend/src/app/tl/dashboard/page.tsx`)**: Enhanced `monthStatusCounts` reduction logic and updated the overview stats grid to mirror leadership metrics while maintaining assigned client scoping.
+
+## Recent Changes: Client Password Authentication & Auth Integration (May 2026)
+### Implementation Overview
+Implemented a secure, password-based authentication system for clients created through the Admin panel. This enables clients to have their own credentials and log into the system with restricted dashboard access.
+
+### Key Technical Decisions
+1. **Integrated User Creation**:
+   - Modified `POST /api/admin/clients` to automatically create a corresponding user in Supabase Auth and the `public.users` table with the `CLIENT` role.
+   - Synchronized client data between the `clients` table and the `users` table using the email address as the linking identifier.
+
+2. **Secure Password Management**:
+   - Added a mandatory `password` field to the "Add Client" modal and an optional one to the "Edit Client" modal (for updates).
+   - Passwords are stored in the `password_hash` column of both `clients` and `users` tables to maintain consistency with existing team member storage patterns, while the actual authentication is handled securely by Supabase Auth.
+
+3. **Login Flow Expansion**:
+   - Added the "Client" role option to the login page (`frontend/src/app/page.tsx`).
+   - Updated the canonicalization logic to recognize the `client` role and redirect users to the appropriate dashboard path (`/client/dashboard`).
+
+4. **Role Normalization**:
+   - Updated the backend `getRequesterRole` and `requireRoles` logic to support the new `CLIENT` role and verify permissions.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated `POST /api/admin/clients` and `PUT /api/admin/clients/:id` for user/auth sync; updated role normalization logic.
+- **Client Management UI (`frontend/src/app/admin/clients/page.tsx`)**: Added password field to formData and modal.
+- **Login Page (`frontend/src/app/page.tsx`)**: Added `client` role to selection and canonicalization.
+- **API Client (`frontend/src/lib/api.ts`)**: Updated `Client` interface to include optional password field.
+
+### Schema Adjustments (Manual Execution Required)
+- **Enum Update**: Added `'CLIENT'` to the `user_role` type to allow client logins.
+- **Client Table Update**: Added `updated_at` column to the `public.clients` table for tracking modifications and resolving sync errors.
+
+## Recent Changes: Client Onboarding Module (May 2026)
+### Implementation Overview
+Introduced a new "Client Onboarding" module within the Admin dashboard to streamline the acquisition and management of new clients. This module provides a workflow for viewing registration requests, approving them with credential setup, or rejecting them.
+
+### Key Technical Decisions
+1. **Onboarding Workflow**:
+   - **Request Storage**: Onboarding data is stored in the `onboarding_requests` table (fields: `full_name`, `email`, `phone_number`, `status`).
+   - **Approval Mechanism**: Admins can approve a request by setting a mandatory password. This action triggers:
+     - Creation of a Supabase Auth user.
+     - Insertion of a record in the `public.users` table with the `CLIENT` role.
+     - Insertion of a record in the `public.clients` table.
+     - Updating the request status to `ACCEPTED`.
+   - **Rejection Mechanism**: Allows admins to mark requests as `REJECTED`, preserving the audit trail without creating system accounts.
+
+2. **Backend API Extensions**:
+   - `GET /api/admin/onboarding-requests`: Fetches all requests ordered by date.
+   - `POST /api/admin/onboarding-requests/:id/accept`: Atomic-like operation handling Auth user creation, database sync, and status updates.
+   - `POST /api/admin/onboarding-requests/:id/reject`: Simple status update for rejected leads.
+
+3. **Premium UI/UX Implementation**:
+   - **Onboarding Page**: Created a dedicated dashboard for onboarding requests featuring glassmorphism, smooth animations (Framer-like via CSS), and interactive stat cards.
+   - **Search & Filter**: Integrated real-time search by name/email and status-based filtering (Pending, Accepted, Rejected).
+   - **Onboarding Modal**: A focused modal for approval that emphasizes security by requiring password entry and providing clear feedback during the creation process.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Added three new endpoints for onboarding management and integrated Supabase Auth Admin SDK.
+- **Frontend API Library (`frontend/src/lib/api.ts`)**: Added `OnboardingRequest` interface and `adminApi` methods.
+- **Admin Layout (`frontend/src/app/admin/layout.tsx`)**: Added "Client Onboarding" to the sidebar navigation with a new `UserPlus` icon.
+- **Onboarding Page (`frontend/src/app/admin/onboarding/page.tsx`)**: New page for managing requests.
+- **Style Module (`frontend/src/app/admin/onboarding/onboarding.module.css`)**: Custom styling for the onboarding dashboard.

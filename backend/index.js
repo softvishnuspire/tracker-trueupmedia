@@ -2204,6 +2204,110 @@ app.get('/api/emergency/month', async (req, res) => {
     }
 });
 
+// ─── Admin: Onboarding Requests ───
+app.get('/api/admin/onboarding-requests', requireRoles(ADMIN_ROLES), async (req, res) => {
+    const { data, error } = await supabase
+        .from('onboarding_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password) return res.status(400).json({ error: 'Password is required to create client account' });
+
+    try {
+        // 1. Fetch request details
+        const { data: request, error: fetchError } = await supabase
+            .from('onboarding_requests')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !request) return res.status(404).json({ error: 'Onboarding request not found' });
+        if (request.status === 'ACCEPTED') return res.status(400).json({ error: 'Request already accepted' });
+
+        // 2. Create Supabase Auth User
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+            email: request.email,
+            password: password,
+            email_confirm: true,
+            user_metadata: { role: 'CLIENT', name: request.full_name }
+        });
+
+        if (authError) {
+            console.error(`[Onboarding] Auth creation error for ${request.email}:`, authError.message);
+            return res.status(500).json({ error: authError.message });
+        }
+
+        // 3. Create record in public.users
+        const { error: userError } = await supabase.from('users').insert([{
+            user_id: authUser.user.id,
+            name: request.full_name,
+            email: request.email,
+            password_hash: password,
+            role: 'CLIENT',
+            role_identifier: 'CLIENT'
+        }]);
+
+        if (userError) {
+            console.error(`[Onboarding] DB insertion error for user ${request.email}:`, userError.message);
+            await supabase.auth.admin.deleteUser(authUser.user.id);
+            return res.status(500).json({ error: userError.message });
+        }
+
+        // 4. Create record in public.clients
+        const { error: clientError } = await supabase.from('clients').insert([{
+            company_name: request.full_name, // Using full_name as company name initially
+            email: request.email,
+            phone: request.phone_number,
+            password_hash: password,
+            is_active: true,
+            is_deleted: false,
+            batch_type: '1-1'
+        }]);
+
+        if (clientError) {
+            console.error(`[Onboarding] DB insertion error for client ${request.email}:`, clientError.message);
+            // Rollback auth/user if needed? Usually just log it.
+            return res.status(500).json({ error: clientError.message });
+        }
+
+        // 5. Update request status
+        const { error: updateError } = await supabase
+            .from('onboarding_requests')
+            .update({ status: 'ACCEPTED' })
+            .eq('id', id);
+
+        if (updateError) {
+            console.error(`[Onboarding] Status update error for request ${id}:`, updateError.message);
+        }
+
+        myCache.del(["gm_clients", "admin_clients"]);
+        res.json({ message: 'Client onboarded successfully', client_email: request.email });
+
+    } catch (error) {
+        console.error(`[Onboarding] Crash during acceptance of ${id}:`, error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/admin/onboarding-requests/:id/reject', requireRoles(ADMIN_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { error } = await supabase
+        .from('onboarding_requests')
+        .update({ status: 'REJECTED' })
+        .eq('id', id);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ message: 'Request rejected' });
+});
+
 app.use((err, req, res, next) => {
     console.error('Unhandled Error:', err);
     res.status(500).json({ error: 'Internal Server Error', message: err.message });

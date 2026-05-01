@@ -23,6 +23,7 @@ export default function ClientManagement() {
     reels_per_month: '',
     youtube_per_month: '',
     batch_type: '1-1' as '1-1' | '15-15',
+    password: '',
   });
 
   const fetchClients = async () => {
@@ -43,7 +44,7 @@ export default function ClientManagement() {
 
   const handleAddClick = () => {
     setEditingClient(null);
-    setFormData({ company_name: '', phone: '', email: '', address: '', posts_per_month: '', reels_per_month: '', youtube_per_month: '', batch_type: '1-1' });
+    setFormData({ company_name: '', phone: '', email: '', address: '', posts_per_month: '', reels_per_month: '', youtube_per_month: '', batch_type: '1-1', password: '' });
     setShowModal(true);
   };
 
@@ -58,6 +59,7 @@ export default function ClientManagement() {
       reels_per_month: client.reels_per_month?.toString() || '0',
       youtube_per_month: client.youtube_per_month?.toString() || '0',
       batch_type: client.batch_type || '1-1',
+      password: '',
     });
     setShowModal(true);
   };
@@ -259,6 +261,17 @@ export default function ClientManagement() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="client@company.com"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{editingClient ? 'New Password (leave blank to keep current)' : 'Password *'}</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  required={!editingClient}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Minimum 6 characters"
                 />
               </div>
               <div className="form-group">
