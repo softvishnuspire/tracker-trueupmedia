@@ -632,7 +632,12 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     }
 
     const { data, error } = await supabase.from('clients').update(updateObj).eq('id', id).select();
-    if (error) return res.status(500).json({ error: error.message });
+    
+    if (error) {
+        console.error(`[Admin] Error updating client ${id}:`, error.message);
+        return res.status(500).json({ error: error.message });
+    }
+    
     myCache.del(["gm_clients", "admin_clients"]);
     res.json(data[0]);
 });
