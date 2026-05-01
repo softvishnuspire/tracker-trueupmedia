@@ -693,20 +693,18 @@ export default function ClientCalendarPage() {
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                     <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
-                                    {selectedItem.history.length > 0 && (
-                                        <button 
-                                            onClick={handleUndoStatus}
-                                            style={{ 
-                                                display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
-                                                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
-                                                border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
-                                                fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
-                                            }}
-                                        >
-                                            <Undo2 size={12} />
-                                            Undo Last Step
-                                        </button>
-                                    )}
+                                    <button 
+                                        onClick={handleUndoStatus}
+                                        style={{ 
+                                            display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
+                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
+                                            border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
+                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                        }}
+                                    >
+                                        <Undo2 size={12} />
+                                        Undo Last Step
+                                    </button>
                                 </div>
                                 <div style={{ marginTop: '24px', position: 'relative', paddingLeft: '12px', display: 'flex', flexDirection: 'column' }}>
                                     <div style={{ 

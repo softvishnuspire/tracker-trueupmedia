@@ -220,6 +220,7 @@ export const tlApi = {
         tlBase.get<PocNote[]>(`poc-notes?month=${month}&tlId=${tlId}${clientId ? `&client_id=${clientId}` : ''}`),
     addPocNote: (data: { tlId: string; client_id: string; note_date: string; note_text: string }) =>
         tlBase.post<PocNote>('poc-notes', data),
+    undoStatus: (id: string) => tlBase.post(`content/${id}/undo-status`),
 };
 
 // ─── Posting Team API ───

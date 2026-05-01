@@ -1720,6 +1720,38 @@ app.post('/api/tl/poc-notes', requireRoles(TL_ROLES), async (req, res) => {
     res.json(data);
 });
 
+app.post('/api/tl/content/:id/undo-status', requireRoles(TL_ROLES), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: latestLog, error: logFetchError } = await supabase
+            .from('status_logs')
+            .select('*')
+            .eq('item_id', id)
+            .order('changed_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (logFetchError || !latestLog) {
+            return res.status(404).json({ error: 'No status history found to undo' });
+        }
+
+        const { error: revertError } = await supabase
+            .from('content_items')
+            .update({ status: latestLog.old_status, updated_at: new Date().toISOString() })
+            .eq('id', id);
+
+        if (revertError) {
+            return res.status(500).json({ error: 'Failed to revert status' });
+        }
+
+        await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+
+        res.json({ message: 'Status reverted successfully', previous_status: latestLog.old_status });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/gm/poc-notes', requireRoles(GM_ROLES), async (req, res) => {
     const { month, team_lead_id, client_id } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });

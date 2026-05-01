@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
+import { cooApi } from '@/lib/api';
 import '../admin/admin.css';
 
 export default function CooLayout({
@@ -28,6 +29,7 @@ export default function CooLayout({
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [clientCount, setClientCount] = useState(0);
     const supabase = createClient();
 
     useEffect(() => {
@@ -38,6 +40,15 @@ export default function CooLayout({
                 return;
             }
             setUser(user);
+            
+            // Fetch client count
+            try {
+                const res = await cooApi.getClients();
+                setClientCount(res.data.length);
+            } catch (err) {
+                console.error('Error fetching client count:', err);
+            }
+            
             setLoading(false);
         };
         checkUser();
@@ -58,7 +69,7 @@ export default function CooLayout({
 
     const menuItems = [
         { name: 'Dashboard', path: '/coo/dashboard', icon: <LayoutDashboard size={20} /> },
-        { name: 'Clients', path: '/coo/clients', icon: <Users size={20} /> },
+        { name: `Clients (${clientCount})`, path: '/coo/clients', icon: <Users size={20} /> },
         { name: 'Client Calendars', path: '/coo/client-calendar', icon: <CalendarIcon size={20} /> },
         { name: 'Team Management', path: '/coo/team', icon: <UserCircle size={20} /> },
         { name: 'Master Calendar', path: '/coo/master-calendar', icon: <CalendarIcon size={20} /> },

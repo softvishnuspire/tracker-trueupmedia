@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { cooApi, emergencyApi } from '@/lib/api';
-import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, isSameMonth } from 'date-fns';
 
@@ -158,6 +158,20 @@ export default function CooDashboard() {
             const res = await cooApi.getContentDetails(nextTask.id);
             setActiveItem(res.data);
         } catch (err) { console.error(err); }
+    };
+
+    const handleUndoStatus = async () => {
+        if (!activeItem) return;
+        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        try {
+            await cooApi.undoStatus(activeItem.item.id);
+            const res = await cooApi.getContentDetails(activeItem.item.id);
+            setActiveItem(res.data);
+            fetchDashboardData();
+        } catch (err) {
+            console.error(err);
+            alert('Failed to undo status change. It might be because there is no more history to undo.');
+        }
     };
 
     return (
@@ -535,7 +549,21 @@ export default function CooDashboard() {
                                     </div>
                                     
                                     <div style={{ marginTop: '32px' }}>
-                                        <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px' }}>Status History</label>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                        <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 0 }}>Status History</label>
+                                        <button 
+                                            onClick={handleUndoStatus}
+                                            style={{ 
+                                                display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
+                                                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
+                                                border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
+                                                fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                            }}
+                                        >
+                                            <Undo2 size={12} />
+                                            Undo
+                                        </button>
+                                    </div>
                                         <div className="history-timeline">
                                             {activeItem.history?.map((h: any, i: number) => (
                                                 <div key={i} className="history-item" style={{ display: 'flex', gap: '16px', marginBottom: '16px', position: 'relative' }}>

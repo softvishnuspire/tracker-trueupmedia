@@ -31,7 +31,8 @@ import {
     Clock,
     ShieldAlert,
     ArrowRight,
-    CalendarClock
+    CalendarClock,
+    Undo2
 } from 'lucide-react';
 import { phApi, emergencyApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -247,6 +248,26 @@ export default function ProductionHeadDashboard() {
         } finally { setActionId(null); }
     };
 
+    const handleUndoStatus = async () => {
+        if (!activeItem) return;
+        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        try {
+            await phApi.undoStatus(activeItem.item.id);
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date(); d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+            const res = await phApi.getContentDetails(activeItem.item.id, asOfDate);
+            setActiveItem(res.data);
+            fetchMasterCalendar();
+            fetchTodayQueue();
+        } catch (err) {
+            console.error(err);
+            alert('Failed to undo status change. It might be because there is no more history to undo.');
+        }
+    };
+
     const handleItemClick = async (item: ContentItem) => {
         try {
             // Find all tasks on the same day as the clicked item
@@ -359,7 +380,10 @@ export default function ProductionHeadDashboard() {
 
                     {view === 'client' && (
                         <>
-                            <p className="sidebar-label">Clients</p>
+                            <div className="sidebar-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>Clients</span>
+                                <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', color: 'var(--accent)', border: '1px solid var(--border)' }}>{clients.length}</span>
+                            </div>
                             <div className="client-list">
                                 {clients.map(c => (
                                     <div key={c.id} onClick={() => setSelectedClient(c.id)} className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}>
@@ -751,7 +775,21 @@ export default function ProductionHeadDashboard() {
                             </div>
 
                             <div style={{ marginTop: '32px', borderTop: '1px solid var(--border)', paddingTop: '24px' }}>
-                                <label className="detail-label">Production History</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <label className="detail-label" style={{ marginBottom: 0 }}>Production History</label>
+                                    <button 
+                                        onClick={handleUndoStatus}
+                                        style={{ 
+                                            display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
+                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
+                                            border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
+                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                        }}
+                                    >
+                                        <Undo2 size={12} />
+                                        Undo Last Step
+                                    </button>
+                                </div>
                                 <div className="history-timeline" style={{ marginTop: '16px' }}>
                                     {activeItem.history?.map((h: any, i: number) => (
                                         <div key={i} className="history-item" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>

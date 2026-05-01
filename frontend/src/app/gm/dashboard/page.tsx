@@ -653,7 +653,10 @@ export default function GMDashboard() {
 
                     {view === 'client' && (
                         <>
-                            <p className="sidebar-label">Clients</p>
+                            <div className="sidebar-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>Clients</span>
+                                <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', color: 'var(--accent)', border: '1px solid var(--border)' }}>{clients.length}</span>
+                            </div>
                             <div className="client-list">
                                 {clients.length === 0 ? (
                                     <>
@@ -1658,13 +1661,24 @@ export default function GMDashboard() {
                                                                 onChange={(e) => setStatusNote(e.target.value)}
                                                             />
                                                         </div>
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(nextStatus)}
-                                                            className="btn-advance"
-                                                        >
-                                                            <span>Advance to {nextStatus}</span>
-                                                            <ArrowRight size={18} className="advance-arrow" />
-                                                        </button>
+                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                            <button
+                                                                onClick={() => handleStatusUpdate(nextStatus)}
+                                                                className="btn-advance"
+                                                                style={{ flex: 1 }}
+                                                            >
+                                                                <span>Advance to {nextStatus}</span>
+                                                                <ArrowRight size={18} className="advance-arrow" />
+                                                            </button>
+                                                            <button 
+                                                                onClick={handleUndoStatus}
+                                                                className="btn-advance"
+                                                                style={{ width: '48px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: 0, justifyContent: 'center' }}
+                                                                title="Undo Last Step"
+                                                            >
+                                                                <Undo2 size={18} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 )}
                                                 {nextStatus && activeItem.item.status === 'WAITING FOR POSTING' && (
@@ -1704,20 +1718,18 @@ export default function GMDashboard() {
                         <div className="activity-log">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                 <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
-                                {activeItem.history.length > 0 && (
-                                    <button
-                                        onClick={handleUndoStatus}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
-                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
-                                            border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px',
-                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer'
-                                        }}
-                                    >
-                                        <Undo2 size={12} />
-                                        Undo Last Step
-                                    </button>
-                                )}
+                                <button
+                                    onClick={handleUndoStatus}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
+                                        background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                                        border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px',
+                                        fontSize: '11px', fontWeight: 700, cursor: 'pointer'
+                                    }}
+                                >
+                                    <Undo2 size={12} />
+                                    Undo Last Step
+                                </button>
                             </div>
                             <div className="timeline-container">
                                 <div className="timeline-line"></div>

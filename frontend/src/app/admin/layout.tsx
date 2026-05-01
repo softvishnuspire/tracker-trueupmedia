@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
+import { adminApi } from '@/lib/api';
 import './admin.css';
 
 export default function AdminLayout({
@@ -29,6 +30,7 @@ export default function AdminLayout({
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [clientCount, setClientCount] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
@@ -39,6 +41,15 @@ export default function AdminLayout({
         return;
       }
       setUser(user);
+      
+      // Fetch client count
+      try {
+        const res = await adminApi.getClients();
+        setClientCount(res.data.length);
+      } catch (err) {
+        console.error('Error fetching client count:', err);
+      }
+      
       setLoading(false);
     };
     checkUser();
@@ -59,7 +70,7 @@ export default function AdminLayout({
 
   const menuItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={20} /> },
-    { name: 'Clients', path: '/admin/clients', icon: <Users size={20} /> },
+    { name: `Clients (${clientCount})`, path: '/admin/clients', icon: <Users size={20} /> },
     { name: 'Client Onboarding', path: '/admin/onboarding', icon: <UserPlus size={20} /> },
     { name: 'Client Calendars', path: '/admin/client-calendar', icon: <CalendarIcon size={20} /> },
     { name: 'Team Management', path: '/admin/team', icon: <UserCircle size={20} /> },
