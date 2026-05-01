@@ -1,25 +1,25 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-    format, 
-    startOfMonth, 
-    endOfMonth, 
-    startOfWeek, 
-    endOfWeek, 
-    eachDayOfInterval, 
-    isSameMonth, 
-    isSameDay, 
-    addMonths, 
+import {
+    format,
+    startOfMonth,
+    endOfMonth,
+    startOfWeek,
+    endOfWeek,
+    eachDayOfInterval,
+    isSameMonth,
+    isSameDay,
+    addMonths,
     subMonths,
     parseISO,
     isPast,
     isBefore,
     startOfDay
 } from 'date-fns';
-import { 
-    ChevronLeft, 
-    ChevronRight, 
+import {
+    ChevronLeft,
+    ChevronRight,
     FileText,
     Video,
     X,
@@ -76,15 +76,15 @@ export default function MasterCalendar() {
         fetchMasterData();
     }, [fetchMasterData]);
 
-    const days = viewMode === 'month' 
+    const days = viewMode === 'month'
         ? eachDayOfInterval({
             start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
             end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
-          })
+        })
         : eachDayOfInterval({
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
-          });
+        });
 
     const handlePrev = () => {
         if (viewMode === 'month') setCurrentMonth(subMonths(currentMonth, 1));
@@ -99,17 +99,17 @@ export default function MasterCalendar() {
         try {
             const res = await adminApi.getContentDetails(item.id);
             const fetchedItem = res.data.item;
-            
+
             // Find all tasks on the same day
             const day = parseISO(fetchedItem.scheduled_datetime);
             const tasksOnDay = calendarData.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
-            
+
             if (!tasksOnDay.some(t => t.id === fetchedItem.id)) {
                 tasksOnDay.push(fetchedItem);
             }
-            
+
             tasksOnDay.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
-            
+
             setDayTasks(tasksOnDay);
             setSelectedItem(res.data);
         } catch (err) { console.error(err); }
@@ -117,13 +117,13 @@ export default function MasterCalendar() {
 
     const navigateToTask = async (direction: 'next' | 'prev') => {
         if (!selectedItem || dayTasks.length <= 1) return;
-        
+
         const currentIndex = dayTasks.findIndex(t => t.id === selectedItem.item.id);
         let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-        
+
         if (nextIndex < 0) nextIndex = dayTasks.length - 1;
         if (nextIndex >= dayTasks.length) nextIndex = 0;
-        
+
         const nextTask = dayTasks[nextIndex];
         try {
             const res = await adminApi.getContentDetails(nextTask.id);
@@ -139,9 +139,9 @@ export default function MasterCalendar() {
             const res = await adminApi.getContentDetails(selectedItem.item.id);
             setSelectedItem(res.data);
             fetchMasterData();
-        } catch (err) { 
-            console.error(err); 
-            alert('Failed to undo status change. It might be because there is no more history to undo.'); 
+        } catch (err) {
+            console.error(err);
+            alert('Failed to undo status change. It might be because there is no more history to undo.');
         }
     };
 
@@ -158,9 +158,9 @@ export default function MasterCalendar() {
                     }
                 });
                 // Update calendar data
-                setCalendarData(prev => prev.map(item => 
-                    item.id === selectedItem.item.id 
-                        ? { ...item, is_emergency: res.data.is_emergency } 
+                setCalendarData(prev => prev.map(item =>
+                    item.id === selectedItem.item.id
+                        ? { ...item, is_emergency: res.data.is_emergency }
                         : item
                 ));
             }
@@ -194,12 +194,12 @@ export default function MasterCalendar() {
                                 <Filter size={14} />
                             </div>
                             <div className="client-dropdown-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1 }}>
-                                <select 
-                                    value={selectedClient} 
+                                <select
+                                    value={selectedClient}
                                     onChange={(e) => setSelectedClient(e.target.value)}
-                                    style={{ 
-                                        minWidth: '100px', border: 'none', background: 'transparent', 
-                                        boxShadow: 'none', padding: '6px 32px 6px 4px', 
+                                    style={{
+                                        minWidth: '100px', border: 'none', background: 'transparent',
+                                        boxShadow: 'none', padding: '6px 32px 6px 4px',
                                         fontSize: '13px', fontWeight: 700, width: '100%',
                                         color: 'var(--text-primary)', outline: 'none', appearance: 'none',
                                         WebkitAppearance: 'none', cursor: 'pointer'
@@ -214,12 +214,12 @@ export default function MasterCalendar() {
                             </div>
                             <div style={{ width: '1px', height: '20px', background: 'var(--border)' }}></div>
                             <div className="client-dropdown-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1 }}>
-                                <select 
-                                    value={selectedType} 
+                                <select
+                                    value={selectedType}
                                     onChange={(e) => setSelectedType(e.target.value)}
-                                    style={{ 
-                                        minWidth: '80px', border: 'none', background: 'transparent', 
-                                        boxShadow: 'none', padding: '6px 32px 6px 4px', 
+                                    style={{
+                                        minWidth: '80px', border: 'none', background: 'transparent',
+                                        boxShadow: 'none', padding: '6px 32px 6px 4px',
                                         fontSize: '13px', fontWeight: 700, width: '100%',
                                         color: 'var(--text-primary)', outline: 'none', appearance: 'none',
                                         WebkitAppearance: 'none', cursor: 'pointer'
@@ -234,7 +234,7 @@ export default function MasterCalendar() {
                             </div>
                         </div>
 
-                        <ScheduleExport 
+                        <ScheduleExport
                             data={calendarData}
                             clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find(c => c.id === selectedClient)?.company_name || 'Client'}
                             month={currentMonth}
@@ -243,11 +243,11 @@ export default function MasterCalendar() {
                     </div>
 
                     <div className="view-mode-toggle">
-                        <button 
+                        <button
                             onClick={() => setViewMode('month')}
                             className={`view-mode-btn ${viewMode === 'month' ? 'active' : ''}`}
                         >Month</button>
-                        <button 
+                        <button
                             onClick={() => setViewMode('week')}
                             className={`view-mode-btn ${viewMode === 'week' ? 'active' : ''}`}
                         >Week</button>
@@ -255,16 +255,16 @@ export default function MasterCalendar() {
 
                     <div className="month-nav">
                         <button onClick={handlePrev} className="month-btn">
-                            <ChevronLeft size={20}/>
+                            <ChevronLeft size={20} />
                         </button>
                         <span className="month-label">
-                            {viewMode === 'month' 
+                            {viewMode === 'month'
                                 ? format(currentMonth, 'MMMM yyyy')
                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                             }
                         </span>
                         <button onClick={handleNext} className="month-btn">
-                            <ChevronRight size={20}/>
+                            <ChevronRight size={20} />
                         </button>
                     </div>
                 </div>
@@ -327,8 +327,8 @@ export default function MasterCalendar() {
                                 });
 
                                 return (
-                                    <div 
-                                        key={idx} 
+                                    <div
+                                        key={idx}
                                         onClick={() => {
                                             if (dayContent.length > 0) {
                                                 if (window.innerWidth <= 768) {
@@ -344,12 +344,12 @@ export default function MasterCalendar() {
                                         <span className="day-number">{format(day, 'd')}</span>
                                         <div className="day-items desktop-only">
                                             {dayContent.map(item => (
-                                                <div 
+                                                <div
                                                     key={item.id}
                                                     onClick={() => handleItemClick(item)}
                                                     className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                 >
-                                                    {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
+                                                    {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                                         {item.is_rescheduled ? '[R] ' : ''}
                                                         [{item.clients?.company_name?.substring(0, 3)}] {item.content_type}
@@ -359,7 +359,7 @@ export default function MasterCalendar() {
                                         </div>
                                         <div className="mobile-day-indicators">
                                             {dayContent.map(item => (
-                                                <div 
+                                                <div
                                                     key={item.id}
                                                     className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                 ></div>
@@ -378,26 +378,26 @@ export default function MasterCalendar() {
                     <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '340px' }}>
                         <div className="modal-header">
                             <h3 className="modal-title">{format(dailyAgenda.date, 'MMMM d, yyyy')}</h3>
-                            <button onClick={() => setDailyAgenda(null)} className="modal-close"><X size={20}/></button>
+                            <button onClick={() => setDailyAgenda(null)} className="modal-close"><X size={20} /></button>
                         </div>
                         <div className="agenda-list" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             {dailyAgenda.items.map(item => (
-                                <div 
-                                    key={item.id} 
+                                <div
+                                    key={item.id}
                                     className={`agenda-item ${item.content_type.toLowerCase()}`}
                                     onClick={() => {
                                         setDailyAgenda(null);
                                         handleItemClick(item);
                                     }}
-                                    style={{ 
-                                        padding: '12px', borderRadius: '10px', 
+                                    style={{
+                                        padding: '12px', borderRadius: '10px',
                                         background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                                         display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer'
                                     }}
                                 >
-                                    <div style={{ 
-                                        width: '4px', height: '24px', borderRadius: '2px', 
-                                        background: item.content_type === 'Post' ? '#10b981' : '#6366f1' 
+                                    <div style={{
+                                        width: '4px', height: '24px', borderRadius: '2px',
+                                        background: item.content_type === 'Post' ? '#10b981' : '#6366f1'
                                     }}></div>
                                     <div style={{ flex: 1 }}>
                                         <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
@@ -437,11 +437,11 @@ export default function MasterCalendar() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
                                     <div className="task-nav-buttons" style={{ display: 'flex', gap: '4px', marginRight: '8px', paddingRight: '12px', borderRight: '1px solid var(--border)' }}>
-                                        <button 
+                                        <button
                                             onClick={() => navigateToTask('prev')}
                                             className="nav-btn"
-                                            style={{ 
-                                                width: '32px', height: '32px', borderRadius: '8px', 
+                                            style={{
+                                                width: '32px', height: '32px', borderRadius: '8px',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                                                 color: 'var(--text-primary)', cursor: 'pointer'
@@ -449,11 +449,11 @@ export default function MasterCalendar() {
                                         >
                                             <ChevronLeft size={18} />
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => navigateToTask('next')}
                                             className="nav-btn"
-                                            style={{ 
-                                                width: '32px', height: '32px', borderRadius: '8px', 
+                                            style={{
+                                                width: '32px', height: '32px', borderRadius: '8px',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                                                 color: 'var(--text-primary)', cursor: 'pointer'
@@ -463,10 +463,10 @@ export default function MasterCalendar() {
                                         </button>
                                     </div>
                                 )}
-                                <button onClick={() => setSelectedItem(null)} className="modal-close"><X size={20}/></button>
+                                <button onClick={() => setSelectedItem(null)} className="modal-close"><X size={20} /></button>
                             </div>
                         </div>
-                        
+
                         <div className="detail-grid" style={{ padding: '32px' }}>
                             <div className="detail-info">
                                 <div className="form-row">
@@ -506,13 +506,13 @@ export default function MasterCalendar() {
                                     <p style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)' }}>{selectedItem.item.status}</p>
                                 </div>
 
-                                <div style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'space-between', 
-                                    background: 'var(--bg-elevated)', 
-                                    padding: '12px 16px', 
-                                    borderRadius: '12px', 
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    background: 'var(--bg-elevated)',
+                                    padding: '12px 16px',
+                                    borderRadius: '12px',
                                     border: '1px solid var(--border)',
                                     marginBottom: '24px'
                                 }}>
@@ -551,13 +551,13 @@ export default function MasterCalendar() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                     <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
                                     {selectedItem.history.length > 0 && (
-                                        <button 
+                                        <button
                                             onClick={handleUndoStatus}
-                                            style={{ 
-                                                display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
-                                                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
-                                                border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
-                                                fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
+                                                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                                                border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px',
+                                                fontSize: '11px', fontWeight: 700, cursor: 'pointer'
                                             }}
                                         >
                                             <Undo2 size={12} />
@@ -566,9 +566,9 @@ export default function MasterCalendar() {
                                     )}
                                 </div>
                                 <div style={{ marginTop: '24px', position: 'relative', paddingLeft: '12px', display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ 
-                                        position: 'absolute', left: '23px', top: '12px', bottom: '12px', 
-                                        width: '2px', background: 'linear-gradient(to bottom, #10b981 0%, var(--border) 100%)', opacity: 0.3, zIndex: 1 
+                                    <div style={{
+                                        position: 'absolute', left: '23px', top: '12px', bottom: '12px',
+                                        width: '2px', background: 'linear-gradient(to bottom, #10b981 0%, var(--border) 100%)', opacity: 0.3, zIndex: 1
                                     }}></div>
                                     {(() => {
                                         const flows: any = {
@@ -595,16 +595,16 @@ export default function MasterCalendar() {
                                             const historyEntry = selectedItem.history.find((h: any) => h.new_status === status);
 
                                             return (
-                                                <div key={status} style={{ 
-                                                    display: 'flex', alignItems: 'flex-start', gap: '20px', 
-                                                    paddingBottom: idx === flow.length - 1 ? 0 : '32px', 
-                                                    position: 'relative', zIndex: 2 
+                                                <div key={status} style={{
+                                                    display: 'flex', alignItems: 'flex-start', gap: '20px',
+                                                    paddingBottom: idx === flow.length - 1 ? 0 : '32px',
+                                                    position: 'relative', zIndex: 2
                                                 }}>
-                                                    <div style={{ 
-                                                        width: '24px', height: '24px', borderRadius: '50%', 
+                                                    <div style={{
+                                                        width: '24px', height: '24px', borderRadius: '50%',
                                                         background: isCompleted ? '#10b981' : isCurrent ? 'var(--accent)' : 'var(--bg-surface)',
                                                         border: `2px solid ${isCompleted ? '#10b981' : isCurrent ? 'var(--accent)' : '#ef4444'}`,
-                                                        flexShrink: 0, marginTop: '2px', display: 'flex', 
+                                                        flexShrink: 0, marginTop: '2px', display: 'flex',
                                                         alignItems: 'center', justifyContent: 'center',
                                                         boxShadow: isCompleted ? '0 0 15px rgba(16, 185, 129, 0.4)' : isCurrent ? '0 0 20px rgba(99, 102, 241, 0.5)' : 'none',
                                                         transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
@@ -618,13 +618,13 @@ export default function MasterCalendar() {
                                                         )}
                                                     </div>
                                                     <div style={{ flex: 1 }}>
-                                                        <span style={{ 
-                                                            fontSize: isCurrent ? '15px' : '14px', fontWeight: 800, 
+                                                        <span style={{
+                                                            fontSize: isCurrent ? '15px' : '14px', fontWeight: 800,
                                                             color: isCompleted ? '#10b981' : isCurrent ? 'var(--text-primary)' : '#ef4444',
                                                             letterSpacing: '0.02em', transition: 'all 0.3s'
                                                         }}>{status}</span>
                                                         {historyEntry && (
-                                                            <div style={{ 
+                                                            <div style={{
                                                                 display: 'flex', flexDirection: 'column', marginTop: '6px',
                                                                 padding: '10px 14px', background: 'rgba(255, 255, 255, 0.03)',
                                                                 borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)'
@@ -638,10 +638,10 @@ export default function MasterCalendar() {
                                                                     </span>
                                                                 </div>
                                                                 {historyEntry.note && (
-                                                                    <div style={{ 
-                                                                        marginTop: '8px', padding: '8px 12px', 
-                                                                        background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', 
-                                                                        fontSize: '12px', color: 'var(--text-secondary)', 
+                                                                    <div style={{
+                                                                        marginTop: '8px', padding: '8px 12px',
+                                                                        background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px',
+                                                                        fontSize: '12px', color: 'var(--text-secondary)',
                                                                         fontStyle: 'italic', borderLeft: '3px solid var(--accent)'
                                                                     }}>
                                                                         "{historyEntry.note}"

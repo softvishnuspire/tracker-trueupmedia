@@ -46,7 +46,8 @@ import {
     Undo2,
     AlertTriangle,
     ShieldAlert,
-    Activity
+    Activity,
+    Search
 } from 'lucide-react';
 import {
     gmApi,
@@ -75,7 +76,8 @@ interface TeamLead extends TeamMember {
 export default function GMDashboard() {
     const DISPLAY_OFFSET_DAYS = 7;
     const [clients, setClients] = useState<Client[]>([]);
-    const [selectedClient, setSelectedClient] = useState<string>('all');
+    const [selectedClient, setSelectedClient] = useState<string>('');
+    const [clientSearchQuery, setClientSearchQuery] = useState('');
     const [selectedType, setSelectedType] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
@@ -152,6 +154,7 @@ export default function GMDashboard() {
     };
 
     const fetchClientCalendar = async (clientId: string) => {
+        if (!clientId) return [];
         try {
             const monthStr = format(currentMonth, 'yyyy-MM');
             const res = await gmApi.getCalendar(clientId, monthStr);
@@ -238,7 +241,8 @@ export default function GMDashboard() {
             console.log('Clients loaded:', res.data);
             setClients(res.data);
             // clients table PK is "id"
-            if (res.data.length > 0 && !selectedClient) {
+            // Don't auto-select client if we want to show the selection grid
+            if (res.data.length > 0 && !selectedClient && view !== 'client') {
                 setSelectedClient(res.data[0].id);
             }
         } catch (err) { console.error('Error fetching clients:', err); }
@@ -264,7 +268,7 @@ export default function GMDashboard() {
         setLoading(true);
         try {
             let calendarData = [];
-            if (selectedClient !== 'all') {
+            if (selectedClient && selectedClient !== 'all') {
                 calendarData = await fetchClientCalendar(selectedClient);
             } else {
                 calendarData = await fetchMasterCalendar();
@@ -621,7 +625,10 @@ export default function GMDashboard() {
                         <span>Dashboard Overview</span>
                     </div>
                     <div
-                        onClick={() => setView('client')}
+                        onClick={() => {
+                            setView('client');
+                            setSelectedClient('');
+                        }}
                         className={`nav-item ${view === 'client' ? 'active' : ''}`}
                     >
                         <CalendarIcon size={20} />
@@ -657,39 +664,10 @@ export default function GMDashboard() {
                     </div>
 
                     {view === 'client' && (
-                        <>
-                            <div className="sidebar-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>Clients</span>
-                                <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', color: 'var(--accent)', border: '1px solid var(--border)' }}>{clients.length}</span>
-                            </div>
-                            <div className="client-list">
-                                {clients.length === 0 ? (
-                                    <>
-                                        {[1, 2, 3, 4, 5].map((i) => (
-                                            <div key={i} className="client-item" style={{ opacity: 0.6 }}>
-                                                <Skeleton className="h-8 w-8 rounded-lg" />
-                                                <Skeleton className="h-4 w-24" />
-                                            </div>
-                                        ))}
-                                    </>
-                                ) : (
-                                    <>
-                                        {clients.map(c => (
-                                            <div
-                                                key={c.id}
-                                                onClick={() => setSelectedClient(c.id)}
-                                                className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}
-                                            >
-                                                <div className="client-avatar">
-                                                    {c.company_name?.charAt(0) || '?'}
-                                                </div>
-                                                <span>{c.company_name}</span>
-                                            </div>
-                                        ))}
-                                    </>
-                                )}
-                            </div>
-                        </>
+                        <div className="sidebar-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+                            <span>Clients</span>
+                            <span style={{ background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px', color: 'var(--accent)', border: '1px solid var(--border)' }}>{clients.length}</span>
+                        </div>
                     )}
                 </nav>
 
@@ -727,7 +705,7 @@ export default function GMDashboard() {
                         <div className="header-info">
                             <h1 className="page-title">
                                 {view === 'dashboard' && 'Dashboard Overview'}
-                                {view === 'client' && 'Client Calendar'}
+                                {view === 'client' && (selectedClient ? 'Client Calendar' : 'Client Calendars')}
                                 {view === 'master' && 'Master Calendar'}
                                 {view === 'company' && 'Company Calendar'}
                                 {view === 'teams' && 'Team Management'}
@@ -735,7 +713,7 @@ export default function GMDashboard() {
                             </h1>
                             <p className="page-subtitle">
                                 {view === 'dashboard' && 'Monitor operational health and pipeline metrics'}
-                                {view === 'client' && 'Detailed content planning for individual clients'}
+                                {view === 'client' && (selectedClient ? `Detailed planning for ${getClientName()}` : 'Access and manage individual content schedules for each client')}
                                 {view === 'master' && 'Review and manage content production flow'}
                                 {view === 'company' && 'Master view of all content shown 7 days before scheduled date'}
                                 {view === 'teams' && 'Assign clients and manage team lead performance'}
@@ -744,7 +722,30 @@ export default function GMDashboard() {
                         </div>
 
                         <div className="header-controls">
-                            {view === 'client' && (
+                            {view === 'client' && selectedClient && (
+                                <button 
+                                    onClick={() => setSelectedClient('')}
+                                    className="btn-back-grid"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        padding: '10px 16px',
+                                        background: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '12px',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '13px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        marginRight: '12px'
+                                    }}
+                                >
+                                    <ArrowRight size={16} style={{ transform: 'rotate(180deg)' }} />
+                                    Selection Grid
+                                </button>
+                            )}
+                            {view === 'client' && selectedClient && (
                                 <div className="client-dropdown-wrapper">
                                     <select
                                         className="client-dropdown"
@@ -852,7 +853,7 @@ export default function GMDashboard() {
                     </div>
                 </header>
 
-                {(view === 'client' || view === 'master' || view === 'company') && (
+                {(view === 'master' || view === 'company' || (view === 'client' && selectedClient)) && (
                     <div className="status-summary-row">
                         <div className="status-pill status-pill-content">
                             <span className="status-pill-label">Content</span>
@@ -1221,6 +1222,43 @@ export default function GMDashboard() {
                                         </p>
                                     </div>
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                ) : (view === 'client' && !selectedClient) ? (
+                    <div className="client-selection-view">
+                        <div className="search-container-premium">
+                            <div className="search-box-premium">
+                                <Search size={20} className="search-icon-premium" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search clients..." 
+                                    value={clientSearchQuery}
+                                    onChange={(e) => setClientSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="client-selection-grid">
+                            {clients
+                                .filter(c => c.company_name?.toLowerCase().includes(clientSearchQuery.toLowerCase()))
+                                .map(client => (
+                                <div key={client.id} className="client-card-premium" onClick={() => setSelectedClient(client.id)}>
+                                    <div className="card-icon-wrapper">
+                                        <CalendarIcon size={22} />
+                                    </div>
+                                    <div className="card-details-premium">
+                                        <h3 className="card-client-name">{client.company_name}</h3>
+                                        <p className="card-client-email">{client.email || `${client.company_name.toLowerCase().replace(/\s+/g, '')}@trueupmedia.com`}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {clients.filter(c => c.company_name?.toLowerCase().includes(clientSearchQuery.toLowerCase())).length === 0 && (
+                            <div className="empty-search-state">
+                                <Search size={48} />
+                                <p>No clients match your search query.</p>
                             </div>
                         )}
                     </div>
