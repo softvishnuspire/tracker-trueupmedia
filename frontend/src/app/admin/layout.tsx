@@ -72,7 +72,7 @@ export default function AdminLayout({
     { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={20} /> },
     { name: `Clients (${clientCount})`, path: '/admin/clients', icon: <Users size={20} /> },
     { name: 'Client Onboarding', path: '/admin/onboarding', icon: <UserPlus size={20} /> },
-    { name: 'Client Calendars', path: '/admin/client-calendar', icon: <CalendarIcon size={20} /> },
+    { name: `Client Calendars (${clientCount})`, path: '/admin/client-calendar', icon: <CalendarIcon size={20} /> },
     { name: 'Team Management', path: '/admin/team', icon: <UserCircle size={20} /> },
     { name: 'Master Calendar', path: '/admin/master-calendar', icon: <CalendarIcon size={20} /> },
     { name: 'Company Calendar', path: '/admin/company-calendar', icon: <CalendarClock size={20} /> },
