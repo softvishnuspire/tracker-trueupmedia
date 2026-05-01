@@ -75,12 +75,13 @@ export default function OnboardingPage() {
     const filteredRequests = requests.filter(req => {
         const matchesSearch = req.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                              req.email.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = filterStatus === 'ALL' || req.status === filterStatus;
+        const matchesFilter = filterStatus === 'ALL' || (req.status || '').toUpperCase() === filterStatus;
         return matchesSearch && matchesFilter;
     });
 
     const getStatusColor = (status: string) => {
-        switch (status) {
+        const s = (status || '').toUpperCase();
+        switch (s) {
             case 'ACCEPTED': return styles.statusAccepted;
             case 'REJECTED': return styles.statusRejected;
             default: return styles.statusPending;
@@ -103,11 +104,11 @@ export default function OnboardingPage() {
                 <div className={styles.statsRow}>
                     <div className={styles.statCard}>
                         <span className={styles.statLabel}>Pending</span>
-                        <span className={styles.statValue}>{requests.filter(r => r.status === 'PENDING').length}</span>
+                        <span className={styles.statValue}>{requests.filter(r => (r.status || '').toUpperCase() === 'PENDING').length}</span>
                     </div>
                     <div className={styles.statCard}>
                         <span className={styles.statLabel}>Approved</span>
-                        <span className={styles.statValue}>{requests.filter(r => r.status === 'ACCEPTED').length}</span>
+                        <span className={styles.statValue}>{requests.filter(r => (r.status || '').toUpperCase() === 'ACCEPTED').length}</span>
                     </div>
                 </div>
             </div>
@@ -167,7 +168,7 @@ export default function OnboardingPage() {
                                 <div className={styles.nameSection}>
                                     <h3>{req.full_name}</h3>
                                     <span className={`${styles.statusBadge} ${getStatusColor(req.status)}`}>
-                                        {req.status}
+                                        {req.status?.toUpperCase()}
                                     </span>
                                 </div>
                                 <button className={styles.optionsBtn}>
@@ -190,7 +191,7 @@ export default function OnboardingPage() {
                                 </div>
                             </div>
 
-                            {req.status === 'PENDING' && (
+                            {(req.status || '').toUpperCase() === 'PENDING' && (
                                 <div className={styles.cardFooter}>
                                     <button 
                                         className={styles.rejectBtn}

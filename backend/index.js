@@ -426,7 +426,7 @@ app.get('/api/gm/content/:id', async (req, res) => {
     }
 });
 
-app.patch('/api/gm/content/:id/status', requireRoles(GM_ROLES), async (req, res) => {
+app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res) => {
     const { id } = req.params;
     const { new_status, note, changed_by } = req.body;
 
@@ -484,7 +484,7 @@ app.patch('/api/gm/content/:id/status', requireRoles(GM_ROLES), async (req, res)
     res.json({ message: 'Status updated successfully' });
 });
 
-app.post('/api/gm/content/:id/undo-status', async (req, res) => {
+app.post('/api/gm/content/:id/undo-status', requireRoles(TL_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
         // Fetch the latest log
@@ -2200,6 +2200,43 @@ app.get('/api/emergency/month', async (req, res) => {
         res.json(data || []);
     } catch (err) {
         console.error('Emergency month error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Public: Client Onboarding Submission ───
+app.post('/api/onboarding/submit', async (req, res) => {
+    const { full_name, email, phone_number } = req.body;
+    if (!full_name || !email) {
+        return res.status(400).json({ error: 'Full name and email are required.' });
+    }
+
+    try {
+        // Check if email already exists in onboarding_requests
+        const { data: existing } = await supabase
+            .from('onboarding_requests')
+            .select('id')
+            .eq('email', email)
+            .eq('status', 'PENDING')
+            .single();
+
+        if (existing) {
+            return res.status(400).json({ error: 'You already have a pending application with this email.' });
+        }
+
+        const { data, error } = await supabase
+            .from('onboarding_requests')
+            .insert([{
+                full_name,
+                email,
+                phone_number: phone_number || '',
+                status: 'PENDING'
+            }]);
+
+        if (error) throw error;
+        res.json({ message: 'Application submitted successfully! Our team will review it shortly.' });
+    } catch (err) {
+        console.error('Onboarding submission error:', err);
         res.status(500).json({ error: err.message });
     }
 });

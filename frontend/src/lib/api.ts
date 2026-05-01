@@ -326,4 +326,9 @@ postingBase.interceptors.response.use((r) => r, handleAuthError);
 notificationBase.interceptors.response.use((r) => r, handleAuthError);
 emergencyBase.interceptors.response.use((r) => r, handleAuthError);
 
+export const publicApi = {
+    submitOnboarding: (data: { full_name: string; email: string; phone_number?: string }) => 
+        axios.post(`${API_BASE_URL}/api/onboarding/submit`, data),
+};
+
 export default api;

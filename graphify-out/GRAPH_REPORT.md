@@ -788,18 +788,38 @@ Introduced a new "Client Onboarding" module within the Admin dashboard to stream
    - **Rejection Mechanism**: Allows admins to mark requests as `REJECTED`, preserving the audit trail without creating system accounts.
 
 2. **Backend API Extensions**:
+   - `POST /api/onboarding/submit`: **(NEW)** Public endpoint for prospective clients to submit their registration requests. Includes anti-duplication checks for pending requests.
    - `GET /api/admin/onboarding-requests`: Fetches all requests ordered by date.
    - `POST /api/admin/onboarding-requests/:id/accept`: Atomic-like operation handling Auth user creation, database sync, and status updates.
    - `POST /api/admin/onboarding-requests/:id/reject`: Simple status update for rejected leads.
 
 3. **Premium UI/UX Implementation**:
-   - **Onboarding Page**: Created a dedicated dashboard for onboarding requests featuring glassmorphism, smooth animations (Framer-like via CSS), and interactive stat cards.
+   - **Public Onboarding Page**: **(NEW)** Created a premium, high-converting registration page at `/onboarding` for new clients. Features glassmorphism, responsive design, and instant submission feedback.
+   - **Onboarding Page (Admin)**: Enhanced the admin dashboard for onboarding requests with robust status normalization (case-insensitive) to resolve filtering and interaction bugs.
    - **Search & Filter**: Integrated real-time search by name/email and status-based filtering (Pending, Accepted, Rejected).
    - **Onboarding Modal**: A focused modal for approval that emphasizes security by requiring password entry and providing clear feedback during the creation process.
 
 ### Affected Components
-- **Backend API (`backend/index.js`)**: Added three new endpoints for onboarding management and integrated Supabase Auth Admin SDK.
-- **Frontend API Library (`frontend/src/lib/api.ts`)**: Added `OnboardingRequest` interface and `adminApi` methods.
-- **Admin Layout (`frontend/src/app/admin/layout.tsx`)**: Added "Client Onboarding" to the sidebar navigation with a new `UserPlus` icon.
-- **Onboarding Page (`frontend/src/app/admin/onboarding/page.tsx`)**: New page for managing requests.
-- **Style Module (`frontend/src/app/admin/onboarding/onboarding.module.css`)**: Custom styling for the onboarding dashboard.
+- **Backend API (`backend/index.js`)**: Added public submission endpoint; maintained existing admin endpoints.
+- **Frontend API Library (`frontend/src/lib/api.ts`)**: Added `publicApi` for submissions and updated `adminApi` with onboarding methods.
+- **Onboarding Page (`frontend/src/app/admin/onboarding/page.tsx`)**: Fixed case-sensitivity bugs in filtering, stats, and action buttons.
+- **Public Onboarding Page (`frontend/src/app/onboarding/page.tsx`)**: New public-facing registration page.
+- **Style Modules**: 
+  - `onboarding.module.css`: Admin dashboard styles.
+  - `onboarding_public.module.css`: **(NEW)** High-fidelity styles for the public application form.
+
+## Recent Changes: Team Lead Authorization Fix (May 2026)
+### Implementation Overview
+Resolved a critical "403 Forbidden" error that prevented Team Leads from updating content statuses from their dashboard. This fix expands the authorization scope for content management endpoints to include the Team Lead role.
+
+### Key Technical Decisions
+1. **Role Expansion**:
+   - Updated the `PATCH /api/gm/content/:id/status` endpoint to use `TL_ROLES` instead of `GM_ROLES`.
+   - Since `TL_ROLES` is a superset of `GM_ROLES` (containing Team Lead, Admin, GM, and General Manager), this allows Team Leads to manage the content pipeline without removing access for higher management roles.
+
+2. **Authorization Hardening**:
+   - Added `requireRoles(TL_ROLES)` to the `POST /api/gm/content/:id/undo-status` endpoint.
+   - This ensures that only authorized roles can revert status changes, closing a previous security gap where the endpoint lacked explicit role-based access control.
+
+### Affected Components
+- **Backend Entry Point (`backend/index.js`)**: Updated authorization middleware for status update and undo-status routes.
