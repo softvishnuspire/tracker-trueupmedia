@@ -38,8 +38,6 @@ export default function CooDashboard() {
                 setClients(clientsRes.data);
             }
 
-            const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
-            
             // Fetch master calendar
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const calendarRes = await cooApi.getMasterCalendar(
@@ -47,28 +45,10 @@ export default function CooDashboard() {
                 selectedClient === 'all' ? undefined : selectedClient
             );
             let data = calendarRes.data;
-
-            if (isBiMonthly) {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const nextRes = await cooApi.getMasterCalendar(nextMonthStr, selectedClient);
-                data = [...data, ...nextRes.data];
-            }
             
             setCalendarData(data);
 
-            const periodStart = isBiMonthly
-                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-                : startOfMonth(currentMonth);
-            const periodEnd = isBiMonthly
-                ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
-                : endOfMonth(currentMonth);
-
-            const filteredData = isBiMonthly 
-                ? data.filter(item => {
-                    const d = parseISO(item.scheduled_datetime);
-                    return d >= periodStart && d <= periodEnd;
-                  })
-                : data;
+            const filteredData = data;
 
             const breakdown = filteredData.reduce((acc: any, item: any) => {
                 acc[item.status] = (acc[item.status] || 0) + 1;
@@ -117,13 +97,9 @@ export default function CooDashboard() {
         fetchDashboardData();
     }, [selectedClient, currentMonth]);
 
-    const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
-    const periodStart = isBiMonthly
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-        : startOfMonth(currentMonth);
-    const periodEnd = isBiMonthly
-        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
-        : endOfMonth(currentMonth);
+    const isBiMonthly = false;
+    const periodStart = startOfMonth(currentMonth);
+    const periodEnd = endOfMonth(currentMonth);
 
     const monthTotal = stats?.totalItemsThisMonth || 0;
     const monthCompleted = (stats?.statusSummary?.POSTED || 0) as number;

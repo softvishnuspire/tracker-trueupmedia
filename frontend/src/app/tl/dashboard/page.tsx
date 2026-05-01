@@ -129,18 +129,9 @@ export default function TLDashboard() {
         if (!user || !selectedClient) return;
         setLoading(true);
         try {
-            const isBiMonthly = getClientBatchType(selectedClient) === '15-15';
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            
-            if (isBiMonthly) {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const res = await tlApi.getCalendar(selectedClient, currentMonthStr, user.id);
-                const nextRes = await tlApi.getCalendar(selectedClient, nextMonthStr, user.id);
-                setCalendarData([...(res.data || []), ...(nextRes.data || [])]);
-            } else {
-                const res = await tlApi.getCalendar(selectedClient, currentMonthStr, user.id);
-                setCalendarData(res.data || []);
-            }
+            const res = await tlApi.getCalendar(selectedClient, currentMonthStr, user.id);
+            setCalendarData(res.data || []);
         } catch (err) { 
             console.error('Error fetching calendar:', err);
         } finally { 
@@ -153,14 +144,9 @@ export default function TLDashboard() {
         if (!user) return;
         setLoading(true);
         try {
-            // For master calendar, we fetch two months just in case any client is 15-15
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-            
             const res = await tlApi.getMasterCalendar(currentMonthStr, user.id);
-            const nextRes = await tlApi.getMasterCalendar(nextMonthStr, user.id);
-            
-            setCalendarData([...(res.data || []), ...(nextRes.data || [])]);
+            setCalendarData(res.data || []);
             
             // Fetch and filter emergency tasks for assigned clients
             const emergencyRes = await emergencyApi.getAll();
@@ -175,14 +161,8 @@ export default function TLDashboard() {
         setLoading(true);
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-            
-            const [res, nextRes] = await Promise.all([
-                tlApi.getPocNotes(currentMonthStr, user.id),
-                tlApi.getPocNotes(nextMonthStr, user.id)
-            ]);
-            
-            setPocNotes([...(res.data || []), ...(nextRes.data || [])]);
+            const res = await tlApi.getPocNotes(currentMonthStr, user.id);
+            setPocNotes(res.data || []);
         } catch (err) {
             console.error('Error fetching POC notes:', err);
         } finally {
@@ -307,14 +287,10 @@ export default function TLDashboard() {
         router.push('/');
     };
 
-    const isBiMonthly = (view === 'client' || view === 'poc') && selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+    const isBiMonthly = false;
 
-    const periodStart = isBiMonthly
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-        : startOfMonth(currentMonth);
-    const periodEnd = isBiMonthly
-        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
-        : endOfMonth(currentMonth);
+    const periodStart = startOfMonth(currentMonth);
+    const periodEnd = endOfMonth(currentMonth);
 
     const days = eachDayOfInterval({
         start: startOfWeek(periodStart, { weekStartsOn: 1 }),
@@ -322,23 +298,14 @@ export default function TLDashboard() {
     });
 
     const isDayInPeriod = (day: Date): boolean => {
-        if (!isBiMonthly) return isSameMonth(day, currentMonth);
-        return day >= periodStart && day <= periodEnd;
+        return isSameMonth(day, currentMonth);
     };
 
     const getPeriodLabel = (): string => {
-        if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
-        // For label, we use the 14th
-        const displayEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14);
-        return `${format(periodStart, 'd MMM')} \u2013 ${format(displayEnd, 'd MMM yyyy')}`;
+        return format(currentMonth, 'MMMM yyyy');
     };
 
-    const filteredCalendarData = isBiMonthly 
-        ? calendarData.filter(item => {
-            const d = parseISO(item.scheduled_datetime);
-            return d >= periodStart && d <= periodEnd;
-          })
-        : calendarData;
+    const filteredCalendarData = calendarData;
 
     const monthStatusCounts = filteredCalendarData.reduce(
         (acc, item) => {

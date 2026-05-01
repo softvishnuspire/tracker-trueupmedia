@@ -134,73 +134,42 @@ export default function GMDashboard() {
         const targetClientId = clientId || selectedClient;
         if (!targetClientId || targetClientId === 'all') {
             return isSameMonth(day, currentMonth);
-        }
-
-        const batchType = getClientBatchType(targetClientId);
-        if (batchType !== '15-15') return isSameMonth(day, currentMonth);
-        
-        // For 15-15, we define the period as 15th of currentMonth to 14th of nextMonth
-        const pStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
-        const pEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59);
-        return day >= pStart && day <= pEnd;
+        const start = startOfMonth(currentMonth);
+        const end = endOfMonth(currentMonth);
+        return day >= start && day <= end;
     };
 
     const getPeriodLabel = () => {
-        if (!isBiMonthlyView) return format(currentMonth, 'MMMM yyyy');
-        return `${format(periodStart, 'd MMM')} - ${format(periodEnd, 'd MMM yyyy')}`;
+        return "This Month";
     };
 
-    const fetchClientCalendar = async () => {
-        if (!selectedClient || selectedClient === 'all') return;
-        setLoading(true);
+    const fetchClientCalendar = async (clientId: string) => {
         try {
-            const isBiMonthly = getClientBatchType(selectedClient) === '15-15';
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            
-            if (isBiMonthly) {
-                const nextMonth = addMonths(currentMonth, 1);
-                const nextMonthStr = format(nextMonth, 'yyyy-MM');
-                
-                // Fetch sequentially to avoid 401 race condition in interceptor
-                const resCurr = await gmApi.getCalendar(selectedClient, currentMonthStr);
-                const resNext = await gmApi.getCalendar(selectedClient, nextMonthStr);
-                
-                setCalendarData([...(resCurr.data || []), ...(resNext.data || [])]);
-            } else {
-                const res = await gmApi.getCalendar(selectedClient, currentMonthStr);
-                setCalendarData(res.data || []);
-            }
-        } catch (err: any) { 
-            console.error('Error fetching calendar:', err);
-        } finally { setLoading(false); }
+            const monthStr = format(currentMonth, 'yyyy-MM');
+            const res = await gmApi.getCalendar(clientId, monthStr);
+            return res.data;
+        } catch (error) {
+            console.error('Error fetching client calendar:', error);
+            return [];
+        }
     };
 
     const fetchMasterCalendar = async () => {
-        setLoading(true);
         try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const clientId = selectedClient === 'all' ? undefined : selectedClient;
-            const type = selectedType === 'all' ? undefined : selectedType;
-            const isBiMonthly = clientId && getClientBatchType(clientId) === '15-15';
-            
-            if (isBiMonthly && clientId) {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const resCurr = await gmApi.getMasterCalendar(currentMonthStr, clientId, type);
-                const resNext = await gmApi.getMasterCalendar(nextMonthStr, clientId, type);
-                setCalendarData([...(resCurr.data || []), ...(resNext.data || [])]);
-            } else {
-                const res = await gmApi.getMasterCalendar(currentMonthStr, clientId, type);
-                setCalendarData(res.data || []);
-            }
-        } catch (err) { console.error(err); } finally { setLoading(false); }
+            const monthStr = format(currentMonth, 'yyyy-MM');
+            const res = await gmApi.getMasterCalendar(monthStr);
+            return res.data || [];
+        } catch (error) {
+            console.error('Error fetching master calendar:', error);
+            return [];
+        }
     };
-
 
     useEffect(() => {
         if (view === 'master') {
-            fetchMasterCalendar();
+            fetchMasterCalendar().then(setCalendarData);
         } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
-            fetchClientCalendar();
+            fetchClientCalendar(selectedClient).then(setCalendarData);
         } else if (view === 'teams') {
             fetchTeamLeads();
         } else if (view === 'poc') {
@@ -209,8 +178,6 @@ export default function GMDashboard() {
             fetchDashboardStats();
         }
     }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length]);
-
-
 
     const fetchPocNotes = async () => {
         setLoading(true);
@@ -263,14 +230,14 @@ export default function GMDashboard() {
     const fetchDashboardStats = async () => {
         setLoading(true);
         try {
-            // Fetch master calendar for the current month to get throughput and status breakdown
-            const res = await gmApi.getMasterCalendar(
-                format(new Date(), 'yyyy-MM'),
-                selectedClient === 'all' ? undefined : selectedClient
-            );
-            const data = res.data as ContentItem[];
+            let calendarData = [];
+            if (selectedClient !== 'all') {
+                calendarData = await fetchClientCalendar(selectedClient);
+            } else {
+                calendarData = await fetchMasterCalendar();
+            }
 
-            const periodData = data.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
+            const periodData = calendarData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
 
             const breakdown = periodData.reduce((acc: Record<string, number>, item) => {
                 acc[item.status] = (acc[item.status] || 0) + 1;
@@ -279,7 +246,7 @@ export default function GMDashboard() {
 
             // Calculate today's stats
             const today = new Date();
-            const todayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
+            const todayItems = calendarData.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
             const completedToday = todayItems.filter(item => item.status === 'POSTED').length;
 
@@ -296,7 +263,7 @@ export default function GMDashboard() {
                 monthlyContent: periodData.length,
                 statusBreakdown: breakdown
             });
-            setCalendarData(data);
+            setCalendarData(calendarData);
 
             // Fetch all emergency tasks
             const emergencyRes = await emergencyApi.getAll();
@@ -398,7 +365,7 @@ export default function GMDashboard() {
         try {
             await gmApi.deleteContent(id);
             setIsDetailsOpen(false);
-            if (view === 'master') fetchMasterCalendar(); else fetchClientCalendar();
+            if (view === 'master') fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
         } catch (err) { console.error(err); alert('Failed to delete content'); }
     };
 
@@ -417,7 +384,7 @@ export default function GMDashboard() {
             const res = await gmApi.getContentDetails(activeItem.item.id);
             setActiveItem(res.data);
             setStatusNote(''); // Clear note after update
-            if (isMasterMode) fetchMasterCalendar(); else fetchClientCalendar();
+            if (isMasterMode) fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
         } catch (err: any) {
             console.error('Status update error (GM):', err);
             alert(err.response?.data?.error || 'Failed to update status');
@@ -431,7 +398,7 @@ export default function GMDashboard() {
             await gmApi.undoStatus(activeItem.item.id);
             const res = await gmApi.getContentDetails(activeItem.item.id);
             setActiveItem(res.data);
-            if (isMasterMode) fetchMasterCalendar(); else fetchClientCalendar();
+            if (isMasterMode) fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
         } catch (err) {
             console.error(err);
             alert('Failed to undo status change. It might be because there is no more history to undo.');
@@ -447,8 +414,8 @@ export default function GMDashboard() {
                 setActiveItem(detailsRes.data);
 
                 // Refresh calendars
-                if (view === 'master') fetchMasterCalendar();
-                else if (view === 'client') fetchClientCalendar();
+                if (view === 'master') fetchMasterCalendar().then(setCalendarData);
+                else if (view === 'client') fetchClientCalendar(selectedClient).then(setCalendarData);
 
                 // Always refresh dashboard stats to update emergency list
                 fetchDashboardStats();
@@ -500,7 +467,7 @@ export default function GMDashboard() {
             }
             setIsModalOpen(false);
             setIsRescheduling(false);
-            if (view === 'master') fetchMasterCalendar(); else fetchClientCalendar();
+            if (view === 'master') fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
         } catch (err: any) { 
             const errorMsg = err.response?.data?.error || 'Error saving item';
             alert(errorMsg); 
@@ -757,7 +724,7 @@ export default function GMDashboard() {
                                         <button onClick={handlePrev} className="month-btn"><ChevronLeft size={20} /></button>
                                         <span className="month-label" style={{ minWidth: '180px', textAlign: 'center' }}>
                                             {viewMode === 'month'
-                                                ? getPeriodLabel()
+                                                ? format(currentMonth, 'MMMM yyyy')
                                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                             }
                                         </span>
@@ -859,7 +826,7 @@ export default function GMDashboard() {
                             <div className="progress-meter-card">
                                 <div className="progress-top-row">
                                     <div className="progress-main-info">
-                                        <h3 className="stat-label">Today&apos;s Progress</h3>
+                                        <h3 className="stat-label">Period Progress ({getPeriodLabel()})</h3>
                                     </div>
                                     <div className="progress-values">
                                         <span className="current">{todayStats.completed}</span>

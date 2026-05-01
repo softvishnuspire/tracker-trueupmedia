@@ -82,21 +82,13 @@ export default function PostingDashboard() {
     };
 
     const getPeriodLabel = () => {
-        const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
-        if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
-
-        const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
-        const periodEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14);
-        return `${format(periodStart, 'd MMM')} - ${format(periodEnd, 'd MMM yyyy')}`;
+        return `Current Month (${format(startOfMonth(currentMonth), 'MMM d')} - ${format(endOfMonth(currentMonth), 'MMM d')})`;
     };
 
     const isDayInPeriod = (date: Date) => {
-        const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
-        if (!isBiMonthly) return isSameMonth(date, currentMonth);
-
-        const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
-        const periodEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59);
-        return date >= periodStart && date <= periodEnd;
+        const start = startOfMonth(currentMonth);
+        const end = endOfMonth(currentMonth);
+        return date >= start && date <= end;
     };
 
     // Fetch stats for the meter
@@ -166,18 +158,9 @@ export default function PostingDashboard() {
         if (selectedClient === 'all') return;
         setLoading(true);
         try {
-            const isBiMonthly = getClientBatchType(selectedClient) === '15-15';
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            
-            if (isBiMonthly) {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const resCurr = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
-                const resNext = await postingApi.getCalendar(selectedClient, nextMonthStr, 'WAITING FOR POSTING');
-                setCalendarData([...(resCurr.data || []), ...(resNext.data || [])]);
-            } else {
-                const res = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
-                setCalendarData(res.data || []);
-            }
+            const res = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
+            setCalendarData(res.data || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
@@ -185,22 +168,13 @@ export default function PostingDashboard() {
     const fetchMasterCalendar = async () => {
         setLoading(true);
         try {
-            const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            
-            if (isBiMonthly) {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const resCurr = await postingApi.getMasterCalendar(currentMonthStr, selectedClient, 'WAITING FOR POSTING');
-                const resNext = await postingApi.getMasterCalendar(nextMonthStr, selectedClient, 'WAITING FOR POSTING');
-                setCalendarData([...(resCurr.data || []), ...(resNext.data || [])]);
-            } else {
-                const res = await postingApi.getMasterCalendar(
-                    currentMonthStr,
-                    selectedClient === 'all' ? undefined : selectedClient,
-                    'WAITING FOR POSTING'
-                );
-                setCalendarData(res.data || []);
-            }
+            const res = await postingApi.getMasterCalendar(
+                currentMonthStr,
+                selectedClient === 'all' ? undefined : selectedClient,
+                'WAITING FOR POSTING'
+            );
+            setCalendarData(res.data || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };

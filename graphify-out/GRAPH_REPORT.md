@@ -586,55 +586,67 @@ _Questions this graph is uniquely positioned to answer:_
 - **What connects `Add Reschedule Column Script`, `Check Schema Script`, `Backend Entry Point` to the rest of the system?**
   _27 weakly-connected nodes found - possible documentation gaps or missing edges._
 
-## Recent Changes: Bi-Monthly Batch Processing (15-15)
+## Recent Changes: Dashboard Reporting Standardization (April 2026)
 ### Implementation Overview
-Standardized the `15-15` bi-monthly batch logic across all major dashboards (GM, Posting, Admin, TL, COO).
+Standardized all dashboard performance metrics (Today, Week, Month progress meters, status breakdowns, and throughput) to a strict **calendar-month cycle** (1st through the last day) across all user roles (GM, TL, Admin, Posting, COO). This eliminates confusing bi-monthly UI reporting for clients on 15-15 billing cycles while maintaining backend operational integrity.
 
 ### Key Technical Decisions
-1. **Rolling Window Definition (Pattern A)**:
-   - **Start**: 15th of the Current Month.
-   - **End**: 14th of the Next Month (at 23:59:59).
-   - This ensures a strict 1-month duration without overlaps or gaps.
+1. **Simplified Frontend Data Fetching**:
+   - Removed sequential/parallel multi-month API calls (fetching current and next month) from all dashboard components.
+   - All dashboards now request a single month of data (`yyyy-MM` format) and aggregate it locally.
+   - **Performance**: Significant reduction in API overhead and dashboard load times by eliminating 50% of redundant requests for bi-monthly clients.
 
-2. **Sequential API Fetching**:
-   - Refactored `Promise.all` calls to sequential `await` requests for `Current Month` and `Next Month` data.
-   - **Reason**: Resolves `401 Unauthorized` race conditions caused by the Supabase authentication interceptor when concurrent requests hit the backend.
+2. **Standardized Period Helpers**:
+   - Refactored `isDayInPeriod` and `getPeriodLabel` to ignore the client's `batch_type` in the frontend UI.
+   - All progress meters now use `startOfMonth` and `endOfMonth` from `date-fns` for calculation boundaries.
 
-3. **Affected Components**:
-   - `GMDashboard`: Streamlined fetching, fixed `getClientBatchType` initialization error.
-   - `PostingDashboard`: Unified filtering for "WAITING FOR POSTING" items within the rolling window.
-   - `AdminDashboard`: Synchronized period labels and stats calculations.
-   - `TLDashboard`: Updated master and client calendar fetching, sequentialized POC notes fetching.
-   - `COODashboard`: Added period labels to progress meters, standardized `15-14` boundaries.
-   - `COOClientCalendar`: Consistent rendering for individual client bi-monthly periods.
+3. **Separation of Concerns**:
+   - **Frontend**: Reporting is purely calendar-based for simplicity and consistency.
+   - **Backend**: Quota enforcement (`checkContentLimit`) remains on the 15-15 rolling cycle to ensure billing and operational compliance.
 
-4. **Helper Synchronization**:
-   - Standardized `getPeriodLabel`, `isDayInPeriod`, and `getClientBatchType` logic across the codebase to ensure UI/UX consistency for cross-role users.
-
-### Team Lead Dashboard Enhancements
-- **Sidebar Scrolling**: Implemented a robust, edge-to-edge vertical scroll for the sidebar navigation area to handle long client lists.
-- **Refactored Layout**: Transitioned sidebar to a structured flex column with fixed header/footer and a `flex: 1` scrollable nav region.
-- **Premium UI**: Added custom, theme-aware premium scrollbars and improved padding/spacing for a more polished look.
+### Affected Components
+- `GMDashboard`: Consolidated `fetchDashboardStats` and simplified period math.
+- `AdminDashboard`: Normalised period labels and progress calculation.
+- `TLDashboard`: Simplified master/client calendar fetching and POC note tracking.
+- `PostingDashboard`: Standardized "Period Progress" and queue filtering.
+- `COODashboard`: Removed bi-monthly branch logic from data fetching and aggregation.
 
 ## Recent Changes: Monthly Content Quota Enforcement
 ### Implementation Overview
-Restored and re-implemented the server-side validation to enforce client-specific monthly limits for Posts, Reels, and YouTube content. This logic was previously lost during a repository synchronization but has now been fully restored in `backend/index.js`.
+Restored and re-implemented the server-side validation to enforce client-specific monthly limits for Posts, Reels, and YouTube content. This logic maintains the **15-15 rolling cycle** for operational quotas even while UI reporting is standardized to calendar months.
 
 ### Key Technical Decisions
 1. **Restored Server-Side Validation Helper (`checkContentLimit`)**:
    - Re-implemented the utility in `backend/index.js` to calculate batch windows (Standard or 15-15) and count existing content items.
    - Respects `posts_per_month`, `reels_per_month`, and `youtube_per_month` defined in the `clients` table.
-   - Uses UTC-based date boundaries (`getUTCDate`, `getUTCMonth`, etc.) to ensure consistency between server and database.
-   - Standardizes the period calculation for both `1-1` and `15-15` batch types.
+   - Uses UTC-based date boundaries to ensure consistency between server and database.
 
 2. **Endpoint Integration**:
    - Integrated validation into `POST /api/gm/content` and `POST /api/admin/content`.
-   - Returns `400 Bad Request` with a descriptive error message when limits are reached, preventing database bloat and over-scheduling.
+   - Returns `400 Bad Request` with a descriptive error message when limits are reached.
 
 3. **Frontend Feedback**:
-   - Verified that `handleAddContent` (Admin Client Calendar) and `handleSubmit` (GM Dashboard) catch and display these backend validation errors via user alerts.
+   - Caught and displayed backend validation errors in `handleAddContent` (Admin) and `handleSubmit` (GM Dashboard).
 
 ### Affected Components
 - **Backend Entry Point (`backend/index.js`)**: Core logic and API enforcement.
 - **AdminDashboard (`frontend/src/app/admin/client-calendar/[id]/page.tsx`)**: Error handling in creation flow.
 - **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Error handling in creation flow.
+
+## Recent Changes: Repository Sync and Conflict Resolution (May 2026)
+### Implementation Overview
+Successfully synchronized the local repository with remote updates while preserving critical local modifications. This involved resolving manual merge conflicts in the backend status flows and ensuring consistent dashboard logic across all roles.
+
+### Key Technical Decisions
+1. **Conflict Resolution in `backend/index.js`**:
+   - Adopted the remote repository's standardized status names (`PENDING`, `CONTENT NOT STARTED`, `CONTENT APPROVED`) to align with the new bi-monthly migration logic.
+   - Resolved conflicts in `STATUS_FLOWS` for Reels, Posts, and YouTube types.
+   - Standardized `initial_status` to `PENDING` across all content creation endpoints.
+
+2. **Preservation of Dashboard Enhancements**:
+   - Verified that auto-merged changes in role-based dashboards (`Admin`, `COO`, `GM`, `TL`) correctly integrated local scrolling and reporting fixes with remote performance optimizations.
+
+### Affected Components
+- **Backend Entry Point (`backend/index.js`)**: Resolved status flow conflicts.
+- **Role Dashboards**: Verified merged logic for Admin, COO, GM, TL, and Posting roles.
+- **Graph Knowledge Base**: Updated `GRAPH_REPORT.md` to reflect current repository state.

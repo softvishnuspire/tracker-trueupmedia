@@ -51,21 +51,13 @@ export default function AdminDashboard() {
   };
 
   const getPeriodLabel = () => {
-    const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
-    if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
-
-    const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
-    const periodEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14);
-    return `${format(periodStart, 'd MMM')} - ${format(periodEnd, 'd MMM yyyy')}`;
+    return `Current Month (${format(startOfMonth(currentMonth), 'MMM d')} - ${format(endOfMonth(currentMonth), 'MMM d')})`;
   };
 
   const isDayInPeriod = (date: Date) => {
-    const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
-    if (!isBiMonthly) return isSameMonth(date, currentMonth);
-
-    const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
-    const periodEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59);
-    return date >= periodStart && date <= periodEnd;
+    const start = startOfMonth(currentMonth);
+    const end = endOfMonth(currentMonth);
+    return date >= start && date <= end;
   };
 
   const fetchEmergencyTasks = async () => {
