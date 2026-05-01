@@ -705,4 +705,16 @@ Expanded granular deliverable metrics ("Number of Reels" and "Number of Posts") 
 - **COO Calendar**: `frontend/src/app/coo/master-calendar/page.tsx`.
 - **TL Dashboard**: `frontend/src/app/tl/dashboard/page.tsx`.
 - **Posting Dashboard**: `frontend/src/app/posting/dashboard/page.tsx`.
-- **Style Sheets**: `admin.css`, `gm.css`, `tl.css`, `posting.css`.
+- **Style Sheets**: `admin.css`, `gm.css`, `tl.css`, `posting.css`.
+708: 
+709: ## Recent Changes: GM Dashboard Type Safety Fix (May 2026)
+710: ### Implementation Overview
+711: Resolved TypeScript "implicit any" errors in the General Manager dashboard's statistical calculation logic.
+712: 
+713: ### Key Technical Decisions
+714: 1. **Explicit Typing**:
+715:    - Explicitly typed the `item` parameter as `ContentItem` in `.filter()` and `.reduce()` callbacks within the `fetchDashboardStats` function.
+716:    - This ensures type safety and eliminates build-time errors related to implicit `any` types.
+717: 
+718: ### Affected Components
+719: - **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Fixed type annotations in dashboard stats aggregation logic.

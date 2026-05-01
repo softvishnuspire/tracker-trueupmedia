@@ -238,18 +238,18 @@ export default function GMDashboard() {
                 calendarData = await fetchMasterCalendar();
             }
 
-            const periodData = calendarData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
+            const periodData = calendarData.filter((item: ContentItem) => isDayInPeriod(parseISO(item.scheduled_datetime)));
 
-            const breakdown = periodData.reduce((acc: Record<string, number>, item) => {
+            const breakdown = periodData.reduce((acc: Record<string, number>, item: ContentItem) => {
                 acc[item.status] = (acc[item.status] || 0) + 1;
                 return acc;
             }, {});
 
             // Calculate today's stats
             const today = new Date();
-            const todayItems = calendarData.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
+            const todayItems = calendarData.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
-            const completedToday = todayItems.filter(item => item.status === 'POSTED').length;
+            const completedToday = todayItems.filter((item: ContentItem) => item.status === 'POSTED').length;
 
             setTodayStats({
                 total: totalToday,
