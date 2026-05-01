@@ -822,4 +822,32 @@ Resolved a critical "403 Forbidden" error that prevented Team Leads from updatin
    - This ensures that only authorized roles can revert status changes, closing a previous security gap where the endpoint lacked explicit role-based access control.
 
 ### Affected Components
-- **Backend Entry Point (`backend/index.js`)**: Updated authorization middleware for status update and undo-status routes.
+- **Backend Entry Point (`backend/index.js`)**: Updated authorization middleware for status update and undo-status routes.
+
+## Recent Changes: System Toggles & Feature Visibility (May 2026)
+### Implementation Overview
+Introduced a global "System Toggles" framework to allow administrators to manage feature visibility and system-wide behavior from a centralized dashboard. The first implementation controls the visibility of the "Company Calendar" across all dashboard roles.
+
+### Key Technical Decisions
+1. **Centralized Configuration Dashboard**:
+   - Created a new **Admin Toggles** page (`/admin/toggles`) using a premium settings-card layout.
+   - Utilizes `settingsApi` to interact with a backend `settings` table, storing key-value pairs for global configurations.
+
+2. **Synchronized Role Sidebars**:
+   - Integrated visibility checks into the sidebar navigation of all user roles: **Admin**, **General Manager (GM)**, **Team Lead (TL)**, and **Posting Team**.
+   - **Persistence**: Sidebars fetch the `show_company_calendar` flag on component mount using `useEffect`, ensuring immediate synchronization with the admin's setting.
+
+3. **Robust Type Handling**:
+   - Implemented a standardized boolean check (`value === true || value === 'true'`) across all dashboard components. This ensures consistent UI behavior regardless of whether the backend stores the flag as a native boolean or a stringified value.
+
+4. **Premium UX/UI**:
+   - Implemented sleek toggle switches with smooth transitions.
+   - Added interactive "Save" states with loading spinners and success banners to provide clear feedback to the administrator.
+
+### Affected Components
+- **Admin Panel**: `frontend/src/app/admin/layout.tsx` (Sidebar sync), `frontend/src/app/admin/toggles/page.tsx` (Management UI).
+- **GM Dashboard**: `frontend/src/app/gm/dashboard/page.tsx` (Conditional nav rendering).
+- **TL Dashboard**: `frontend/src/app/tl/dashboard/page.tsx` (Conditional nav rendering).
+- **Posting Dashboard**: `frontend/src/app/posting/dashboard/page.tsx` (Conditional nav rendering).
+- **API Library**: `frontend/src/lib/api.ts` (Added `settingsApi` support).
+

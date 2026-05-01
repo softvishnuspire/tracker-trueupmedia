@@ -40,7 +40,7 @@ import {
     Undo2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { tlApi, gmApi, emergencyApi, ContentItem, PocNote, StatusHistoryItem } from '@/lib/api';
+import { tlApi, gmApi, emergencyApi, ContentItem, PocNote, StatusHistoryItem, settingsApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -78,6 +78,7 @@ export default function TLDashboard() {
     const [pocNoteText, setPocNoteText] = useState('');
     const [selectedPocNote, setSelectedPocNote] = useState<PocNote | null>(null);
     const [isPocDetailsOpen, setIsPocDetailsOpen] = useState(false);
+    const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
 
     useEffect(() => {
         if (calendarData.length > 0) {
@@ -202,6 +203,21 @@ export default function TLDashboard() {
             }
         }
     }, [selectedClient, currentMonth, view, user, clients]);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const res = await settingsApi.getSettings();
+                const calendarSetting = res.data.find(s => s.key === 'show_company_calendar');
+                if (calendarSetting) {
+                    setShowCompanyCalendar(calendarSetting.value === true || calendarSetting.value === 'true');
+                }
+            } catch (err) {
+                console.error('Error fetching settings:', err);
+            }
+        };
+        fetchSettings();
+    }, []);
 
     useEffect(() => {
         const init = async () => {
@@ -476,13 +492,15 @@ export default function TLDashboard() {
                         <CalendarIcon size={18} />
                         <span>Master Calendar</span>
                     </div>
-                    <div 
-                        onClick={() => setView('company')}
-                        className={`nav-item ${view === 'company' ? 'active' : ''}`}
-                    >
-                        <CalendarClock size={18} />
-                        <span>Company Calendar</span>
-                    </div>
+                    {showCompanyCalendar && (
+                        <div 
+                            onClick={() => setView('company')}
+                            className={`nav-item ${view === 'company' ? 'active' : ''}`}
+                        >
+                            <CalendarClock size={18} />
+                            <span>Company Calendar</span>
+                        </div>
+                    )}
                     <div
                         onClick={() => setView('poc')}
                         className={`nav-item ${view === 'poc' ? 'active' : ''}`}

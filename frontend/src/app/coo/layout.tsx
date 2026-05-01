@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
-import { cooApi } from '@/lib/api';
+import { cooApi, settingsApi } from '@/lib/api';
 import '../admin/admin.css';
 
 export default function CooLayout({
@@ -30,6 +30,7 @@ export default function CooLayout({
     const [loading, setLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [clientCount, setClientCount] = useState(0);
+    const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
     const supabase = createClient();
 
     useEffect(() => {
@@ -47,6 +48,17 @@ export default function CooLayout({
                 setClientCount(res.data.length);
             } catch (err) {
                 console.error('Error fetching client count:', err);
+            }
+
+            // Fetch system settings
+            try {
+                const res = await settingsApi.getSettings();
+                const calendarSetting = res.data.find((s: any) => s.key === 'show_company_calendar');
+                if (calendarSetting) {
+                    setShowCompanyCalendar(calendarSetting.value === true || calendarSetting.value === 'true');
+                }
+            } catch (err) {
+                console.error('Error fetching settings:', err);
             }
             
             setLoading(false);
@@ -73,7 +85,7 @@ export default function CooLayout({
         { name: `Client Calendars (${clientCount})`, path: '/coo/client-calendar', icon: <CalendarIcon size={20} /> },
         { name: 'Team Management', path: '/coo/team', icon: <UserCircle size={20} /> },
         { name: 'Master Calendar', path: '/coo/master-calendar', icon: <CalendarIcon size={20} /> },
-        { name: 'Company Calendar', path: '/coo/company-calendar', icon: <CalendarClock size={20} /> },
+        ...(showCompanyCalendar ? [{ name: 'Company Calendar', path: '/coo/company-calendar', icon: <CalendarClock size={20} /> }] : []),
     ];
 
     return (

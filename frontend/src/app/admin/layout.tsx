@@ -13,11 +13,12 @@ import {
     Menu,
     X,
     UserPlus,
-    CalendarClock
+    CalendarClock,
+    Settings2
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
-import { adminApi } from '@/lib/api';
+import { adminApi, settingsApi } from '@/lib/api';
 import './admin.css';
 
 export default function AdminLayout({
@@ -31,6 +32,7 @@ export default function AdminLayout({
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [clientCount, setClientCount] = useState(0);
+  const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
@@ -48,6 +50,17 @@ export default function AdminLayout({
         setClientCount(res.data.length);
       } catch (err) {
         console.error('Error fetching client count:', err);
+      }
+
+      // Fetch global settings
+      try {
+        const settingsRes = await settingsApi.getSettings();
+        const calendarSetting = settingsRes.data.find(s => s.key === 'show_company_calendar');
+        if (calendarSetting) {
+          setShowCompanyCalendar(calendarSetting.value === true || calendarSetting.value === 'true');
+        }
+      } catch (err) {
+        console.error('Error fetching settings:', err);
       }
       
       setLoading(false);
@@ -76,6 +89,7 @@ export default function AdminLayout({
     { name: 'Team Management', path: '/admin/team', icon: <UserCircle size={20} /> },
     { name: 'Master Calendar', path: '/admin/master-calendar', icon: <CalendarIcon size={20} /> },
     { name: 'Company Calendar', path: '/admin/company-calendar', icon: <CalendarClock size={20} /> },
+    { name: 'System Toggles', path: '/admin/toggles', icon: <Settings2 size={20} /> },
   ];
 
   return (

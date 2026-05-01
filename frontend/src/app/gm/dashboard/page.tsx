@@ -57,7 +57,8 @@ import {
     StatusHistoryItem,
     Client,
     TeamMember,
-    ContentDetails
+    ContentDetails,
+    settingsApi
 } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -91,6 +92,7 @@ export default function GMDashboard() {
     const [selectedPocClient, setSelectedPocClient] = useState<string>('all');
     const [selectedPocNote, setSelectedPocNote] = useState<PocNote | null>(null);
     const [isPocDetailsOpen, setIsPocDetailsOpen] = useState(false);
+    const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
 
     const router = useRouter();
     const supabase = createClient();
@@ -208,6 +210,21 @@ export default function GMDashboard() {
             fetchDashboardStats();
         }
     }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length]);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const res = await settingsApi.getSettings();
+                const calendarSetting = res.data.find(s => s.key === 'show_company_calendar');
+                if (calendarSetting) {
+                    setShowCompanyCalendar(calendarSetting.value === true || calendarSetting.value === 'true');
+                }
+            } catch (err) {
+                console.error('Error fetching settings:', err);
+            }
+        };
+        fetchSettings();
+    }, []);
 
     const fetchPocNotes = async () => {
         setLoading(true);
@@ -641,13 +658,15 @@ export default function GMDashboard() {
                         <Globe size={20} />
                         <span>Master Calendar</span>
                     </div>
-                    <div
-                        onClick={() => setView('company')}
-                        className={`nav-item ${view === 'company' ? 'active' : ''}`}
-                    >
-                        <CalendarClock size={20} />
-                        <span>Company Calendar</span>
-                    </div>
+                    {showCompanyCalendar && (
+                        <div
+                            onClick={() => setView('company')}
+                            className={`nav-item ${view === 'company' ? 'active' : ''}`}
+                        >
+                            <CalendarClock size={20} />
+                            <span>Company Calendar</span>
+                        </div>
+                    )}
                     <div
                         onClick={() => setView('teams')}
                         className={`nav-item ${view === 'teams' ? 'active' : ''}`}

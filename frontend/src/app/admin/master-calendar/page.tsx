@@ -189,48 +189,36 @@ export default function MasterCalendar() {
 
                 <div className="header-controls">
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'var(--bg-elevated)', padding: '4px', borderRadius: '14px', border: '1px solid var(--border)', flex: 1, minWidth: '200px' }}>
-                            <div style={{ padding: '0 8px', color: 'var(--text-muted)' }}>
+                        <div className="master-filters-container">
+                            <div className="filter-icon-box">
                                 <Filter size={14} />
                             </div>
-                            <div className="client-dropdown-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1 }}>
+                            <div className="client-dropdown-wrapper" style={{ flex: 1 }}>
                                 <select
+                                    className="client-dropdown"
                                     value={selectedClient}
                                     onChange={(e) => setSelectedClient(e.target.value)}
-                                    style={{
-                                        minWidth: '100px', border: 'none', background: 'transparent',
-                                        boxShadow: 'none', padding: '6px 32px 6px 4px',
-                                        fontSize: '13px', fontWeight: 700, width: '100%',
-                                        color: 'var(--text-primary)', outline: 'none', appearance: 'none',
-                                        WebkitAppearance: 'none', cursor: 'pointer'
-                                    }}
                                 >
                                     <option value="all">All Clients</option>
                                     {clients.map(c => (
                                         <option key={c.id} value={c.id}>{c.company_name}</option>
                                     ))}
                                 </select>
-                                <ChevronDown size={14} style={{ position: 'absolute', right: '10px', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                <ChevronDown size={14} className="dropdown-chevron" />
                             </div>
-                            <div style={{ width: '1px', height: '20px', background: 'var(--border)' }}></div>
-                            <div className="client-dropdown-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1 }}>
+                            <div className="filter-divider"></div>
+                            <div className="client-dropdown-wrapper" style={{ flex: 1 }}>
                                 <select
+                                    className="client-dropdown"
                                     value={selectedType}
                                     onChange={(e) => setSelectedType(e.target.value)}
-                                    style={{
-                                        minWidth: '80px', border: 'none', background: 'transparent',
-                                        boxShadow: 'none', padding: '6px 32px 6px 4px',
-                                        fontSize: '13px', fontWeight: 700, width: '100%',
-                                        color: 'var(--text-primary)', outline: 'none', appearance: 'none',
-                                        WebkitAppearance: 'none', cursor: 'pointer'
-                                    }}
                                 >
                                     <option value="all">All Types</option>
                                     <option value="Post">Posts</option>
                                     <option value="Reel">Reels</option>
                                     <option value="YouTube">YouTube</option>
                                 </select>
-                                <ChevronDown size={14} style={{ position: 'absolute', right: '10px', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                <ChevronDown size={14} className="dropdown-chevron" />
                             </div>
                         </div>
 

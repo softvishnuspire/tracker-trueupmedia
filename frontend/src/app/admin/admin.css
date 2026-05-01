@@ -319,7 +319,54 @@
 
 .view-mode-btn:not(.active):hover {
     color: var(--text-primary);
+    background: var(--bg-hover);
 }
+
+/* ─── Master Filters ─── */
+.master-filters-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--bg-elevated);
+    padding: 4px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    margin-right: 8px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-icon-box {
+    padding: 0 8px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+}
+
+.filter-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+}
+
+.master-filters-container .client-dropdown {
+    min-width: 120px;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 6px 32px 6px 8px;
+    flex: 1;
+}
+
+.master-filters-container .client-dropdown:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+}
+
+.master-filters-container .client-dropdown:focus {
+    box-shadow: none;
+}
+
 
 .month-nav {
     display: flex;

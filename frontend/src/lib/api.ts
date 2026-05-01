@@ -296,6 +296,17 @@ export const notificationApi = {
     }) => notificationBase.post('/api/notifications/send', payload),
 };
 
+export interface SystemSetting {
+    key: string;
+    value: any;
+    updated_at: string;
+}
+
+export const settingsApi = {
+    getSettings: () => api.get<SystemSetting[]>('/api/settings'),
+    updateSetting: (key: string, value: any) => adminBase.patch<SystemSetting>('/api/admin/settings', { key, value }),
+};
+
 // ─── Emergency Tasks API ───
 const emergencyBase = axios.create({
     baseURL: `${API_BASE_URL}/api/emergency`,

@@ -34,7 +34,7 @@ import {
     CalendarClock,
     Undo2
 } from 'lucide-react';
-import { phApi, emergencyApi } from '@/lib/api';
+import { phApi, emergencyApi, settingsApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -73,6 +73,7 @@ export default function ProductionHeadDashboard() {
     const [weekStats, setWeekStats] = useState({ total: 0, completed: 0, percentage: 0 });
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
+    const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
 
     const router = useRouter();
     const supabase = createClient();
@@ -146,6 +147,20 @@ export default function ProductionHeadDashboard() {
         fetchUser();
         fetchClients();
         fetchTodayStats();
+
+        // Fetch settings for feature toggles
+        const fetchSettings = async () => {
+            try {
+                const res = await settingsApi.getSettings();
+                const calendarSetting = res.data.find(s => s.key === 'show_company_calendar');
+                if (calendarSetting) {
+                    setShowCompanyCalendar(calendarSetting.value === true || calendarSetting.value === 'true');
+                }
+            } catch (err) {
+                console.error('Error fetching settings:', err);
+            }
+        };
+        fetchSettings();
     }, []);
 
     useEffect(() => {
@@ -373,10 +388,12 @@ export default function ProductionHeadDashboard() {
                         <Globe size={20} />
                         <span>Master Schedule</span>
                     </div>
-                    <div onClick={() => setView('company')} className={`nav-item ${view === 'company' ? 'active' : ''}`}>
-                        <CalendarClock size={20} />
-                        <span>Company Calendar</span>
-                    </div>
+                    {showCompanyCalendar && (
+                        <div onClick={() => setView('company')} className={`nav-item ${view === 'company' ? 'active' : ''}`}>
+                            <CalendarClock size={20} />
+                            <span>Company Calendar</span>
+                        </div>
+                    )}
 
                     {view === 'client' && (
                         <>

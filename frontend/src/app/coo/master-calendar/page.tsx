@@ -192,15 +192,10 @@ export default function CooMasterCalendar() {
                             </div>
                             <div className="client-dropdown-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1 }}>
                                 <select
+                                    className="client-dropdown"
                                     value={selectedClient}
                                     onChange={(e) => setSelectedClient(e.target.value)}
-                                    style={{
-                                        minWidth: '100px', border: 'none', background: 'transparent',
-                                        boxShadow: 'none', padding: '6px 32px 6px 4px',
-                                        fontSize: '13px', fontWeight: 700, width: '100%',
-                                        color: 'var(--text-primary)', outline: 'none', appearance: 'none',
-                                        WebkitAppearance: 'none', cursor: 'pointer'
-                                    }}
+                                    style={{ paddingRight: '32px' }}
                                 >
                                     <option value="all">All Clients</option>
                                     {clients.map((c) => (
@@ -212,15 +207,10 @@ export default function CooMasterCalendar() {
                             <div style={{ width: '1px', height: '20px', background: 'var(--border)' }}></div>
                             <div className="client-dropdown-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1 }}>
                                 <select
+                                    className="client-dropdown"
                                     value={selectedType}
                                     onChange={(e) => setSelectedType(e.target.value)}
-                                    style={{
-                                        minWidth: '80px', border: 'none', background: 'transparent',
-                                        boxShadow: 'none', padding: '6px 32px 6px 4px',
-                                        fontSize: '13px', fontWeight: 700, width: '100%',
-                                        color: 'var(--text-primary)', outline: 'none', appearance: 'none',
-                                        WebkitAppearance: 'none', cursor: 'pointer'
-                                    }}
+                                    style={{ paddingRight: '32px' }}
                                 >
                                     <option value="all">All Types</option>
                                     <option value="Post">Posts</option>
