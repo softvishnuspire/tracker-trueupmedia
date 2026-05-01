@@ -12,6 +12,7 @@ import {
     isSameDay,
     addMonths,
     subMonths,
+    subDays,
     parseISO,
     isPast,
     isBefore,
@@ -72,6 +73,7 @@ interface TeamLead extends TeamMember {
 }
 
 export default function GMDashboard() {
+    const DISPLAY_OFFSET_DAYS = 7;
     const [clients, setClients] = useState<Client[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [selectedType, setSelectedType] = useState<string>('all');
@@ -108,6 +110,9 @@ export default function GMDashboard() {
 
     const isMasterMode = view === 'master' || view === 'company';
     const isCompanyMode = view === 'company';
+    const getDisplayDate = (scheduledDateTime: string) => subDays(parseISO(scheduledDateTime), DISPLAY_OFFSET_DAYS);
+    const getCalendarItemDate = (item: ContentItem) =>
+        isCompanyMode ? getDisplayDate(item.scheduled_datetime) : parseISO(item.scheduled_datetime);
 
     const [formData, setFormData] = useState({
         content_type: 'Post' as 'Post' | 'Reel' | 'YouTube',
@@ -159,14 +164,27 @@ export default function GMDashboard() {
 
     const fetchMasterCalendar = async () => {
         try {
-            const monthStr = format(currentMonth, 'yyyy-MM');
-            let asOfDate;
             if (view === 'company') {
-                const d = new Date();
-                d.setDate(d.getDate() - 7);
-                asOfDate = d.toISOString();
+                const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
+                const responses = await Promise.all(
+                    monthWindows.map((monthDate) =>
+                        gmApi.getMasterCalendar(
+                            format(monthDate, 'yyyy-MM'),
+                            selectedClient === 'all' ? undefined : selectedClient,
+                            selectedType === 'all' ? undefined : selectedType
+                        )
+                    )
+                );
+                const merged = responses.flatMap((response) => response.data || []);
+                return Array.from(new Map(merged.map((item) => [item.id, item])).values());
             }
-            const res = await gmApi.getMasterCalendar(monthStr, selectedClient === 'all' ? undefined : selectedClient, selectedType === 'all' ? undefined : selectedType, asOfDate);
+
+            const monthStr = format(currentMonth, 'yyyy-MM');
+            const res = await gmApi.getMasterCalendar(
+                monthStr,
+                selectedClient === 'all' ? undefined : selectedClient,
+                selectedType === 'all' ? undefined : selectedType
+            );
             return res.data || [];
         } catch (error) {
             console.error('Error fetching master calendar:', error);
@@ -329,7 +347,7 @@ export default function GMDashboard() {
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
         });
 
-    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime))).reduce(
+    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
@@ -369,10 +387,10 @@ export default function GMDashboard() {
     const handleItemClick = async (item: ContentItem) => {
         try {
             // Find all tasks on the same day as the clicked item
-            const day = parseISO(item.scheduled_datetime);
+            const day = getCalendarItemDate(item);
             
             // Collect tasks from available sources
-            const tasksOnDay = calendarData.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
+            const tasksOnDay = calendarData.filter(i => isSameDay(getCalendarItemDate(i), day));
             
             // If the item itself isn't in the list (e.g. from emergency tasks and calendar not loaded), add it
             if (!tasksOnDay.some(t => t.id === item.id)) {
@@ -384,14 +402,7 @@ export default function GMDashboard() {
             
             setDayTasks(tasksOnDay);
 
-            let asOfDate;
-            if (view === 'company') {
-                const d = new Date();
-                d.setDate(d.getDate() - 7);
-                asOfDate = d.toISOString();
-            }
-
-            const res = await gmApi.getContentDetails(item.id, asOfDate);
+            const res = await gmApi.getContentDetails(item.id);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
         } catch (err) { console.error(err); }
@@ -408,14 +419,8 @@ export default function GMDashboard() {
         
         const nextTask = dayTasks[nextIndex];
         try {
-            let asOfDate;
-            if (view === 'company') {
-                const d = new Date();
-                d.setDate(d.getDate() - 7);
-                asOfDate = d.toISOString();
-            }
             // Clear current item first to show loading or just keep current while fetching
-            const res = await gmApi.getContentDetails(nextTask.id, asOfDate);
+            const res = await gmApi.getContentDetails(nextTask.id);
             setActiveItem(res.data);
             // Ensure status note is cleared when switching tasks
             setStatusNote('');
@@ -732,7 +737,7 @@ export default function GMDashboard() {
                                 {view === 'dashboard' && 'Monitor operational health and pipeline metrics'}
                                 {view === 'client' && 'Detailed content planning for individual clients'}
                                 {view === 'master' && 'Review and manage content production flow'}
-                                {view === 'company' && 'Historical view of content pipeline (-7 days)'}
+                                {view === 'company' && 'Master view of all content shown 7 days before scheduled date'}
                                 {view === 'teams' && 'Assign clients and manage team lead performance'}
                                 {view === 'poc' && 'Read communication notes added by Team Leads'}
                             </p>
@@ -1248,10 +1253,10 @@ export default function GMDashboard() {
                                         const dayContent = isPocView
                                             ? pocNotes.filter(note => isSameDay(parseISO(`${note.note_date}T00:00:00`), day))
                                             : calendarData.filter(item => {
-                                                const itemDate = parseISO(item.scheduled_datetime);
+                                                const itemDate = getCalendarItemDate(item);
                                                 return isSameDay(itemDate, day);
                                             });
-                                        const isOutOfPeriod = !isDayInPeriod(day, selectedClient);
+                                        const isOutOfPeriod = isCompanyMode ? false : !isDayInPeriod(day, selectedClient);
 
                                         return (
                                             <div
@@ -1268,7 +1273,7 @@ export default function GMDashboard() {
                                                         handleAddClick(day);
                                                     }
                                                 }}
-                                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isCompanyMode && isOutOfPeriod ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
                                                 style={{
                                                     minHeight: viewMode === 'week' ? '300px' : '110px',
                                                     cursor: isOutOfPeriod ? 'default' : 'pointer',
@@ -1539,7 +1544,7 @@ export default function GMDashboard() {
                                     <div className="detail-dates">
                                         <div className="date-item">
                                             <CalendarIcon size={16} />
-                                            <span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'PPP')}</span>
+                                            <span className="date-display">{format(isCompanyMode ? getDisplayDate(activeItem.item.scheduled_datetime) : parseISO(activeItem.item.scheduled_datetime), 'PPP')}</span>
                                         </div>
                                         <div className="date-item">
                                             <Clock size={16} />

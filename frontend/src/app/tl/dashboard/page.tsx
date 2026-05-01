@@ -12,7 +12,8 @@ import {
     isSameDay, 
     addMonths, 
     subMonths,
-    parseISO
+    parseISO,
+    subDays
 } from 'date-fns';
 import { 
     ChevronLeft, 
@@ -56,6 +57,7 @@ interface ContentDetails {
 const normalizeRole = (role?: string | null) => (role || '').trim().toLowerCase().replace(/[_\s]+/g, ' ');
 
 export default function TLDashboard() {
+    const DISPLAY_OFFSET_DAYS = 7;
     const supabase = createClient();
     const router = useRouter();
     const [user, setUser] = useState<any>(null);
@@ -104,6 +106,10 @@ export default function TLDashboard() {
 
 
     const isMasterMode = view === 'master' || view === 'company';
+    const isCompanyMode = view === 'company';
+    const getDisplayDate = (scheduledDateTime: string) => subDays(parseISO(scheduledDateTime), DISPLAY_OFFSET_DAYS);
+    const getCalendarItemDate = (item: ContentItem) =>
+        isCompanyMode ? getDisplayDate(item.scheduled_datetime) : parseISO(item.scheduled_datetime);
 
 
 
@@ -147,15 +153,21 @@ export default function TLDashboard() {
         if (!user) return;
         setLoading(true);
         try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            let asOfDate;
             if (view === 'company') {
-                const d = new Date();
-                d.setDate(d.getDate() - 7);
-                asOfDate = d.toISOString();
+                const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
+                const responses = await Promise.all(
+                    monthWindows.map((monthDate) =>
+                        tlApi.getMasterCalendar(format(monthDate, 'yyyy-MM'), user.id)
+                    )
+                );
+                const merged = responses.flatMap((response) => response.data || []);
+                const deduped = Array.from(new Map(merged.map((item) => [item.id, item])).values());
+                setCalendarData(deduped);
+            } else {
+                const currentMonthStr = format(currentMonth, 'yyyy-MM');
+                const res = await tlApi.getMasterCalendar(currentMonthStr, user.id);
+                setCalendarData(res.data || []);
             }
-            const res = await tlApi.getMasterCalendar(currentMonthStr, user.id, undefined, asOfDate);
-            setCalendarData(res.data || []);
             
             // Fetch and filter emergency tasks for assigned clients
             const emergencyRes = await emergencyApi.getAll();
@@ -264,10 +276,10 @@ export default function TLDashboard() {
     const handleItemClick = async (item: ContentItem) => {
         try {
             // Find all tasks on the same day as the clicked item
-            const day = parseISO(item.scheduled_datetime);
+            const day = getCalendarItemDate(item);
             
             // Collect tasks from available sources
-            const tasksOnDay = calendarData.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
+            const tasksOnDay = calendarData.filter(i => isSameDay(getCalendarItemDate(i), day));
             
             // If the item itself isn't in the list (e.g. from emergency tasks and calendar not loaded), add it
             if (!tasksOnDay.some(t => t.id === item.id)) {
@@ -279,14 +291,7 @@ export default function TLDashboard() {
             
             setDayTasks(tasksOnDay);
 
-            let asOfDate;
-            if (view === 'company') {
-                const d = new Date();
-                d.setDate(d.getDate() - 7);
-                asOfDate = d.toISOString();
-            }
-
-            const res = await gmApi.getContentDetails(item.id, asOfDate);
+            const res = await gmApi.getContentDetails(item.id);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
         } catch (err) { console.error(err); }
@@ -303,13 +308,7 @@ export default function TLDashboard() {
         
         const nextTask = dayTasks[nextIndex];
         try {
-            let asOfDate;
-            if (view === 'company') {
-                const d = new Date();
-                d.setDate(d.getDate() - 7);
-                asOfDate = d.toISOString();
-            }
-            const res = await gmApi.getContentDetails(nextTask.id, asOfDate);
+            const res = await gmApi.getContentDetails(nextTask.id);
             setActiveItem(res.data);
             setStatusNote('');
         } catch (err) { console.error(err); }
@@ -599,7 +598,7 @@ export default function TLDashboard() {
                             {view === 'master'
                                 ? 'Unified view of all assigned client schedules' 
                                 : view === 'company'
-                                ? 'Historical view of content statuses (-7 days)'
+                                ? 'Master view of all content shown 7 days before scheduled date'
                                 : view === 'poc'
                                 ? 'Click any date to add communication notes for GM visibility'
                                 : `Managing content for ${clients.find(c => c.id === selectedClient)?.company_name || 'Client'}`
@@ -845,7 +844,7 @@ export default function TLDashboard() {
                                         const dayContent = isPocView
                                             ? pocNotes.filter(note => isSameDay(parseISO(`${note.note_date}T00:00:00`), day))
                                             : calendarData.filter(item => {
-                                                const itemDate = parseISO(item.scheduled_datetime);
+                                                const itemDate = getCalendarItemDate(item);
                                                 return isSameDay(itemDate, day);
                                             });
                                         return (
@@ -856,7 +855,7 @@ export default function TLDashboard() {
                                                         handlePocDayClick(day);
                                                     }
                                                 }}
-                                                className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                                className={`calendar-day ${!isCompanyMode && !isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
                                             >
                                                 <span className="day-number">{format(day, 'd')}</span>
                                                 <div className="day-items desktop-only">
@@ -962,10 +961,10 @@ export default function TLDashboard() {
 
                                 <div style={{ display: 'flex', gap: '24px' }}>
                                     <div>
-                                        <label className="detail-label">Scheduled Date</label>
+                                        <label className="detail-label">{isCompanyMode ? 'Calendar Date' : 'Scheduled Date'}</label>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
                                             <CalendarIcon size={14} color="var(--text-muted)"/>
-                                            {format(parseISO(activeItem.item.scheduled_datetime), 'MMM d, yyyy')}
+                                            {format(isCompanyMode ? getDisplayDate(activeItem.item.scheduled_datetime) : parseISO(activeItem.item.scheduled_datetime), 'MMM d, yyyy')}
                                         </div>
                                     </div>
                                     <div>
