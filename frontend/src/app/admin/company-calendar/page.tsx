@@ -8,12 +8,11 @@ import {
     startOfWeek, 
     endOfWeek, 
     eachDayOfInterval, 
-    isSameMonth, 
     isSameDay, 
     addMonths, 
     subMonths,
     parseISO,
-    isBefore
+    subDays
 } from 'date-fns';
 import { 
     ChevronLeft, 
@@ -35,6 +34,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 
 export default function CompanyCalendar() {
+    const DISPLAY_OFFSET_DAYS = 7;
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [selectedType, setSelectedType] = useState<string>('all');
@@ -46,6 +46,8 @@ export default function CompanyCalendar() {
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
     const [statusNote, setStatusNote] = useState('');
+
+    const getDisplayDate = (scheduledDateTime: string) => subDays(parseISO(scheduledDateTime), DISPLAY_OFFSET_DAYS);
 
     useEffect(() => {
         const fetchClients = async () => {
@@ -60,17 +62,19 @@ export default function CompanyCalendar() {
     const fetchMasterData = useCallback(async () => {
         setLoading(true);
         try {
-            const d = new Date();
-            d.setDate(d.getDate() - 7);
-            const asOfDate = d.toISOString();
-
-            const res = await adminApi.getMasterCalendar(
-                format(currentMonth, 'yyyy-MM'),
-                selectedClient === 'all' ? undefined : selectedClient,
-                selectedType === 'all' ? undefined : selectedType,
-                asOfDate
+            const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
+            const responses = await Promise.all(
+                monthWindows.map((monthDate) =>
+                    adminApi.getMasterCalendar(
+                        format(monthDate, 'yyyy-MM'),
+                        selectedClient === 'all' ? undefined : selectedClient,
+                        selectedType === 'all' ? undefined : selectedType
+                    )
+                )
             );
-            setCalendarData(res.data);
+            const merged = responses.flatMap((response) => response.data);
+            const dedupedById = Array.from(new Map(merged.map((item) => [item.id, item])).values());
+            setCalendarData(dedupedById);
         } catch (err) { console.error(err); } finally { setLoading(false); }
     }, [currentMonth, selectedClient, selectedType]);
 
@@ -100,16 +104,12 @@ export default function CompanyCalendar() {
 
     const handleItemClick = async (item: ContentItem) => {
         try {
-            const d = new Date();
-            d.setDate(d.getDate() - 7);
-            const asOfDate = d.toISOString();
-
-            const res = await adminApi.getContentDetails(item.id, asOfDate);
+            const res = await adminApi.getContentDetails(item.id);
             const fetchedItem = res.data.item;
             
             // Find all tasks on the same day
-            const day = parseISO(fetchedItem.scheduled_datetime);
-            const tasksOnDay = calendarData.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
+            const day = getDisplayDate(fetchedItem.scheduled_datetime);
+            const tasksOnDay = calendarData.filter(i => isSameDay(getDisplayDate(i.scheduled_datetime), day));
             
             if (!tasksOnDay.some(t => t.id === fetchedItem.id)) {
                 tasksOnDay.push(fetchedItem);
@@ -133,11 +133,7 @@ export default function CompanyCalendar() {
         
         const nextTask = dayTasks[nextIndex];
         try {
-            const d = new Date();
-            d.setDate(d.getDate() - 7);
-            const asOfDate = d.toISOString();
-
-            const res = await adminApi.getContentDetails(nextTask.id, asOfDate);
+            const res = await adminApi.getContentDetails(nextTask.id);
             setSelectedItem(res.data);
             setStatusNote('');
         } catch (err) { console.error(err); }
@@ -147,10 +143,7 @@ export default function CompanyCalendar() {
         if (!selectedItem) return;
         try {
             await adminApi.updateStatus(selectedItem.item.id, newStatus, statusNote.trim() || undefined);
-            const d = new Date();
-            d.setDate(d.getDate() - 7);
-            const asOfDate = d.toISOString();
-            const res = await adminApi.getContentDetails(selectedItem.item.id, asOfDate);
+            const res = await adminApi.getContentDetails(selectedItem.item.id);
             setSelectedItem(res.data);
             setStatusNote('');
             fetchMasterData();
@@ -164,10 +157,7 @@ export default function CompanyCalendar() {
         if (!window.confirm('Are you sure you want to undo the last status change?')) return;
         try {
             await adminApi.undoStatus(selectedItem.item.id);
-            const d = new Date();
-            d.setDate(d.getDate() - 7);
-            const asOfDate = d.toISOString();
-            const res = await adminApi.getContentDetails(selectedItem.item.id, asOfDate);
+            const res = await adminApi.getContentDetails(selectedItem.item.id);
             setSelectedItem(res.data);
             fetchMasterData();
         } catch (err) { alert('Failed to undo status change'); }
@@ -191,7 +181,7 @@ export default function CompanyCalendar() {
             <header className="page-header page-header-safe">
                 <div>
                     <h1 className="page-title">Company Calendar</h1>
-                    <p className="page-subtitle">Historical view of content statuses (-7 days offset)</p>
+                    <p className="page-subtitle">Master view of all content shown 7 days before scheduled date</p>
                 </div>
 
                 <div className="header-controls">
@@ -325,7 +315,7 @@ export default function CompanyCalendar() {
                         <>
                             {days.map((day, idx) => {
                                 const dayContent = calendarData.filter(item => {
-                                    const itemDate = parseISO(item.scheduled_datetime);
+                                    const itemDate = getDisplayDate(item.scheduled_datetime);
                                     return isSameDay(itemDate, day);
                                 });
 
@@ -341,7 +331,7 @@ export default function CompanyCalendar() {
                                                 }
                                             }
                                         }}
-                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
                                         style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
                                     >
                                         <span className="day-number">{format(day, 'd')}</span>
@@ -474,10 +464,10 @@ export default function CompanyCalendar() {
                             <div className="detail-info">
                                 <div className="form-row">
                                     <div>
-                                        <label className="detail-label">Scheduled Date</label>
+                                        <label className="detail-label">Calendar Date</label>
                                         <div className="date-item">
                                             <CalendarIcon size={14} />
-                                            <span className="date-display">{format(parseISO(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}</span>
+                                            <span className="date-display">{format(getDisplayDate(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}</span>
                                         </div>
                                     </div>
                                     <div>
@@ -493,7 +483,7 @@ export default function CompanyCalendar() {
                             <div>
                                 <label className="detail-label">Workflow Status (Historical)</label>
                                 <div style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
-                                    <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '4px' }}>Status as of 7 days ago</p>
+                                    <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '4px' }}>Current Status</p>
                                     <p style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)' }}>{selectedItem.item.status}</p>
                                 </div>
 
@@ -531,7 +521,7 @@ export default function CompanyCalendar() {
                                 })()}
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                    <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log (Up to 7 days ago)</label>
+                                    <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
                                     <button onClick={handleUndoStatus} className="btn-undo" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px' }}>
                                         <Undo2 size={14} />
                                         Undo Last Action
