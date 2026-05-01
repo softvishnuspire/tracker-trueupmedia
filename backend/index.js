@@ -17,6 +17,11 @@ app.use(cors({
 
 app.use(express.json());
 
+// Public health check
+app.get('/api/ping', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
+// Global error handler is at the end of the file (after all routes)
+
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -54,34 +59,39 @@ const NodeCache = require("node-cache");
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 const authenticateUser = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.warn(`⚠️  No token provided for ${req.method} ${req.url}`);
-        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.warn(`⚠️  No token provided for ${req.method} ${req.url}`);
+            return res.status(401).json({ error: 'Unauthorized: No token provided' });
+        }
+
+        const token = authHeader.split(' ')[1];
+        
+        // Fast path: Check cache first
+        const cachedUser = myCache.get(`auth_${token}`);
+        if (cachedUser) {
+            req.user = cachedUser;
+            return next();
+        }
+
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+
+        if (error || !user) {
+            console.error('❌ Auth Error:', error?.message || 'User not found');
+            return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+        }
+
+        // Cache the user object for 60 seconds to avoid repeating network calls on subsequent requests
+        myCache.set(`auth_${token}`, user, 60);
+
+        console.log(`✅ Auth Success: ${user.email} (${req.method} ${req.url})`);
+        req.user = user;
+        next();
+    } catch (err) {
+        console.error('❌ Authentication Crash:', err.message);
+        res.status(500).json({ error: 'Internal Authentication Error' });
     }
-
-    const token = authHeader.split(' ')[1];
-
-    // Fast path: Check cache first
-    const cachedUser = myCache.get(`auth_${token}`);
-    if (cachedUser) {
-        req.user = cachedUser;
-        return next();
-    }
-
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-        console.error('❌ Auth Error:', error?.message || 'User not found');
-        return res.status(401).json({ error: 'Unauthorized: Invalid token' });
-    }
-
-    // Cache the user object for 60 seconds to avoid repeating network calls on subsequent requests
-    myCache.set(`auth_${token}`, user, 60);
-
-    console.log(`✅ Auth Success: ${user.email} (${req.method} ${req.url})`);
-    req.user = user;
-    next();
 };
 
 app.get('/health', (req, res) => {
@@ -105,7 +115,7 @@ const getRequesterRole = async (user) => {
 
     const byUserId = await supabase
         .from('users')
-        .select('role')
+        .select('role, role_identifier')
         .eq('user_id', userId)
         .single();
     profile = byUserId.data;
@@ -114,7 +124,7 @@ const getRequesterRole = async (user) => {
     if ((!profile || profileErr) && user?.email) {
         const byEmail = await supabase
             .from('users')
-            .select('role')
+            .select('role, role_identifier')
             .eq('email', user.email)
             .single();
         profile = byEmail.data;
@@ -122,7 +132,19 @@ const getRequesterRole = async (user) => {
     }
 
     const metadataRole = user?.user_metadata?.role || user?.app_metadata?.role;
-    const resolvedRole = normalizeRole(profile?.role || metadataRole);
+    let resolvedRole = normalizeRole(profile?.role || metadataRole);
+    const resolvedIdentifier = normalizeRole(profile?.role_identifier);
+
+    console.log(`[RoleResolver] User: ${userId}, RawRole: ${profile?.role}, RawID: ${profile?.role_identifier}, MetaRole: ${metadataRole}`);
+
+    // If role is generic but identifier is specific, use identifier
+    const upperId = resolvedIdentifier.toUpperCase();
+    if (upperId === 'ADMIN') resolvedRole = 'ADMIN';
+    else if (upperId === 'GM' || upperId === 'GENERAL MANAGER') resolvedRole = 'GENERAL MANAGER';
+    else if (upperId === 'PRODUCTION HEAD' || upperId === 'PH' || resolvedRole === 'PH') resolvedRole = 'PRODUCTION HEAD';
+    else if (upperId === 'POSTING TEAM' || upperId === 'POSTING') resolvedRole = 'POSTING TEAM';
+
+    console.log(`[RoleResolver] Final resolved role for ${userId}: "${resolvedRole}"`);
 
     // Cache the resolved role for 60 seconds
     if (resolvedRole) {
@@ -132,21 +154,31 @@ const getRequesterRole = async (user) => {
     return resolvedRole;
 };
 
+// HELPER: Permissive check for PH during debugging
+const isProductionHead = (role) => {
+    return role === 'PRODUCTION HEAD' || role === 'PH' || role === 'ADMIN';
+};
+
 const requireRoles = (allowedRoles) => {
     const normalizedAllowed = allowedRoles.map((role) => normalizeRole(role));
 
     return async (req, res, next) => {
         try {
             const resolvedRole = await getRequesterRole(req.user);
+            console.log(`[Auth] User: ${req.user?.id}, Resolved Role: ${resolvedRole}, Allowed: ${normalizedAllowed.join(', ')}`);
+            
             if (!resolvedRole) {
+                console.warn(`[Auth] No profile/role found for user ${req.user?.id}`);
                 return res.status(403).json({ error: 'User profile not found' });
             }
             if (!normalizedAllowed.includes(resolvedRole)) {
+                console.warn(`[Auth] Forbidden: User ${req.user?.id} with role ${resolvedRole} tried to access restricted route. Allowed: ${normalizedAllowed.join(', ')}`);
                 return res.status(403).json({ error: 'Forbidden' });
             }
             req.resolvedRole = resolvedRole;
             next();
         } catch (error) {
+            console.error(`[Auth] Middleware Error: ${error.message}`);
             return res.status(500).json({ error: error.message });
         }
     };
@@ -268,7 +300,7 @@ async function checkContentLimit(client_id, content_type, scheduled_datetime) {
 
 
 // ─── GM: Clients ───
-app.get('/api/gm/clients', async (req, res) => {
+app.get('/api/gm/clients', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     const cached = myCache.get("gm_clients");
     if (cached) return res.json(cached);
 
@@ -284,11 +316,11 @@ app.get('/api/gm/clients', async (req, res) => {
 });
 
 // ─── GM: Calendar ───
-app.get('/api/gm/calendar', async (req, res) => {
+app.get('/api/gm/calendar', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     const { client_id, month } = req.query;
     if (!client_id || !month) return res.status(400).json({ error: 'Missing client_id or month' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -306,11 +338,11 @@ app.get('/api/gm/calendar', async (req, res) => {
 });
 
 // ─── GM: Master Calendar ───
-app.get('/api/gm/master-calendar', async (req, res) => {
+app.get('/api/gm/master-calendar', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     const { month, client_id, content_type } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -331,7 +363,7 @@ app.get('/api/gm/master-calendar', async (req, res) => {
 });
 
 // ─── GM: Content CRUD ───
-app.post('/api/gm/content', async (req, res) => {
+app.post('/api/gm/content', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     const { client_id, title, description, content_type, scheduled_datetime } = req.body;
     const initial_status = 'PENDING';
 
@@ -356,7 +388,7 @@ app.post('/api/gm/content', async (req, res) => {
     }
 });
 
-app.put('/api/gm/content/:id', async (req, res) => {
+app.put('/api/gm/content/:id', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     const { id } = req.params;
     const { title, description, scheduled_datetime, is_rescheduled } = req.body;
     const { data, error } = await supabase
@@ -368,7 +400,7 @@ app.put('/api/gm/content/:id', async (req, res) => {
     res.json(data[0]);
 });
 
-app.delete('/api/gm/content/:id', async (req, res) => {
+app.delete('/api/gm/content/:id', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('content_items').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
@@ -390,7 +422,7 @@ app.get('/api/gm/content/:id', async (req, res) => {
     }
 });
 
-app.patch('/api/gm/content/:id/status', async (req, res) => {
+app.patch('/api/gm/content/:id/status', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     const { id } = req.params;
     const { new_status, note, changed_by } = req.body;
 
@@ -475,7 +507,7 @@ app.post('/api/gm/content/:id/undo-status', async (req, res) => {
         }
 
         // Delete the log entry
-        await supabase.from('status_logs').delete().eq('id', latestLog.id);
+        await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
 
         res.json({ message: 'Status reverted successfully', previous_status: latestLog.old_status });
     } catch (error) {
@@ -549,8 +581,8 @@ app.delete('/api/admin/clients/:id', requireRoles(['ADMIN']), async (req, res) =
 
 // ─── Admin: Team Management ───
 app.get('/api/admin/team', async (req, res) => {
-    const cached = myCache.get("admin_team");
-    if (cached) return res.json(cached);
+    // const cached = myCache.get("admin_team");
+    // if (cached) return res.json(cached);
 
     const { data, error } = await supabase
         .from('users')
@@ -559,10 +591,17 @@ app.get('/api/admin/team', async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    // Filter in JS to avoid enum-space matching issues in some environments
-    const teamLeads = (data || []).filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role));
-    myCache.set("admin_team", teamLeads);
-    res.json(teamLeads);
+    console.log(`[Admin Team] Total users in DB: ${data?.length || 0}`);
+    data.forEach(u => console.log(`  - ${u.email} | Role: "${u.role}"`));
+
+    const teamMembers = (data || []).filter(u => {
+        const normalizedRole = (u.role || '').toUpperCase().trim().replace(/_/g, ' ');
+        const isMatch = ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM'].includes(normalizedRole);
+        if (isMatch) console.log(`    MATCH: ${u.email}`);
+        return isMatch;
+    });
+
+    res.json(teamMembers);
 });
 
 app.post('/api/admin/team', requireRoles(['ADMIN']), async (req, res) => {
@@ -729,7 +768,7 @@ app.get('/api/admin/master-calendar', async (req, res) => {
     const { month, client_id, content_type } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -816,7 +855,7 @@ app.get('/api/coo/master-calendar', requireRoles(['COO', 'ADMIN']), async (req, 
     const { month, client_id, content_type } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -833,6 +872,21 @@ app.get('/api/coo/master-calendar', requireRoles(['COO', 'ADMIN']), async (req, 
     const { data, error } = await query.order('scheduled_datetime');
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
+});
+
+app.get('/api/admin/content/:id', requireRoles(['ADMIN']), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [itemRes, logsRes] = await Promise.all([
+            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
+        ]);
+
+        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        res.json({ item: itemRes.data, history: logsRes.data || [] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('/api/coo/content/:id', requireRoles(['COO', 'ADMIN']), async (req, res) => {
@@ -869,7 +923,7 @@ app.post('/api/admin/content/:id/undo-status', requireRoles(['ADMIN']), async (r
             .eq('id', id);
 
         if (revertError) return res.status(500).json({ error: 'Failed to revert' });
-        await supabase.from('status_logs').delete().eq('id', latestLog.id);
+        await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
         res.json({ message: 'Success', previous_status: latestLog.old_status });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -992,8 +1046,243 @@ app.get('/api/gm/team-leads/:id/clients', async (req, res) => {
     res.json(data);
 });
 
+// ─── Production Head: Endpoints ───
+const PH_ROLES = ['PRODUCTION HEAD', 'ADMIN'];
+
+// PH: Monthly Stats
+app.get('/api/ph/stats', requireRoles(PH_ROLES), async (req, res) => {
+    const { month } = req.query;
+    try {
+        const now = new Date();
+        const year = month ? parseInt(String(month).split('-')[0]) : now.getFullYear();
+        const mon = month ? parseInt(String(month).split('-')[1]) : now.getMonth() + 1;
+        
+        const startDate = `${year}-${String(mon).padStart(2, '0')}-01`;
+        const endDate = `${year}-${String(mon).padStart(2, '0')}-${String(new Date(year, mon, 0).getDate()).padStart(2, '0')} 23:59:59`;
+
+        const { data, error } = await supabase
+            .from('content_items')
+            .select('content_type')
+            .gte('scheduled_datetime', startDate)
+            .lte('scheduled_datetime', endDate);
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        const stats = {
+            reelsCount: data.filter(i => i.content_type === 'Reel').length,
+            postsCount: data.filter(i => i.content_type === 'Post').length,
+            youtubeCount: data.filter(i => i.content_type === 'YouTube').length
+        };
+        res.json(stats);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PH: Master Calendar
+app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
+    const { month, client_id, content_type } = req.query;
+    if (!month) return res.status(400).json({ error: 'Missing month' });
+
+    try {
+        const [year, mon] = String(month).split('-');
+        const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+        const startDate = `${year}-${mon}-01T00:00:00`;
+        const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+        let query = supabase
+            .from('content_items')
+            .select('*, clients(company_name)')
+            .in('content_type', ['Reel', 'YouTube'])
+            .gte('scheduled_datetime', startDate)
+            .lte('scheduled_datetime', endDate);
+
+        if (client_id) query = query.eq('client_id', client_id);
+        if (content_type) query = query.eq('content_type', content_type);
+
+        const { data, error } = await query.order('scheduled_datetime');
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    } catch (err) {
+        console.error(`[PH Master Calendar] ERROR:`, err.stack || err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PH: Today's Queue
+app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
+    try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const mon = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const startDate = `${year}-${mon}-${day}T00:00:00`;
+        const endDate = `${year}-${mon}-${day}T23:59:59`;
+
+        const { data, error } = await supabase
+            .from('content_items')
+            .select(`*, clients (company_name)`)
+            .in('status', ['CONTENT READY', 'SHOOT DONE'])
+            .in('content_type', ['Reel', 'YouTube'])
+            .gte('scheduled_datetime', startDate)
+            .lte('scheduled_datetime', endDate)
+            .order('scheduled_datetime');
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PH: Client Calendar
+app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
+    const { client_id, month, status, all } = req.query;
+    if (!client_id || !month) return res.status(400).json({ error: 'Missing client_id or month' });
+
+    try {
+        const [year, mon] = String(month).split('-');
+        const startDate = `${year}-${mon}-01T00:00:00`;
+        const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+        const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+        let query = supabase
+            .from('content_items')
+            .select(`*, clients (company_name)`)
+            .eq('client_id', client_id)
+            .in('content_type', ['Reel', 'YouTube'])
+            .gte('scheduled_datetime', startDate)
+            .lte('scheduled_datetime', endDate);
+
+        if (all === 'true') {
+            // No status filter
+        } else if (status) {
+            query = query.eq('status', status);
+        } else {
+            query = query.eq('status', 'CONTENT READY');
+        }
+
+        const { data, error } = await query.order('scheduled_datetime');
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PH: Clients list
+app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('clients')
+            .select('id, company_name')
+            .eq('is_active', true)
+            .eq('is_deleted', false)
+            .order('company_name');
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PH: Content Details
+app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [itemRes, logsRes] = await Promise.all([
+            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
+        ]);
+
+        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        res.json({ item: itemRes.data, history: logsRes.data || [] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PH: Mark Shoot Done
+app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { status, new_status, changed_by } = req.body;
+    const finalStatus = new_status || status;
+
+    if (finalStatus !== 'SHOOT DONE') {
+        return res.status(400).json({ error: 'Production Head can only mark status as SHOOT DONE' });
+    }
+
+    try {
+        const { data: item, error: fetchError } = await supabase
+            .from('content_items')
+            .select('status, content_type')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
+        
+        if (item.content_type === 'Post') {
+            return res.status(403).json({ error: 'Production Head has no power over Posts' });
+        }
+
+        if (item.status !== 'CONTENT READY') {
+            return res.status(400).json({ error: 'Shoot can only be marked DONE if current status is CONTENT READY' });
+        }
+
+        const { error: updateError } = await supabase
+            .from('content_items')
+            .update({ status: 'SHOOT DONE', updated_at: new Date().toISOString() })
+            .eq('id', id);
+
+        if (updateError) return res.status(500).json({ error: updateError.message });
+
+        await supabase.from('status_logs').insert([{
+            item_id: id,
+            old_status: item.status,
+            new_status: 'SHOOT DONE',
+            note: 'Marked as shoot done by Production Head',
+            changed_by: changed_by || req.user.id
+        }]);
+
+        res.json({ message: 'Success', status: 'SHOOT DONE' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PH: Undo Shoot Done
+app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: latestLog, error: logFetchError } = await supabase
+            .from('status_logs')
+            .select('*')
+            .eq('item_id', id)
+            .eq('new_status', 'SHOOT DONE')
+            .order('changed_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (logFetchError || !latestLog) return res.status(404).json({ error: 'No recent production history found' });
+
+        const { error: revertError } = await supabase
+            .from('content_items')
+            .update({ status: 'CONTENT READY', updated_at: new Date().toISOString() })
+            .eq('id', id);
+
+        if (revertError) return res.status(500).json({ error: 'Failed to revert status' });
+
+        await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+        res.json({ message: 'Success', status: 'CONTENT READY' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ─── Team Lead Endpoints ───
-app.get('/api/tl/clients', async (req, res) => {
+const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GENERAL MANAGER'];
+app.get('/api/tl/clients', requireRoles(TL_ROLES), async (req, res) => {
     const { tlId } = req.query;
     console.log('Fetching TL clients for ID:', tlId);
 
@@ -1011,7 +1300,7 @@ app.get('/api/tl/clients', async (req, res) => {
     res.json(data);
 });
 
-app.get('/api/tl/calendar', async (req, res) => {
+app.get('/api/tl/calendar', requireRoles(TL_ROLES), async (req, res) => {
     const { client_id, month, tlId } = req.query;
     console.log(`Fetching calendar for client ${client_id}, month ${month}, TL ${tlId}`);
 
@@ -1027,7 +1316,7 @@ app.get('/api/tl/calendar', async (req, res) => {
 
     if (clientError || !client) return res.status(403).json({ error: 'Access denied' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -1045,7 +1334,7 @@ app.get('/api/tl/calendar', async (req, res) => {
 });
 
 // ─── Team Lead: Content Management ───
-app.get('/api/tl/clients', async (req, res) => {
+app.get('/api/tl/clients-duplicate', requireRoles(TL_ROLES), async (req, res) => {
     const { tlId } = req.query;
     if (!tlId) return res.status(400).json({ error: 'tlId is required' });
 
@@ -1059,7 +1348,7 @@ app.get('/api/tl/clients', async (req, res) => {
     res.json(data);
 });
 
-app.get('/api/tl/calendar', async (req, res) => {
+app.get('/api/tl/calendar-duplicate', requireRoles(TL_ROLES), async (req, res) => {
     const { client_id, month, tlId } = req.query;
     if (!client_id || !month || !tlId) return res.status(400).json({ error: 'Missing parameters' });
 
@@ -1073,7 +1362,7 @@ app.get('/api/tl/calendar', async (req, res) => {
 
     if (clientError || !client) return res.status(403).json({ error: 'Unauthorized or client not found' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -1090,7 +1379,7 @@ app.get('/api/tl/calendar', async (req, res) => {
     res.json(data);
 });
 
-app.get('/api/tl/master-calendar', async (req, res) => {
+app.get('/api/tl/master-calendar', requireRoles(TL_ROLES), async (req, res) => {
     const { month, tlId, content_type } = req.query;
     console.log(`Fetching master calendar for month ${month}, TL ${tlId}`);
 
@@ -1107,7 +1396,7 @@ app.get('/api/tl/master-calendar', async (req, res) => {
 
     const clientIds = clients.map(c => c.id);
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -1139,11 +1428,11 @@ const isMissingPocClientColumn = (error) => {
     );
 };
 
-app.get('/api/tl/poc-notes', async (req, res) => {
+app.get('/api/tl/poc-notes', requireRoles(TL_ROLES), async (req, res) => {
     const { month, tlId, client_id } = req.query;
     if (!month || !tlId) return res.status(400).json({ error: 'Missing month or tlId' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}`;
@@ -1184,7 +1473,7 @@ app.get('/api/tl/poc-notes', async (req, res) => {
     res.json(data || []);
 });
 
-app.post('/api/tl/poc-notes', async (req, res) => {
+app.post('/api/tl/poc-notes', requireRoles(TL_ROLES), async (req, res) => {
     const { tlId, client_id, note_date, note_text } = req.body;
     if (!tlId || !client_id || !note_date || !note_text?.trim()) {
         return res.status(400).json({ error: 'tlId, client_id, note_date and note_text are required' });
@@ -1233,11 +1522,11 @@ app.post('/api/tl/poc-notes', async (req, res) => {
     res.json(data);
 });
 
-app.get('/api/gm/poc-notes', async (req, res) => {
+app.get('/api/gm/poc-notes', requireRoles(['GM', 'ADMIN']), async (req, res) => {
     const { month, team_lead_id, client_id } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}`;
@@ -1288,7 +1577,8 @@ app.get('/api/gm/poc-notes', async (req, res) => {
 // ─── Posting Team Endpoints ───
 
 // Today's Posting Queue
-app.get('/api/posting/today', async (req, res) => {
+const POSTING_ROLES = ['POSTING TEAM', 'ADMIN'];
+app.get('/api/posting/today', requireRoles(POSTING_ROLES), async (req, res) => {
     try {
         const now = new Date();
         const year = now.getFullYear();
@@ -1313,11 +1603,11 @@ app.get('/api/posting/today', async (req, res) => {
 });
 
 // Posting Team: Client Calendar (filtered to WAITING FOR POSTING only)
-app.get('/api/posting/calendar', async (req, res) => {
+app.get('/api/posting/calendar', requireRoles(POSTING_ROLES), async (req, res) => {
     const { client_id, month, status, all } = req.query;
     if (!client_id || !month) return res.status(400).json({ error: 'Missing client_id or month' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -1345,11 +1635,11 @@ app.get('/api/posting/calendar', async (req, res) => {
 });
 
 // Posting Team: Master Calendar (filtered to WAITING FOR POSTING only)
-app.get('/api/posting/master-calendar', async (req, res) => {
+app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req, res) => {
     const { month, client_id, status, all } = req.query;
     if (!month) return res.status(400).json({ error: 'Missing month' });
 
-    const [year, mon] = month.split('-');
+    const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
@@ -1378,7 +1668,7 @@ app.get('/api/posting/master-calendar', async (req, res) => {
 });
 
 // Posting Team: Clients list (for calendar dropdown)
-app.get('/api/posting/clients', async (req, res) => {
+app.get('/api/posting/clients', requireRoles(POSTING_ROLES), async (req, res) => {
     const { data, error } = await supabase
         .from('clients')
         .select('id, company_name')
@@ -1391,7 +1681,7 @@ app.get('/api/posting/clients', async (req, res) => {
 });
 
 // Posting Team: Content Details (for status history)
-app.get('/api/posting/content/:id', async (req, res) => {
+app.get('/api/posting/content/:id', requireRoles(POSTING_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
         const [itemRes, logsRes] = await Promise.all([
@@ -1407,7 +1697,7 @@ app.get('/api/posting/content/:id', async (req, res) => {
 });
 
 // Posting Team: Mark as Posted (ONLY allowed transition)
-app.patch('/api/posting/content/:id/post', async (req, res) => {
+app.patch('/api/posting/content/:id/post', requireRoles(POSTING_ROLES), async (req, res) => {
     const { id } = req.params;
     const { changed_by } = req.body;
 
@@ -1463,7 +1753,7 @@ app.patch('/api/posting/content/:id/post', async (req, res) => {
 });
 
 // Posting Team: Undo Posted (Rollback)
-app.post('/api/posting/content/:id/undo', async (req, res) => {
+app.post('/api/posting/content/:id/undo', requireRoles(POSTING_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
         const { data: latestLog, error: logFetchError } = await supabase
@@ -1484,7 +1774,7 @@ app.post('/api/posting/content/:id/undo', async (req, res) => {
 
         if (revertError) return res.status(500).json({ error: 'Failed to revert status' });
 
-        await supabase.from('status_logs').delete().eq('id', latestLog.id);
+        await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
         res.json({ message: 'Success', status: 'WAITING FOR POSTING' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1522,17 +1812,18 @@ app.post('/api/notifications/send', async (req, res) => {
         const senderRoleIdentifier = normalizeRole(senderData.role_identifier);
         const isAdmin = senderRole === 'ADMIN';
         const isGM = senderRole === 'GENERAL MANAGER' || senderRole === 'GM' || senderRoleIdentifier === 'GM';
+        const isPH = senderRole === 'PRODUCTION HEAD';
 
-        if (!isAdmin && !isGM) {
+        if (!isAdmin && !isGM && !isPH) {
             return res.status(403).json({ error: 'Unauthorized to send notifications' });
         }
 
         const targetType = target.type.toString().toUpperCase();
         const targetValue = target.value;
 
-        if (isGM) {
+        if (isGM || isPH) {
             if (targetType === 'ALL') {
-                return res.status(403).json({ error: 'GM cannot broadcast to all users' });
+                return res.status(403).json({ error: 'GM/PH cannot broadcast to all users' });
             }
             if (targetType === 'ROLE') {
                 const normalizedTargetRole = normalizeRole(targetValue);
@@ -1799,7 +2090,7 @@ app.get('/api/emergency/month', async (req, res) => {
         const { month } = req.query;
         if (!month) return res.status(400).json({ error: 'Missing month parameter (YYYY-MM)' });
 
-        const [year, mon] = month.split('-');
+        const [year, mon] = String(month).split('-');
         const startDate = `${year}-${mon}-01T00:00:00`;
         const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
         const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;

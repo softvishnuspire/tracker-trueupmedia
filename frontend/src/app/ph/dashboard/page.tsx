@@ -28,20 +28,17 @@ import {
     LogOut,
     Filter,
     Menu,
-    Send,
     Clock,
-    UserCircle,
     ShieldAlert,
-    AlertTriangle,
     ArrowRight
 } from 'lucide-react';
-import { postingApi, emergencyApi } from '@/lib/api';
+import { phApi, emergencyApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
-import '../posting.css';
+import './ph.css';
 
 interface ContentItem {
     id: string;
@@ -55,54 +52,60 @@ interface ContentItem {
     clients?: { company_name: string };
 }
 
-export default function PostingDashboard() {
+export default function ProductionHeadDashboard() {
     const [view, setView] = useState<'dashboard' | 'client' | 'master'>('dashboard');
     const [queue, setQueue] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [loading, setLoading] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [postingId, setPostingId] = useState<string | null>(null);
+    const [actionId, setActionId] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [activeItem, setActiveItem] = useState<any>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [user, setUser] = useState<any>(null);
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
+    const [weekStats, setWeekStats] = useState({ total: 0, completed: 0, percentage: 0 });
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
 
     const router = useRouter();
     const supabase = createClient();
 
-    const getClientBatchType = (clientId: string) => {
-        if (clientId === 'all') return '1-1';
-        const client = clients.find(c => c.id === clientId);
-        return client?.batch_type || '1-1';
-    };
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                router.push('/login');
+                return;
+            }
+            console.log('PH Dashboard Session User:', session.user);
+            setUser(session.user);
+        };
+        checkUser();
+    }, []);
 
     const getPeriodLabel = () => {
-        return `Current Month (${format(startOfMonth(currentMonth), 'MMM d')} - ${format(endOfMonth(currentMonth), 'MMM d')})`;
+        return format(currentMonth, 'MMMM yyyy');
     };
 
     const isDayInPeriod = (date: Date) => {
-        const start = startOfMonth(currentMonth);
-        const end = endOfMonth(currentMonth);
-        return date >= start && date <= end;
+        return isSameMonth(date, currentMonth);
     };
 
-    // Fetch stats for the meter
     const fetchTodayStats = async () => {
         try {
-            // For today's stats, we usually just care about the current calendar month's overview 
-            // but for consistency let's use the same logic if a client is selected
-            const res = await postingApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), undefined, undefined, true);
+            const res = await phApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), undefined, undefined);
             const data = res.data as ContentItem[];
             const today = new Date();
-            const todayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
+            const todayItems = data.filter(item => 
+                isSameDay(parseISO(item.scheduled_datetime), today) && 
+                ['Reel', 'YouTube'].includes(item.content_type)
+            );
             const totalToday = todayItems.length;
-            const completedToday = todayItems.filter(item => item.status === 'POSTED').length;
+            const completedToday = todayItems.filter(item => item.status === 'SHOOT DONE' || item.status === 'POSTED').length;
+            
             setTodayStats({
                 total: totalToday,
                 completed: completedToday,
@@ -110,9 +113,24 @@ export default function PostingDashboard() {
                 percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
             });
 
-            // Fetch all emergency tasks
+            // Calculate Weekly Stats
+            const startOfWk = startOfWeek(new Date(), { weekStartsOn: 1 });
+            const endOfWk = endOfWeek(new Date(), { weekStartsOn: 1 });
+            const weekItems = data.filter(item => {
+                const d = parseISO(item.scheduled_datetime);
+                return d >= startOfWk && d <= endOfWk && ['Reel', 'YouTube'].includes(item.content_type);
+            });
+            const totalWeek = weekItems.length;
+            const completedWeek = weekItems.filter(item => item.status === 'SHOOT DONE' || item.status === 'POSTED').length;
+            setWeekStats({
+                total: totalWeek,
+                completed: completedWeek,
+                percentage: totalWeek > 0 ? Math.round((completedWeek / totalWeek) * 100) : 0
+            });
+
+            // Fetch all emergency tasks (filtered for PH - usually backend does this but let's be safe)
             const emergencyRes = await emergencyApi.getAll();
-            setEmergencyTasks(emergencyRes.data);
+            setEmergencyTasks(emergencyRes.data.filter((i: any) => i.content_type !== 'Post'));
         } catch (err) { console.error('Error fetching today stats:', err); }
     };
 
@@ -138,18 +156,15 @@ export default function PostingDashboard() {
 
     const fetchClients = async () => {
         try {
-            const res = await postingApi.getClients();
+            const res = await phApi.getClients();
             setClients(res.data);
-            if (res.data.length > 0 && selectedClient === 'all') {
-                // Keep 'all' for master, but maybe select first for client view if needed
-            }
         } catch (err) { console.error(err); }
     };
 
     const fetchTodayQueue = async () => {
         setLoading(true);
         try {
-            const res = await postingApi.getToday();
+            const res = await phApi.getToday();
             setQueue(res.data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -160,7 +175,7 @@ export default function PostingDashboard() {
         setLoading(true);
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
+            const res = await phApi.getCalendar(selectedClient, currentMonthStr, undefined, true);
             setCalendarData(res.data || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -170,25 +185,20 @@ export default function PostingDashboard() {
         setLoading(true);
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await postingApi.getMasterCalendar(
-                currentMonthStr,
-                selectedClient === 'all' ? undefined : selectedClient,
-                'WAITING FOR POSTING'
-            );
+            const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient);
             setCalendarData(res.data || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
 
-    const handleMarkPosted = async (id: string) => {
-        setPostingId(id);
+    const handleMarkShootDone = async (id: string) => {
+        setActionId(id);
         try {
             const actorId = user?.id;
-            await postingApi.markAsPosted(id, actorId);
-            setToast('Content marked as POSTED!');
+            await phApi.updateStatus(id, 'SHOOT DONE', actorId);
+            setToast('Shoot marked as DONE!');
             setTimeout(() => setToast(null), 3000);
             
-            // Refresh everything
             await Promise.all([
                 fetchTodayStats(),
                 fetchTodayQueue(),
@@ -197,22 +207,21 @@ export default function PostingDashboard() {
             ]);
             
             if (activeItem?.item?.id === id) {
-                const res = await postingApi.getContentDetails(id);
+                const res = await phApi.getContentDetails(id);
                 setActiveItem(res.data);
             }
         } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to mark as posted');
-        } finally { setPostingId(null); }
+            alert(err.response?.data?.error || 'Failed to mark as shoot done');
+        } finally { setActionId(null); }
     };
 
     const handleUndo = async (id: string) => {
-        setPostingId(id);
+        setActionId(id);
         try {
-            await postingApi.undoStatus(id);
-            setToast('Reverted to Waiting for Posting');
+            await phApi.undoStatus(id);
+            setToast('Reverted to Content Ready');
             setTimeout(() => setToast(null), 3000);
             
-            // Refresh everything
             await Promise.all([
                 fetchTodayStats(),
                 fetchTodayQueue(),
@@ -221,17 +230,17 @@ export default function PostingDashboard() {
             ]);
 
             if (activeItem?.item?.id === id) {
-                const res = await postingApi.getContentDetails(id);
+                const res = await phApi.getContentDetails(id);
                 setActiveItem(res.data);
             }
         } catch (err: any) {
             alert(err.response?.data?.error || 'Failed to undo status');
-        } finally { setPostingId(null); }
+        } finally { setActionId(null); }
     };
 
     const handleItemClick = async (item: ContentItem) => {
         try {
-            const res = await postingApi.getContentDetails(item.id);
+            const res = await phApi.getContentDetails(item.id);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
         } catch (err) { console.error(err); }
@@ -242,55 +251,30 @@ export default function PostingDashboard() {
         router.push('/');
     };
 
-    const getDays = () => {
-        const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
-        if (!isBiMonthly) {
-            return eachDayOfInterval({
-                start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-                end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
-            });
-        }
-
-        const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15);
-        const periodEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 14);
-        
-        return eachDayOfInterval({
-            start: startOfWeek(periodStart, { weekStartsOn: 1 }),
-            end: endOfWeek(periodEnd, { weekStartsOn: 1 })
-        });
-    };
-
-    const days = getDays();
-
-    const monthTotal = calendarData.length;
-    const monthCompleted = calendarData.filter(i => (i.status || '').toUpperCase() === 'POSTED').length;
-    const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-    const weekItems = calendarData.filter(item => {
-        const itemDate = parseISO(item.scheduled_datetime);
-        return itemDate >= weekStart && itemDate <= weekEnd;
+    const days = eachDayOfInterval({
+        start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
+        end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
     });
-    const weekTotal = weekItems.length;
-    const weekCompleted = weekItems.filter(i => (i.status || '').toUpperCase() === 'POSTED').length;
-    const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
+
+    const monthTotal = calendarData.filter(i => ['Reel', 'YouTube'].includes(i.content_type)).length;
+    const monthCompleted = calendarData.filter(i => (i.status === 'SHOOT DONE' || i.status === 'POSTED') && ['Reel', 'YouTube'].includes(i.content_type)).length;
+    const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
 
     return (
         <div className="dashboard-container">
             <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
                 <NotificationBell />
             </div>
-            {/* Mobile Sidebar Overlay */}
+
             {isSidebarOpen && (
                 <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>
             )}
 
-            {/* Sidebar */}
             <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
                 <div className="logo-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '0 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <img src="/logo.png" alt="TrueUp Media" className="logo-img" style={{ height: '28px', width: 'auto' }} />
-                        <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>POSTING</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>PRODUCTION</span>
                     </div>
                     <button onClick={() => setIsSidebarOpen(false)} className="sidebar-close" style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                         <X size={24} />
@@ -299,46 +283,29 @@ export default function PostingDashboard() {
 
                 <nav className="flex-1 sidebar-nav">
                     <p className="sidebar-label">Navigation</p>
-                    <div
-                        onClick={() => setView('dashboard')}
-                        className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
-                    >
+                    <div onClick={() => setView('dashboard')} className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}>
                         <LayoutDashboard size={20} />
-                        <span>Today's Queue</span>
+                        <span>Shoot Queue</span>
                     </div>
-                    <div
-                        onClick={() => setView('client')}
-                        className={`nav-item ${view === 'client' ? 'active' : ''}`}
-                    >
+                    <div onClick={() => setView('client')} className={`nav-item ${view === 'client' ? 'active' : ''}`}>
                         <CalendarIcon size={20} />
-                        <span>Client Calendar</span>
+                        <span>Client Production</span>
                     </div>
-                    <div
-                        onClick={() => setView('master')}
-                        className={`nav-item ${view === 'master' ? 'active' : ''}`}
-                    >
+                    <div onClick={() => setView('master')} className={`nav-item ${view === 'master' ? 'active' : ''}`}>
                         <Globe size={20} />
-                        <span>Master Calendar</span>
+                        <span>Master Schedule</span>
                     </div>
 
                     {view === 'client' && (
                         <>
                             <p className="sidebar-label">Clients</p>
                             <div className="client-list">
-                                {clients
-                                    .sort((a, b) => (a.company_name || '').localeCompare(b.company_name || ''))
-                                    .map(c => (
-                                        <div
-                                            key={c.id}
-                                            onClick={() => setSelectedClient(c.id)}
-                                            className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}
-                                        >
-                                            <div className="client-avatar">
-                                                {c.company_name?.charAt(0).toUpperCase() || '?'}
-                                            </div>
-                                            <span>{c.company_name}</span>
-                                        </div>
-                                    ))}
+                                {clients.map(c => (
+                                    <div key={c.id} onClick={() => setSelectedClient(c.id)} className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}>
+                                        <div className="client-avatar">{c.company_name?.charAt(0).toUpperCase() || '?'}</div>
+                                        <span>{c.company_name}</span>
+                                    </div>
+                                ))}
                             </div>
                         </>
                     )}
@@ -350,10 +317,10 @@ export default function PostingDashboard() {
                         <ThemeToggle style={{ width: '28px', height: '28px', borderRadius: '8px' }} />
                     </div>
                     <div className="user-info-box">
-                        <div className="user-avatar" style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-secondary))', color: 'white' }}>PT</div>
+                        <div className="user-avatar" style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: 'white' }}>PH</div>
                         <div style={{ minWidth: 0 }}>
-                            <p className="user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Posting Team</p>
-                            <p className="user-role">TrueUp Media</p>
+                            <p className="user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Production Head</p>
+                            <p className="user-role">Shoot & Logistics</p>
                         </div>
                     </div>
                     <button onClick={handleLogout} className="logout-btn" title="Sign Out">
@@ -362,45 +329,34 @@ export default function PostingDashboard() {
                 </div>
             </aside>
 
-            {/* Main Content */}
             <main className="main-content">
                 <div className="mobile-header-top">
-                    <div className="menu-toggle" onClick={() => setIsSidebarOpen(true)}>
-                        <Menu size={24} />
-                    </div>
+                    <div className="menu-toggle" onClick={() => setIsSidebarOpen(true)}><Menu size={24} /></div>
                     <img src="/logo.png" alt="TrueUp Media" style={{ height: '24px', width: 'auto' }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <NotificationBell />
-                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><NotificationBell /></div>
                 </div>
 
                 <header className="page-header">
                     <div className="header-content">
                         <div className="header-info">
                             <h1 className="page-title">
-                                {view === 'dashboard' && "Today's Posting Queue"}
-                                {view === 'client' && 'Client Calendar'}
-                                {view === 'master' && 'Master Calendar'}
+                                {view === 'dashboard' && "Today's Shoot Queue"}
+                                {view === 'client' && 'Client Production'}
+                                {view === 'master' && 'Master Production Schedule'}
                             </h1>
                             <p className="page-subtitle">
-                                {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Content ready for publishing`}
-                                {view === 'client' && 'Manage posting schedule for individual clients'}
-                                {view === 'master' && 'Review company-wide posting pipeline'}
+                                {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Content ready for shooting`}
+                                {view === 'client' && 'Manage shoot schedule for individual clients'}
+                                {view === 'master' && 'Review company-wide production pipeline'}
                             </p>
                         </div>
 
                         <div className="header-controls">
                             {view === 'client' && (
                                 <div className="client-dropdown-wrapper">
-                                    <select
-                                        className="client-dropdown"
-                                        value={selectedClient}
-                                        onChange={(e) => setSelectedClient(e.target.value)}
-                                    >
+                                    <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
                                         <option value="all" disabled={selectedClient !== 'all'}>Select a client</option>
-                                        {clients.map(c => (
-                                            <option key={c.id} value={c.id}>{c.company_name}</option>
-                                        ))}
+                                        {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
                                     </select>
                                     <ChevronDown size={16} className="dropdown-chevron" />
                                 </div>
@@ -408,19 +364,11 @@ export default function PostingDashboard() {
 
                             {view === 'master' && (
                                 <div className="master-filters-container">
-                                    <div className="filter-icon-box">
-                                        <Filter size={14} />
-                                    </div>
+                                    <div className="filter-icon-box"><Filter size={14} /></div>
                                     <div className="client-dropdown-wrapper">
-                                        <select
-                                            className="client-dropdown"
-                                            value={selectedClient}
-                                            onChange={(e) => setSelectedClient(e.target.value)}
-                                        >
+                                        <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
                                             <option value="all">All Clients</option>
-                                            {clients.map(c => (
-                                                <option key={c.id} value={c.id}>{c.company_name}</option>
-                                            ))}
+                                            {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
                                         </select>
                                         <ChevronDown size={14} className="dropdown-chevron" />
                                     </div>
@@ -441,42 +389,40 @@ export default function PostingDashboard() {
                 {view === 'dashboard' && (
                     <div className="daily-stats-banner">
                         <div className="posting-stats-grid">
-                            <div className="progress-meter-card" style={{ padding: '20px' }}>
-                                <h3 className="stat-label">Today&apos;s Progress</h3>
+                            <div className="progress-meter-card">
+                                <h3 className="stat-label">Today's Shoots</h3>
                                 <div className="progress-values">
                                     <span className="current">{todayStats.completed}</span>
                                     <span className="separator">/</span>
                                     <span className="total">{todayStats.total}</span>
-                                    <span className="unit">Tasks</span>
+                                    <span className="unit">Shoots</span>
                                 </div>
                                 <div className="meter-labels">
                                     <span className="percentage">{todayStats.percentage}% Done</span>
                                 </div>
                             </div>
-
-                            <div className="progress-meter-card" style={{ padding: '20px' }}>
-                                <h3 className="stat-label">Week&apos;s Progress</h3>
+                            <div className="progress-meter-card">
+                                <h3 className="stat-label">Week's Production</h3>
                                 <div className="progress-values">
-                                    <span className="current">{weekCompleted}</span>
+                                    <span className="current">{weekStats.completed}</span>
                                     <span className="separator">/</span>
-                                    <span className="total">{weekTotal}</span>
-                                    <span className="unit">Tasks</span>
+                                    <span className="total">{weekStats.total}</span>
+                                    <span className="unit">Shoots</span>
                                 </div>
                                 <div className="meter-labels">
-                                    <span className="percentage">{weekPercentage}% Done</span>
+                                    <span className="percentage">{weekStats.percentage}% Done</span>
                                 </div>
                             </div>
-
-                            <div className="progress-meter-card" style={{ padding: '20px' }}>
-                                <h3 className="stat-label">Period Progress</h3>
+                            <div className="progress-meter-card">
+                                <h3 className="stat-label">Monthly Pipeline</h3>
                                 <div className="progress-values">
                                     <span className="current">{monthCompleted}</span>
                                     <span className="separator">/</span>
                                     <span className="total">{monthTotal}</span>
-                                    <span className="unit">Tasks</span>
+                                    <span className="unit">Items</span>
                                 </div>
                                 <div className="meter-labels">
-                                    <span className="percentage">{monthPercentage}% Done</span>
+                                    <span className="percentage">{monthPercentage}% Shot</span>
                                 </div>
                             </div>
                         </div>
@@ -487,18 +433,12 @@ export default function PostingDashboard() {
                     <div className="emergency-panel">
                         <div className="emergency-panel-header">
                             <ShieldAlert size={24} color="#ef4444" />
-                            <h2 className="emergency-panel-title">All Emergency Tasks</h2>
+                            <h2 className="emergency-panel-title">Urgent Shoots</h2>
                         </div>
                         <div className="emergency-list">
                             {emergencyTasks.map(task => (
-                                <div 
-                                    key={task.id} 
-                                    className="emergency-card"
-                                    onClick={() => handleItemClick(task)}
-                                >
-                                    <div className="emergency-card-icon">
-                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
-                                    </div>
+                                <div key={task.id} className="emergency-card" onClick={() => handleItemClick(task)}>
+                                    <div className="emergency-card-icon"><Video size={20} /></div>
                                     <div className="emergency-card-body">
                                         <div className="emergency-card-client">{task.clients?.company_name.toUpperCase()}</div>
                                         <div className="emergency-card-details">
@@ -507,9 +447,7 @@ export default function PostingDashboard() {
                                             <span className="time">{format(parseISO(task.scheduled_datetime), 'h:mm a')}</span>
                                         </div>
                                     </div>
-                                    <div className="emergency-card-arrow">
-                                        <ArrowRight size={18} />
-                                    </div>
+                                    <div className="emergency-card-arrow"><ArrowRight size={18} /></div>
                                 </div>
                             ))}
                         </div>
@@ -521,8 +459,8 @@ export default function PostingDashboard() {
                         <div className="posting-queue-section" style={{ marginTop: '24px' }}>
                             <div className="dashboard-card">
                                 <div className="card-header">
-                                    <h3 className="card-title">Live Posting Queue</h3>
-                                    <span className="card-badge">Action Required</span>
+                                    <h3 className="card-title">Live Shoot Queue</h3>
+                                    <span className="card-badge">Production Mode</span>
                                 </div>
                                 
                                 {loading ? (
@@ -536,13 +474,13 @@ export default function PostingDashboard() {
                                 ) : queue.length === 0 ? (
                                     <div className="posting-empty-state">
                                         <div className="empty-icon"><CheckCircle2 size={36} /></div>
-                                        <h3>All Caught Up!</h3>
-                                        <p>No content is currently waiting to be posted.</p>
+                                        <h3>No Shoots Pending</h3>
+                                        <p>Great job! All content for today has been processed.</p>
                                     </div>
                                 ) : (
                                     <div className="posting-queue">
                                         {queue.map(item => (
-                                            <div key={item.id} className={`queue-item ${item.status === 'POSTED' ? 'is-posted' : ''}`}>
+                                            <div key={item.id} className={`queue-item ${item.status === 'SHOOT DONE' || item.status === 'POSTED' ? 'is-posted' : ''}`}>
                                                 <div className="queue-item-left" onClick={() => handleItemClick(item)}>
                                                     <div className="queue-time-badge">
                                                         <span className="time-text">{format(parseISO(item.scheduled_datetime), 'hh:mm')}</span>
@@ -551,32 +489,25 @@ export default function PostingDashboard() {
                                                     <div className="queue-item-info">
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <span className="queue-item-client">{item.clients?.company_name}</span>
-                                                            {item.status === 'POSTED' && <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />}
+                                                            {(item.status === 'SHOOT DONE' || item.status === 'POSTED') && <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />}
                                                         </div>
                                                         <span className="queue-item-title">{item.title}</span>
                                                     </div>
                                                 </div>
                                                 <div className="queue-item-right">
                                                     <span className={`queue-type-badge ${item.content_type.toLowerCase()}`}>
-                                                        {item.content_type === 'Post' ? <FileText size={12} /> : <Video size={12} />}
+                                                        <Video size={12} />
                                                         {item.content_type}
                                                     </span>
-                                                    {item.status === 'POSTED' ? (
-                                                        <button
-                                                            className="btn-rollback"
-                                                            onClick={() => handleUndo(item.id)}
-                                                            disabled={postingId === item.id}
-                                                            title="Revert to waiting"
-                                                        >
-                                                            {postingId === item.id ? '...' : 'Undo'}
+                                                    {item.status === 'SHOOT DONE' ? (
+                                                        <button className="btn-rollback" onClick={() => handleUndo(item.id)} disabled={actionId === item.id} title="Revert to Content Ready">
+                                                            {actionId === item.id ? '...' : 'Undo'}
                                                         </button>
+                                                    ) : item.status === 'POSTED' ? (
+                                                        <span className="status-badge posted">Posted</span>
                                                     ) : (
-                                                        <button
-                                                            className="btn-mark-posted"
-                                                            onClick={() => handleMarkPosted(item.id)}
-                                                            disabled={postingId === item.id}
-                                                        >
-                                                            {postingId === item.id ? 'Posting...' : 'Mark as Posted'}
+                                                        <button className="btn-mark-posted" style={{ background: 'var(--accent)' }} onClick={() => handleMarkShootDone(item.id)} disabled={actionId === item.id}>
+                                                            {actionId === item.id ? 'Saving...' : 'Mark Shoot Done'}
                                                         </button>
                                                     )}
                                                 </div>
@@ -602,46 +533,25 @@ export default function PostingDashboard() {
                             {loading ? (
                                 Array.from({ length: 35 }).map((_, idx) => (
                                     <div key={idx} className="calendar-day" style={{ minHeight: '110px' }}>
-                                        <Skeleton className="h-4 w-4 mb-2" />
-                                        <Skeleton className="h-4 w-full" />
+                                        <Skeleton className="h-4 w-4 mb-2" /><Skeleton className="h-4 w-full" />
                                     </div>
                                 ))
                             ) : (
                                 days.map((day, idx) => {
-                                    const dayContent = calendarData.filter(item => {
-                                        const itemDate = parseISO(item.scheduled_datetime);
-                                        return isSameDay(itemDate, day);
-                                    });
+                                    const dayContent = calendarData.filter(item => isSameDay(parseISO(item.scheduled_datetime), day));
                                     return (
-                                        <div
-                                            key={idx}
-                                            onClick={() => { if (dayContent.length > 0) handleItemClick(dayContent[0]); }}
-                                            className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                            style={{ minHeight: '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
-                                        >
+                                        <div key={idx} onClick={() => { if (dayContent.length > 0) handleItemClick(dayContent[0]); }} className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`} style={{ minHeight: '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}>
                                             <span className="day-number">{format(day, 'd')}</span>
                                             <div className="day-items desktop-only">
                                                 {dayContent.map(item => (
-                                                    <div
-                                                        key={item.id}
-                                                        onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                        className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                                    >
-                                                        {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                        <span className="truncate">
-                                                            {view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
-                                                            {item.title}
-                                                        </span>
+                                                    <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}>
+                                                        <Video size={10} />
+                                                        <span className="truncate">{view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}{item.title}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                             <div className="mobile-day-indicators">
-                                                {dayContent.map(item => (
-                                                    <div 
-                                                        key={item.id}
-                                                        className={`mobile-dot ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                                    ></div>
-                                                ))}
+                                                {dayContent.map(item => <div key={item.id} className={`mobile-dot ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}></div>)}
                                             </div>
                                         </div>
                                     );
@@ -652,7 +562,6 @@ export default function PostingDashboard() {
                 )}
             </main>
 
-            {/* Details Modal */}
             {isDetailsOpen && activeItem && (
                 <div className="modal-overlay" onClick={() => setIsDetailsOpen(false)}>
                     <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
@@ -670,10 +579,7 @@ export default function PostingDashboard() {
                                     </div>
                                     <div className="detail-field">
                                         <label className="detail-label">Scheduled For</label>
-                                        <div className="date-item">
-                                            <Clock size={16} />
-                                            <span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'PPP p')}</span>
-                                        </div>
+                                        <div className="date-item"><Clock size={16} /><span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'PPP p')}</span></div>
                                     </div>
                                     <div className="detail-field">
                                         <label className="detail-label">Description</label>
@@ -684,36 +590,27 @@ export default function PostingDashboard() {
                                     <div className="detail-field">
                                         <label className="detail-label">Status</label>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                                            <span className={`status-badge ${activeItem.item.status.toLowerCase().replace(/ /g, '-')}`}>
-                                                {activeItem.item.status}
-                                            </span>
+                                            <span className={`status-badge ${activeItem.item.status.toLowerCase().replace(/ /g, '-')}`}>{activeItem.item.status}</span>
                                         </div>
                                     </div>
                                     
-                                    {activeItem.item.status === 'WAITING FOR POSTING' && (
-                                        <button
-                                            className="btn-mark-posted"
-                                            style={{ width: '100%', marginTop: '24px', padding: '16px', fontSize: '16px' }}
-                                            onClick={() => handleMarkPosted(activeItem.item.id)}
-                                            disabled={postingId === activeItem.item.id}
-                                        >
-                                            {postingId === activeItem.item.id ? 'Posting...' : 'Mark as Posted'}
+                                    {activeItem.item.status === 'CONTENT READY' && (
+                                        <button className="btn-mark-posted" style={{ width: '100%', marginTop: '24px', padding: '16px', fontSize: '16px', background: 'var(--accent)' }} onClick={() => handleMarkShootDone(activeItem.item.id)} disabled={actionId === activeItem.item.id}>
+                                            {actionId === activeItem.item.id ? 'Saving...' : 'Mark Shoot Done'}
                                         </button>
                                     )}
                                 </div>
                             </div>
 
                             <div style={{ marginTop: '32px', borderTop: '1px solid var(--border)', paddingTop: '24px' }}>
-                                <label className="detail-label">Status History</label>
+                                <label className="detail-label">Production History</label>
                                 <div className="history-timeline" style={{ marginTop: '16px' }}>
                                     {activeItem.history?.map((h: any, i: number) => (
                                         <div key={i} className="history-item" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
                                             <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--accent)', marginTop: '4px' }}></div>
                                             <div>
                                                 <p style={{ fontWeight: 600, fontSize: '14px' }}>{h.old_status} → {h.new_status}</p>
-                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                                    {h.users?.name || 'System'} • {format(parseISO(h.changed_at), 'MMM d, h:mm a')}
-                                                </p>
+                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{h.users?.name || 'System'} • {format(parseISO(h.changed_at), 'MMM d, h:mm a')}</p>
                                                 {h.note && <p style={{ fontSize: '13px', fontStyle: 'italic', marginTop: '4px' }}>"{h.note}"</p>}
                                             </div>
                                         </div>
@@ -725,12 +622,8 @@ export default function PostingDashboard() {
                 </div>
             )}
 
-            {/* Toast */}
             {toast && (
-                <div className="posting-toast">
-                    <CheckCircle2 size={20} />
-                    {toast}
-                </div>
+                <div className="posting-toast"><CheckCircle2 size={20} />{toast}</div>
             )}
         </div>
     );

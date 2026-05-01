@@ -266,6 +266,7 @@ export default function TeamManagement() {
                   <option value="COO">COO</option>
                   <option value="TEAM LEAD">Team Lead (TL)</option>
                   <option value="POSTING TEAM">Posting Team</option>
+                  <option value="PRODUCTION HEAD">Production Head</option>
                   <option value="ADMIN">Admin</option>
                 </select>
               </div>

@@ -24,7 +24,7 @@ const cardStyle: React.CSSProperties = {
     animation: 'slideInDown 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
 };
 
-type SenderRole = 'ADMIN' | 'GM' | 'OTHER';
+type SenderRole = 'ADMIN' | 'GM' | 'PH' | 'OTHER';
 
 const normalizeRole = (role?: string | null) => (role || '').trim().toUpperCase().replace(/[_\s]+/g, ' ');
 
@@ -43,7 +43,7 @@ export default function NotificationBell() {
     const [targetType, setTargetType] = useState<NotificationTarget['type']>('ALL');
     const [targetValue, setTargetValue] = useState('');
 
-    const canSend = senderRole === 'ADMIN' || senderRole === 'GM';
+    const canSend = senderRole === 'ADMIN' || senderRole === 'GM' || senderRole === 'PH';
 
     const targetOptions = useMemo(() => {
         if (senderRole === 'ADMIN') {
@@ -62,6 +62,14 @@ export default function NotificationBell() {
                 { label: 'Team Leads (all)', type: 'ROLE' as const, value: 'TEAM LEAD' },
                 { label: 'TL1 only', type: 'ROLE_IDENTIFIER' as const, value: 'TL1' },
                 { label: 'TL2 only', type: 'ROLE_IDENTIFIER' as const, value: 'TL2' },
+                { label: 'Posting Team', type: 'ROLE' as const, value: 'POSTING TEAM' },
+            ];
+        }
+        if (senderRole === 'PH') {
+            return [
+                { label: 'Admin', type: 'ROLE' as const, value: 'ADMIN' },
+                { label: 'General Manager', type: 'ROLE' as const, value: 'GENERAL MANAGER' },
+                { label: 'Team Leads (all)', type: 'ROLE' as const, value: 'TEAM LEAD' },
                 { label: 'Posting Team', type: 'ROLE' as const, value: 'POSTING TEAM' },
             ];
         }
@@ -102,6 +110,7 @@ export default function NotificationBell() {
             const roleIdentifier = normalizeRole(profile?.role_identifier);
             if (role === 'ADMIN') setSenderRole('ADMIN');
             else if (role === 'GENERAL MANAGER' || role === 'GM' || roleIdentifier === 'GM') setSenderRole('GM');
+            else if (role === 'PRODUCTION HEAD' || roleIdentifier === 'PH') setSenderRole('PH');
             else setSenderRole('OTHER');
         };
 

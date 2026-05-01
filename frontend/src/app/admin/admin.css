@@ -2152,3 +2152,21 @@
     color: #6366F1;
     border-color: rgba(99, 102, 241, 0.2);
 }
+
+.type-badge.youtube {
+    background: rgba(239, 68, 68, 0.1);
+    color: #EF4444;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.type-badge.production-head {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8B5CF6;
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+.type-badge.posting-team {
+    background: rgba(6, 182, 212, 0.1);
+    color: #06B6D4;
+    border-color: rgba(6, 182, 212, 0.2);
+}

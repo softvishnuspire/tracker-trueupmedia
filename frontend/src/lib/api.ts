@@ -155,6 +155,32 @@ export const cooApi = {
     getContentDetails: (id: string) => cooBase.get<ContentDetails>(`/api/coo/content/${id}`),
 };
 
+const phBase = axios.create({
+    baseURL: API_BASE_URL,
+});
+
+phBase.interceptors.request.use(async (config) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    return config;
+});
+
+export const phApi = {
+    getToday: () => phBase.get<ContentItem[]>('/api/ph/today'),
+    getClients: () => phBase.get<Client[]>('/api/ph/clients'),
+    getCalendar: (clientId: string, month: string, status?: string, all?: boolean) =>
+        phBase.get<ContentItem[]>('/api/ph/calendar', { params: { client_id: clientId, month, status, all: all ? 'true' : undefined } }),
+    getStats: (month?: string) => phBase.get(`/api/ph/stats${month ? `?month=${month}` : ''}`),
+    getMasterCalendar: (month: string, clientId?: string, contentType?: string) =>
+        phBase.get<ContentItem[]>(`/api/ph/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}`),
+    getContentDetails: (id: string) => phBase.get<ContentDetails>(`/api/ph/content/${id}`),
+    updateStatus: (id: string, newStatus: string, changedBy?: string) => 
+        phBase.patch(`/api/ph/content/${id}/status`, { new_status: newStatus, changed_by: changedBy }),
+    undoStatus: (id: string) => phBase.post(`/api/ph/content/${id}/undo`),
+};
+
 const tlBase = axios.create({
     baseURL: `${API_BASE_URL}/api/tl/`,
 });
@@ -268,5 +294,23 @@ export const emergencyApi = {
     getMonth: (month: string) => emergencyBase.get<ContentItem[]>(`/month?month=${month}`),
     toggle: (id: string) => emergencyBase.post(`/${id}/toggle`),
 };
+
+const handleAuthError = (error: any) => {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+            window.location.href = '/';
+        }
+    }
+    return Promise.reject(error);
+};
+
+api.interceptors.response.use((r) => r, handleAuthError);
+adminBase.interceptors.response.use((r) => r, handleAuthError);
+cooBase.interceptors.response.use((r) => r, handleAuthError);
+phBase.interceptors.response.use((r) => r, handleAuthError);
+tlBase.interceptors.response.use((r) => r, handleAuthError);
+postingBase.interceptors.response.use((r) => r, handleAuthError);
+notificationBase.interceptors.response.use((r) => r, handleAuthError);
+emergencyBase.interceptors.response.use((r) => r, handleAuthError);
 
 export default api;

@@ -1,0 +1,367 @@
+/* ─── Production Head Dashboard Styles (Inspired by Posting UI) ─── */
+
+:root {
+    --accent-glow: rgba(99, 102, 241, 0.15);
+    --accent-secondary: #06B6D4;
+}
+
+.dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.sidebar {
+    width: 260px;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+}
+
+.main-content {
+    flex: 1;
+    margin-left: 260px;
+    padding: 32px 40px;
+    width: calc(100% - 260px);
+    /* Left-aligned by default to match inspired UI */
+}
+
+/* ─── Header & Typography ─── */
+.page-header {
+    margin-bottom: 32px;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.page-title {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+}
+
+.page-subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ─── Stats Banner (Inspired) ─── */
+.daily-stats-banner {
+    margin-bottom: 32px;
+}
+
+.posting-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.progress-meter-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.progress-meter-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent);
+}
+
+.progress-meter-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--accent);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.stat-label {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+}
+
+.progress-values {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.progress-values .current { font-size: 36px; font-weight: 900; color: var(--text-primary); }
+.progress-values .separator { font-size: 18px; color: var(--text-muted); }
+.progress-values .total { font-size: 18px; font-weight: 700; color: var(--text-secondary); }
+.progress-values .unit { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-left: 4px; }
+
+.meter-labels {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+/* ─── Emergency Panel ─── */
+.emergency-panel {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: 24px;
+    padding: 24px;
+    margin-bottom: 32px;
+}
+
+.emergency-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.emergency-panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ef4444;
+}
+
+.emergency-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.emergency-card {
+    background: var(--bg-surface);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.emergency-card:hover {
+    transform: translateY(-2px);
+    background: rgba(239, 68, 68, 0.08);
+    border-color: #ef4444;
+}
+
+.emergency-card-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ef4444;
+}
+
+.emergency-card-body { flex: 1; min-width: 0; }
+.emergency-card-client { font-size: 11px; font-weight: 800; color: #ef4444; margin-bottom: 4px; }
+.emergency-card-details { font-size: 14px; font-weight: 700; display: flex; gap: 8px; align-items: center; }
+.emergency-card-details .dot { opacity: 0.5; }
+
+/* ─── Shoot Queue (Inspired) ─── */
+.dashboard-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 24px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.card-title {
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.card-badge {
+    padding: 6px 12px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.posting-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.queue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px 24px;
+    transition: all 0.2s;
+}
+
+.queue-item:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+}
+
+.queue-item.is-posted {
+    opacity: 0.7;
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.queue-item-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.queue-time-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+    padding: 10px;
+    background: var(--bg-elevated);
+    border-radius: 14px;
+    border: 1px solid var(--border);
+}
+
+.time-text { font-size: 16px; font-weight: 800; color: var(--accent); }
+.ampm-text { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+
+.queue-item-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+}
+
+.queue-item-client { 
+    font-size: 11px; 
+    font-weight: 800; 
+    color: var(--text-muted); 
+    text-transform: uppercase; 
+    letter-spacing: 0.05em;
+}
+.queue-item-title { 
+    font-size: 15px; 
+    font-weight: 700; 
+    color: var(--text-primary); 
+    letter-spacing: -0.01em;
+}
+
+.queue-item-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.queue-type-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.queue-type-badge.reel { 
+    background: rgba(168, 85, 247, 0.1); 
+    color: #c084fc; 
+    border-color: rgba(168, 85, 247, 0.2); 
+}
+.queue-type-badge.youtube { 
+    background: rgba(239, 68, 68, 0.1); 
+    color: #f87171; 
+    border-color: rgba(239, 68, 68, 0.2); 
+}
+
+.btn-mark-posted {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px var(--accent-glow);
+    white-space: nowrap;
+}
+
+.btn-mark-posted:hover { transform: translateY(-2px); box-shadow: 0 8px 25px var(--accent-glow); }
+
+/* ─── Modals ─── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 10, 15, 0.85);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
+.modal-content {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    width: 100%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* ─── Mobile Responsiveness ─── */
+@media (max-width: 1024px) {
+    .main-content { margin-left: 0; width: 100%; padding: 80px 16px 24px; }
+    .posting-stats-grid { grid-template-columns: 1fr; }
+    .emergency-list { grid-template-columns: 1fr; }
+}

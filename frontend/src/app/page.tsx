@@ -44,6 +44,14 @@ const roles = [
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" /></svg>
     )
+  },
+  {
+    id: 'ph',
+    name: 'Production Head',
+    desc: 'Shoot & production oversight',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>
+    )
   }
 ];
 
@@ -55,6 +63,7 @@ const canonicalizeRole = (role?: string | null) => {
   if (['gm', 'general manager'].includes(normalized)) return 'gm';
   if (['tl', 'tl1', 'tl2', 'team lead'].includes(normalized)) return 'tl';
   if (['posting', 'posting team'].includes(normalized)) return 'posting';
+  if (['ph', 'production head'].includes(normalized)) return 'ph';
 
   return normalized || null;
 };
@@ -95,13 +104,20 @@ export default function Login() {
         return;
       }
 
-      // Resolve role from metadata and normalize role aliases
-      const metadataRole = data.user?.user_metadata?.role || data.user?.app_metadata?.role;
+      // Fetch true DB role if metadata is missing
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('role')
+        .eq('user_id', data.user.id)
+        .single();
+
+      // Resolve role from metadata, fallback to DB, and normalize role aliases
+      const metadataRole = data.user?.user_metadata?.role || data.user?.app_metadata?.role || dbUser?.role;
       const userRole = canonicalizeRole(metadataRole);
       const selectedRoleCanonical = canonicalizeRole(selectedRole);
 
       if (userRole && selectedRoleCanonical && userRole !== selectedRoleCanonical) {
-        setError(`Your account is assigned to the "${userRole}" role. Please select the correct role.`);
+        setError(`Your account is assigned to the "${metadataRole || userRole}" role. Please select the correct role.`);
         await supabase.auth.signOut();
         setLoading(false);
         return;

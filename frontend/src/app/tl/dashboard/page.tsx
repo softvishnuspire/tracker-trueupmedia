@@ -869,6 +869,25 @@ export default function TLDashboard() {
                                                             <div style={{ fontWeight: 700 }}>Waiting for Posting Team</div>
                                                             <div style={{ opacity: 0.8, fontSize: '12px' }}>This item has been sent to the posting team queue. They will mark it as posted once published.</div>
                                                         </div>
+                                                    ) : nextStatus === 'SHOOT DONE' ? (
+                                                        <div className="workflow-waiting-posting" style={{ 
+                                                            marginTop: '16px', 
+                                                            padding: '16px', 
+                                                            background: 'rgba(245, 158, 11, 0.05)', 
+                                                            border: '1px solid rgba(245, 158, 11, 0.2)',
+                                                            color: '#f59e0b', 
+                                                            borderRadius: '12px', 
+                                                            fontSize: '13px', 
+                                                            display: 'flex', 
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center', 
+                                                            textAlign: 'center',
+                                                            gap: '8px' 
+                                                        }}>
+                                                            <Video size={20} />
+                                                            <div style={{ fontWeight: 700 }}>Waiting for Production Phase</div>
+                                                            <div style={{ opacity: 0.8, fontSize: '12px' }}>This item is waiting for the Production Head to mark the shoot as completed.</div>
+                                                        </div>
                                                     ) : (
                                                         <button 
                                                             onClick={() => handleStatusUpdate(nextStatus)}

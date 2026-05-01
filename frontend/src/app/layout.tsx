@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: "Tracker",
   description: "Next-generation media management and workflow automation platform.",
   icons: {
-    icon: '/logo.png',
+    icon: '/favicon.jpeg',
   },
 };
 
