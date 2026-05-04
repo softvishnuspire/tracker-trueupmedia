@@ -23,6 +23,7 @@ interface Stats {
   pendingPosts: number;
   completedReels: number;
   completedPosts: number;
+  shootPendingReels: number;
 }
 
 interface ContentDetails {
@@ -140,6 +141,12 @@ export default function AdminDashboard() {
       const pendingReels = pendingItems.filter(item => item.content_type === 'Reel').length;
       const pendingPosts = pendingItems.filter(item => item.content_type === 'Post').length;
 
+      // Reels where shoot is not yet done
+      const shootPendingReels = periodData.filter(item => 
+        item.content_type === 'Reel' && 
+        ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED'].includes(item.status.toUpperCase())
+      ).length;
+
       // Calculate today's stats
       const today = new Date();
       const todayItems = data.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
@@ -167,7 +174,8 @@ export default function AdminDashboard() {
           completedReels,
           completedPosts,
           pendingReels,
-          pendingPosts
+          pendingPosts,
+          shootPendingReels
         });
       } else {
         setStats({
@@ -181,7 +189,8 @@ export default function AdminDashboard() {
           completedReels,
           completedPosts,
           pendingReels,
-          pendingPosts
+          pendingPosts,
+          shootPendingReels
         });
       }
 
@@ -352,7 +361,7 @@ export default function AdminDashboard() {
       <div className="stats-grid" style={{ marginBottom: '32px' }}>
         {loading ? (
           <>
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
               <div key={i} className="stat-card">
                 <Skeleton className="h-12 w-12 rounded-xl" />
                 <div className="space-y-2 flex-1">
@@ -429,6 +438,21 @@ export default function AdminDashboard() {
                 <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
                   <span style={{ color: 'var(--warning)' }}>{stats?.completedReels || 0} R</span>
                   <span style={{ color: 'var(--accent-secondary)' }}>{stats?.completedPosts || 0} P</span>
+                </div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
+                <Clock size={28} />
+              </div>
+              <div className="stat-info">
+                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  Shoot Pending
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Reels</span>
+                </h3>
+                <p className="stat-value">{stats?.shootPendingReels || 0}</p>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Needs Shoot Done status</span>
                 </div>
               </div>
             </div>
