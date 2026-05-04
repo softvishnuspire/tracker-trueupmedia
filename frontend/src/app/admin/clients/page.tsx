@@ -109,14 +109,18 @@ export default function ClientManagement() {
   return (
     <div>
       <header className="page-header">
-        <div className="header-info">
-          <h1 className="page-title">Client Management</h1>
-          <p className="page-subtitle">Onboard and manage TrueUp Media client companies • <strong>{clients.length} Clients</strong> • <strong>{totalReels} Reels/mo</strong> • <strong>{totalPosts} Posts/mo</strong></p>
+        <div className="header-content">
+          <div className="header-info">
+            <h1 className="page-title">Client Management</h1>
+            <p className="page-subtitle">Onboard and manage TrueUp Media client companies • <strong>{clients.length} Clients</strong> • <strong>{totalReels} Reels/mo</strong> • <strong>{totalPosts} Posts/mo</strong></p>
+          </div>
+          <div className="header-controls">
+            <button className="btn-add" onClick={handleAddClick}>
+              <Plus size={18} />
+              Add New Client
+            </button>
+          </div>
         </div>
-        <button className="btn-add" onClick={handleAddClick}>
-          <Plus size={18} />
-          Add New Client
-        </button>
       </header>
 
       <div className="table-card">
@@ -130,18 +134,18 @@ export default function ClientManagement() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="table-summary" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>Total Clients:</span>
-              <span style={{ background: 'var(--accent)', color: 'white', padding: '2px 10px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, boxShadow: '0 4px 12px var(--accent-glow)' }}>{clients.length}</span>
+          <div className="table-summary">
+            <div className="summary-item">
+              <span className="summary-label">Total Clients:</span>
+              <span className="summary-value clients">{clients.length}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>Total Reels:</span>
-              <span style={{ background: 'var(--warning)', color: 'white', padding: '2px 10px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)' }}>{totalReels}</span>
+            <div className="summary-item">
+              <span className="summary-label">Total Reels:</span>
+              <span className="summary-value reels">{totalReels}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>Total Posts:</span>
-              <span style={{ background: 'var(--accent-secondary)', color: 'white', padding: '2px 10px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, boxShadow: '0 4px 12px rgba(6, 182, 212, 0.3)' }}>{totalPosts}</span>
+            <div className="summary-item">
+              <span className="summary-label">Total Posts:</span>
+              <span className="summary-value posts">{totalPosts}</span>
             </div>
           </div>
         </div>
