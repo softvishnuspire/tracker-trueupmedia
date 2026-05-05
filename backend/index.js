@@ -377,7 +377,7 @@ app.get('/api/gm/clients', requireRoles(GM_ROLES), async (req, res) => {
 
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name, batch_type')
+        .select('id, company_name, batch_type, posts_per_month, reels_per_month')
         .eq('is_active', true)
         .eq('is_deleted', false);
 
@@ -1925,7 +1925,7 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
 app.get('/api/posting/clients', requireRoles(POSTING_ROLES), async (req, res) => {
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name')
+        .select('id, company_name, posts_per_month, reels_per_month')
         .eq('is_active', true)
         .eq('is_deleted', false)
         .order('company_name');
