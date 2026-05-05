@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, getDay, isSameDay, addMonths, startOfWeek, endOfWeek } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -57,22 +57,13 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
         }
     };
 
-    // Period Calculation
-    const isBiMonthly = batchType === '15-15';
-    const periodStart = isBiMonthly
-        ? new Date(month.getFullYear(), month.getMonth(), 15)
-        : startOfMonth(month);
-    const periodEnd = isBiMonthly
-        ? new Date(addMonths(month, 1).getFullYear(), addMonths(month, 1).getMonth(), 15)
-        : endOfMonth(month);
+    // Period Calculation — always use the full calendar month for export
+    const periodStart = startOfMonth(month);
+    const periodEnd = endOfMonth(month);
 
-    const periodLabel = isBiMonthly
-        ? `${format(periodStart, 'MMMM yyyy')} (Mid-Cycle)`
-        : format(month, 'MMMM yyyy');
+    const periodLabel = format(month, 'MMMM yyyy');
 
-    const filename = isBiMonthly
-        ? `${clientName}_Schedule_15${format(periodStart, 'MMM')}_to_15${format(periodEnd, 'MMM')}_${format(periodEnd, 'yyyy')}.pdf`
-        : `${clientName}_Schedule_${format(month, 'MMM_yyyy')}.pdf`;
+    const filename = `${clientName}_Schedule_${format(month, 'MMM_yyyy')}.pdf`;
 
     // Prepare Weekly Data
     const daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
@@ -172,7 +163,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     </div>
                     <div>
                         <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>SCHEDULE TYPE</p>
-                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{isBiMonthly ? '15/15 BATCHING' : 'MONTHLY EXECUTION'}</p>
+                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{batchType === '15-15' ? '15/15 BATCHING' : 'MONTHLY EXECUTION'}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>TOTAL CONTENT</p>

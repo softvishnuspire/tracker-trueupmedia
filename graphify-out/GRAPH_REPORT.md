@@ -953,3 +953,26 @@ Upgraded the General Manager (GM) Dashboard to provide granular, real-time track
 
 ### Affected Components
 - **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Updated `monthStatusCounts`, `assignedTotals`, status pills, and stat card rendering logic.
+
+## Recent Changes: Calendar PDF Export Full-Month Fix (May 2026)
+### Implementation Overview
+Fixed the `ScheduleExport` component so that the downloaded PDF calendar always renders the **full calendar month** (1st to last day), regardless of whether the client uses a `1-1` or `15-15` billing cycle. Previously, 15-15 clients would only see half the month in the exported PDF (either 1–15 or 15–next-15), causing incomplete calendar downloads.
+
+### Key Technical Decisions
+1. **Unified Period Calculation**:
+   - Replaced the conditional `isBiMonthly` period logic with unconditional `startOfMonth(month)` / `endOfMonth(month)`.
+   - This ensures the calendar grid, weekly analysis table, and total content count all span the entire month.
+
+2. **Label & Filename Simplification**:
+   - Period label now always shows `MMMM yyyy` (e.g., "MAY 2026") instead of the confusing "Mid-Cycle" label.
+   - Filename is simplified to `ClientName_Schedule_MMM_yyyy.pdf`.
+
+3. **Preserved Batch Type Display**:
+   - The "Schedule Type" field in the PDF info bar still correctly displays "15/15 BATCHING" or "MONTHLY EXECUTION" based on the client's `batch_type` prop.
+
+4. **Cleanup**:
+   - Removed unused `addMonths` and `isSameMonth` imports from `date-fns`.
+   - Eliminated the `isBiMonthly` variable entirely.
+
+### Affected Components
+- **ScheduleExport (`frontend/src/components/ScheduleExport.tsx`)**: Refactored period calculation, label, filename, and cleaned up unused imports.
