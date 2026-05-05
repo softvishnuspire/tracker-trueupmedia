@@ -17,6 +17,8 @@ import {
     isPast,
     isBefore,
     startOfDay,
+    addDays,
+    endOfDay,
     getDate,
     lastDayOfMonth
 } from 'date-fns';
@@ -251,6 +253,11 @@ export default function GMDashboard() {
         } catch (err) { console.error(err); } finally { setLoading(false); }
     };
 
+    const isItemCompleted = (status: string) => {
+        const s = (status || '').toUpperCase();
+        return s === 'WAITING FOR POSTING' || s === 'POSTED';
+    };
+
     const fetchClients = async () => {
         try {
             const res = await gmApi.getClients();
@@ -277,7 +284,8 @@ export default function GMDashboard() {
         completedReels: 0,
         completedPosts: 0,
         reelsCount: 0,
-        postsCount: 0
+        postsCount: 0,
+        weeksPending: 0
     });
 
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
@@ -305,10 +313,6 @@ export default function GMDashboard() {
                 return acc;
             }, {});
 
-            const isItemCompleted = (status: string) => {
-                const s = (status || '').toUpperCase();
-                return s === 'WAITING FOR POSTING' || s === 'POSTED';
-            };
 
             // Calculate today's stats
             const today = new Date();
@@ -338,6 +342,7 @@ export default function GMDashboard() {
                 percentage: totalWeek > 0 ? Math.round((completedWeek / totalWeek) * 100) : 0
             });
 
+            /* 
             // Calculate Company Stats (Date Shifted - 7 Days Offset)
             // The Company Calendar shows items 7 days before their scheduled date.
             const monthStr = format(currentMonth, 'yyyy-MM');
@@ -389,6 +394,7 @@ export default function GMDashboard() {
                     percentage: companyTotalMonth > 0 ? Math.round((companyCompletedMonth / companyTotalMonth) * 100) : 0 
                 }
             });
+            */
 
             const completedItems = periodData.filter((item: ContentItem) => isItemCompleted(item.status));
             const pendingItems = periodData.filter((item: ContentItem) => !isItemCompleted(item.status));
@@ -417,7 +423,13 @@ export default function GMDashboard() {
                 pendingReels,
                 pendingPosts,
                 reelsCount,
-                postsCount
+                postsCount,
+                weeksPending: calendarData.filter((item: ContentItem) => {
+                    const itemDate = parseISO(item.scheduled_datetime);
+                    const now = new Date();
+                    const sevenDaysFromNow = endOfDay(addDays(now, 7));
+                    return itemDate >= startOfDay(now) && itemDate <= sevenDaysFromNow && !isItemCompleted(item.status);
+                }).length
             });
             setCalendarData(calendarData);
 
@@ -451,18 +463,41 @@ export default function GMDashboard() {
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
+            const isCompleted = isItemCompleted(item.status);
             
             if (normalizedStatus.includes('CONTENT')) acc.content += 1;
             if (normalizedStatus.includes('DESIGN')) acc.design += 1;
             if (normalizedStatus === 'POSTED') acc.posted += 1;
             
-            if (type === 'REEL') acc.reels += 1;
-            if (type === 'POST') acc.posts += 1;
+            if (type === 'REEL') {
+                acc.reels += 1;
+                if (isCompleted) acc.completedReels += 1;
+            }
+            if (type === 'POST') {
+                acc.posts += 1;
+                if (isCompleted) acc.completedPosts += 1;
+            }
             
             return acc;
         },
-        { content: 0, design: 0, posted: 0, reels: 0, posts: 0 }
+        { content: 0, design: 0, posted: 0, reels: 0, posts: 0, completedReels: 0, completedPosts: 0 }
     );
+
+    // Calculate assigned totals from clients
+    const assignedTotals = (() => {
+        if (selectedClient && selectedClient !== 'all') {
+            const client = clients.find(c => c.id === selectedClient);
+            return {
+                reels: client?.reels_per_month || 0,
+                posts: client?.posts_per_month || 0
+            };
+        }
+        // In master/company view with 'all' clients, sum them up
+        return clients.reduce((acc, c) => ({
+            reels: acc.reels + (c.reels_per_month || 0),
+            posts: acc.posts + (c.posts_per_month || 0)
+        }), { reels: 0, posts: 0 });
+    })();
 
 
     const handlePrev = () => {
@@ -761,7 +796,7 @@ export default function GMDashboard() {
                         <Globe size={20} />
                         <span>Master Calendar</span>
                     </div>
-                    {showCompanyCalendar && (
+                    {/* {showCompanyCalendar && (
                         <div
                             onClick={() => setView('company')}
                             className={`nav-item ${view === 'company' ? 'active' : ''}`}
@@ -769,7 +804,7 @@ export default function GMDashboard() {
                             <CalendarClock size={20} />
                             <span>Company Calendar</span>
                         </div>
-                    )}
+                    )} */}
                     <div
                         onClick={() => setView('teams')}
                         className={`nav-item ${view === 'teams' ? 'active' : ''}`}
@@ -995,11 +1030,21 @@ export default function GMDashboard() {
                         </div>
                         <div className="status-pill status-pill-reels">
                             <span className="status-pill-label">Reels</span>
-                            <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                            <span className="status-pill-count">
+                                {monthStatusCounts.reels} / {assignedTotals.reels}
+                                <span style={{ fontSize: '0.8em', opacity: 0.7, marginLeft: '6px', fontWeight: 400 }}>
+                                    ({monthStatusCounts.completedReels} Done)
+                                </span>
+                            </span>
                         </div>
                         <div className="status-pill status-pill-posts">
                             <span className="status-pill-label">Posts</span>
-                            <span className="status-pill-count">{monthStatusCounts.posts}</span>
+                            <span className="status-pill-count">
+                                {monthStatusCounts.posts} / {assignedTotals.posts}
+                                <span style={{ fontSize: '0.8em', opacity: 0.7, marginLeft: '6px', fontWeight: 400 }}>
+                                    ({monthStatusCounts.completedPosts} Done)
+                                </span>
+                            </span>
                         </div>
                     </div>
                 )}
@@ -1008,8 +1053,13 @@ export default function GMDashboard() {
                 {view === 'dashboard' && emergencyTasks.length > 0 && (
                     <div className="emergency-panel">
                         <div className="emergency-panel-header">
-                            <ShieldAlert size={24} color="#ef4444" />
-                            <h2 className="emergency-panel-title">All Emergency Tasks</h2>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <ShieldAlert size={24} color="#ef4444" />
+                                <h2 className="emergency-panel-title">All Emergency Tasks</h2>
+                            </div>
+                            <div className="weeks-pending-badge">
+                                <span>Weeks Pending: {stats.weeksPending}</span>
+                            </div>
                         </div>
                         <div className="emergency-list">
                             {emergencyTasks.map(task => (
@@ -1060,8 +1110,13 @@ export default function GMDashboard() {
                                     <Video size={28} />
                                 </div>
                                 <div className="stat-info">
-                                    <h3>Total Reels</h3>
-                                    <p className="stat-value">{stats.reelsCount}</p>
+                                    <h3>Reels Progress</h3>
+                                    <p className="stat-value">
+                                        {monthStatusCounts.reels} / {assignedTotals.reels}
+                                    </p>
+                                    <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
+                                        {monthStatusCounts.completedReels} Completed
+                                    </div>
                                 </div>
                             </div>
                             <div className="stat-card">
@@ -1069,8 +1124,13 @@ export default function GMDashboard() {
                                     <FileText size={28} />
                                 </div>
                                 <div className="stat-info">
-                                    <h3>Total Posts</h3>
-                                    <p className="stat-value">{stats.postsCount}</p>
+                                    <h3>Posts Progress</h3>
+                                    <p className="stat-value">
+                                        {monthStatusCounts.posts} / {assignedTotals.posts}
+                                    </p>
+                                    <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
+                                        {monthStatusCounts.completedPosts} Completed
+                                    </div>
                                 </div>
                             </div>
                             <div className="stat-card">
@@ -1166,6 +1226,7 @@ export default function GMDashboard() {
                             </div>
                         </div>
 
+                        {/* 
                         <div className="dashboard-section-header" style={{ marginTop: '32px', marginBottom: '16px' }}>
                             <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <div style={{ width: '4px', height: '18px', background: '#a855f7', borderRadius: '2px' }}></div>
@@ -1224,6 +1285,7 @@ export default function GMDashboard() {
                                 </div>
                             </div>
                         </div>
+                        */}
 
                         <div className="responsive-dashboard-grid">
                             <div className="dashboard-card">

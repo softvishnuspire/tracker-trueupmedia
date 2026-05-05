@@ -2221,8 +2221,20 @@
 .emergency-panel-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
     margin-bottom: 20px;
+}
+
+.weeks-pending-badge {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #ef4444;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
 }
 
 .emergency-panel-title {

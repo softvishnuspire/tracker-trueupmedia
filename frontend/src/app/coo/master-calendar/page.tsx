@@ -177,6 +177,24 @@ export default function CooMasterCalendar() {
         { content: 0, design: 0, posted: 0, reels: 0, posts: 0 }
     );
 
+    // Calculate assigned totals from clients
+    const assignedTotals = (() => {
+        if (selectedClient === 'all') {
+            return clients.reduce(
+                (acc, c) => ({
+                    reels: acc.reels + (Number(c.reels_per_month) || 0),
+                    posts: acc.posts + (Number(c.posts_per_month) || 0),
+                }),
+                { reels: 0, posts: 0 }
+            );
+        }
+        const client = clients.find((c) => c.id === selectedClient);
+        return {
+            reels: Number(client?.reels_per_month) || 0,
+            posts: Number(client?.posts_per_month) || 0,
+        };
+    })();
+
     return (
         <div>
             <header className="page-header page-header-safe">
@@ -260,11 +278,11 @@ export default function CooMasterCalendar() {
             <div className="status-summary-row">
                 <div className="status-pill status-pill-reels">
                     <span className="status-pill-label">Reels</span>
-                    <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                    <span className="status-pill-count">{monthStatusCounts.reels}/{assignedTotals.reels}</span>
                 </div>
                 <div className="status-pill status-pill-posts">
                     <span className="status-pill-label">Posts</span>
-                    <span className="status-pill-count">{monthStatusCounts.posts}</span>
+                    <span className="status-pill-count">{monthStatusCounts.posts}/{assignedTotals.posts}</span>
                 </div>
                 <div className="status-pill status-pill-content">
                     <span className="status-pill-label">Content</span>
