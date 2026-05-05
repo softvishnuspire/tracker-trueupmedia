@@ -275,7 +275,9 @@ export default function GMDashboard() {
         pendingReels: 0,
         pendingPosts: 0,
         completedReels: 0,
-        completedPosts: 0
+        completedPosts: 0,
+        reelsCount: 0,
+        postsCount: 0
     });
 
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
@@ -400,6 +402,9 @@ export default function GMDashboard() {
             const pendingReels = pendingItems.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'REEL').length;
             const pendingPosts = pendingItems.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'POST').length;
 
+            const reelsCount = periodData.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'REEL').length;
+            const postsCount = periodData.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'POST').length;
+
             setStats({
                 totalClients: clients.length,
                 totalTeams: teamLeads.length,
@@ -410,7 +415,9 @@ export default function GMDashboard() {
                 completedReels,
                 completedPosts,
                 pendingReels,
-                pendingPosts
+                pendingPosts,
+                reelsCount,
+                postsCount
             });
             setCalendarData(calendarData);
 
@@ -1046,6 +1053,24 @@ export default function GMDashboard() {
                                 <div className="stat-info">
                                     <h3>Scheduled</h3>
                                     <p className="stat-value">{stats.monthlyContent}</p>
+                                </div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
+                                    <Video size={28} />
+                                </div>
+                                <div className="stat-info">
+                                    <h3>Total Reels</h3>
+                                    <p className="stat-value">{stats.reelsCount}</p>
+                                </div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--accent-secondary)' }}>
+                                    <FileText size={28} />
+                                </div>
+                                <div className="stat-info">
+                                    <h3>Total Posts</h3>
+                                    <p className="stat-value">{stats.postsCount}</p>
                                 </div>
                             </div>
                             <div className="stat-card">

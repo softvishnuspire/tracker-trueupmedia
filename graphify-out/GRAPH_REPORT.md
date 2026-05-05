@@ -850,4 +850,45 @@ Introduced a global "System Toggles" framework to allow administrators to manage
 - **TL Dashboard**: `frontend/src/app/tl/dashboard/page.tsx` (Conditional nav rendering).
 - **Posting Dashboard**: `frontend/src/app/posting/dashboard/page.tsx` (Conditional nav rendering).
 - **API Library**: `frontend/src/lib/api.ts` (Added `settingsApi` support).
+
+## Recent Changes: GM Dashboard Content Metrics Integration (May 2026)
+### Implementation Overview
+Integrated "Total Reels" and "Total Posts" metrics into the GM Dashboard overview to match the Admin Dashboard's reporting capabilities. This provides the General Manager with immediate visibility into the total volume of deliverables in the pipeline, alongside the existing status-based (Pending vs. Completed) metrics.
+
+### Key Technical Decisions
+1. **Extended State Management**:
+   - Updated the `Stats` state interface in the GM Dashboard to include `reelsCount` and `postsCount` fields.
+   - Initialized these fields to `0` to prevent layout shifts during initial load.
+
+2. **Refined Data Aggregation**:
+   - Enhanced the `fetchDashboardStats` logic to filter and count deliverables by `content_type` ('Reel' vs. 'Post') from the monthly `periodData` source.
+   - Maintained consistency with the existing `isDayInPeriod` logic to ensure metrics are accurately scoped to the current reporting window.
+
+3. **UI/UX Consistency**:
+   - Expanded the `stats-grid` in the GM Dashboard with two new dedicated cards for **Total Reels** and **Total Posts**.
+   - **Styling Alignment**: Used icons and colors consistent with the Admin Panel:
+     - **Total Reels**: `Video` icon with an orange (`var(--warning)`) theme.
+     - **Total Posts**: `FileText` icon with a cyan (`var(--accent-secondary)`) theme.
+   - Maintained the premium glassmorphism design and responsive grid layout.
+
+### Affected Components
+- **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Updated `Stats` state, `fetchDashboardStats` aggregation logic, and dashboard overview grid UI.
+
+## Recent Changes: Production Head Status Logic Update (May 2026)
+### Implementation Overview
+Fixed a critical issue where the "Mark Shoot Done" button was missing from the Production Head (PH) dashboard. This was caused by a status rename migration that changed "CONTENT READY" to "CONTENT APPROVED", but left hardcoded checks for the old status string in both the frontend and backend.
+
+### Key Technical Decisions
+1. **Frontend-Backend Alignment**:
+   - Updated all logic in `backend/index.js` within the Production Head endpoints (`/api/ph/*`) to recognize and return the new `CONTENT APPROVED` status.
+   - Updated the `Mark Shoot Done` validation to correctly target items in the `CONTENT APPROVED` state.
+   - Fixed the `undo` endpoint to revert items back to `CONTENT APPROVED` instead of the deprecated `CONTENT READY`.
+
+2. **UI/UX Consistency**:
+   - Updated the Production Head dashboard (`frontend/src/app/ph/dashboard/page.tsx`) to display the button when an item's status is `CONTENT APPROVED`.
+   - Updated tooltips, toast messages, and dashboard subtitles to reflect the "Approved for shooting" terminology, providing clearer context to the Production team.
+
+### Affected Components
+- **Backend Entry Point (`backend/index.js`)**: Updated `PH` routes for queue fetching, calendar views, status updates, and undo actions.
+- **Production Head Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Updated status checks in the details modal, action buttons in the queue, and UI labels.
 

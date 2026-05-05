@@ -1340,7 +1340,7 @@ app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
         const { data, error } = await supabase
             .from('content_items')
             .select(`*, clients (company_name)`)
-            .in('status', ['CONTENT READY', 'SHOOT DONE'])
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE'])
             .in('content_type', ['Reel', 'YouTube'])
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate)
@@ -1377,7 +1377,7 @@ app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
         } else if (status) {
             query = query.eq('status', status);
         } else {
-            query = query.eq('status', 'CONTENT READY');
+            query = query.eq('status', 'CONTENT APPROVED');
         }
 
         const { data, error } = await query.order('scheduled_datetime');
@@ -1447,8 +1447,8 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
             return res.status(403).json({ error: 'Production Head has no power over Posts' });
         }
 
-        if (item.status !== 'CONTENT READY') {
-            return res.status(400).json({ error: 'Shoot can only be marked DONE if current status is CONTENT READY' });
+        if (item.status !== 'CONTENT APPROVED') {
+            return res.status(400).json({ error: 'Shoot can only be marked DONE if current status is CONTENT APPROVED' });
         }
 
         const { error: updateError } = await supabase
@@ -1489,13 +1489,13 @@ app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) =>
 
         const { error: revertError } = await supabase
             .from('content_items')
-            .update({ status: 'CONTENT READY', updated_at: new Date().toISOString() })
+            .update({ status: 'CONTENT APPROVED', updated_at: new Date().toISOString() })
             .eq('id', id);
 
         if (revertError) return res.status(500).json({ error: 'Failed to revert status' });
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
-        res.json({ message: 'Success', status: 'CONTENT READY' });
+        res.json({ message: 'Success', status: 'CONTENT APPROVED' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

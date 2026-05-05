@@ -244,7 +244,7 @@ export default function ProductionHeadDashboard() {
         setActionId(id);
         try {
             await phApi.undoStatus(id);
-            setToast('Reverted to Content Ready');
+            setToast('Reverted to Content Approved');
             setTimeout(() => setToast(null), 3000);
             
             await Promise.all([
@@ -448,7 +448,7 @@ export default function ProductionHeadDashboard() {
                                 {view === 'company' && 'Company Calendar'}
                             </h1>
                             <p className="page-subtitle">
-                                {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Content ready for shooting`}
+                                {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Content approved for shooting`}
                                 {view === 'client' && 'Manage shoot schedule for individual clients'}
                                 {view === 'master' && 'Review company-wide production pipeline'}
                                 {view === 'company' && 'Historical view of production schedule (-7 days)'}
@@ -604,7 +604,7 @@ export default function ProductionHeadDashboard() {
                                                         {item.content_type}
                                                     </span>
                                                     {item.status === 'SHOOT DONE' ? (
-                                                        <button className="btn-rollback" onClick={() => handleUndo(item.id)} disabled={actionId === item.id} title="Revert to Content Ready">
+                                                        <button className="btn-rollback" onClick={() => handleUndo(item.id)} disabled={actionId === item.id} title="Revert to Content Approved">
                                                             {actionId === item.id ? '...' : 'Undo'}
                                                         </button>
                                                     ) : item.status === 'POSTED' ? (
@@ -740,7 +740,7 @@ export default function ProductionHeadDashboard() {
                                         </div>
                                     </div>
                                     
-                                    {activeItem.item.status === 'CONTENT READY' && view !== 'company' && (
+                                    {activeItem.item.status === 'CONTENT APPROVED' && view !== 'company' && (
                                         <button className="btn-mark-posted" style={{ width: '100%', marginTop: '24px', padding: '16px', fontSize: '16px', background: 'var(--accent)' }} onClick={() => handleMarkShootDone(activeItem.item.id)} disabled={actionId === activeItem.item.id}>
                                             {actionId === activeItem.item.id ? 'Saving...' : 'Mark Shoot Done'}
                                         </button>
