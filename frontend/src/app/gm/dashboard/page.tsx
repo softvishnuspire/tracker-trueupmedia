@@ -287,6 +287,8 @@ export default function GMDashboard() {
         completedPosts: 0,
         reelsCount: 0,
         postsCount: 0,
+        youtubeCount: 0,
+        videoCount: 0,
         weeksPending: 0
     });
 
@@ -412,6 +414,8 @@ export default function GMDashboard() {
 
             const reelsCount = periodData.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'REEL').length;
             const postsCount = periodData.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'POST').length;
+            const youtubeCount = periodData.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'YOUTUBE').length;
+            const videoCount = reelsCount + youtubeCount;
 
             setStats({
                 totalClients: clients.length,
@@ -426,6 +430,8 @@ export default function GMDashboard() {
                 pendingPosts,
                 reelsCount,
                 postsCount,
+                youtubeCount,
+                videoCount,
                 weeksPending: calendarData.filter((item: ContentItem) => {
                     const itemDate = parseISO(item.scheduled_datetime);
                     const now = new Date();
@@ -1144,10 +1150,10 @@ export default function GMDashboard() {
                                 <div className="stat-info">
                                     <h3>Reels Progress</h3>
                                     <p className="stat-value">
-                                        {monthStatusCounts.reels} / {assignedTotals.reels}
+                                        {monthStatusCounts.completedReels} <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>/ {monthStatusCounts.reels}</span>
                                     </p>
                                     <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
-                                        {monthStatusCounts.completedReels} Completed
+                                        {assignedTotals.reels} Assigned Quota
                                     </div>
                                 </div>
                             </div>
@@ -1158,10 +1164,10 @@ export default function GMDashboard() {
                                 <div className="stat-info">
                                     <h3>Posts Progress</h3>
                                     <p className="stat-value">
-                                        {monthStatusCounts.posts} / {assignedTotals.posts}
+                                        {monthStatusCounts.completedPosts} <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>/ {monthStatusCounts.posts}</span>
                                     </p>
                                     <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
-                                        {monthStatusCounts.completedPosts} Completed
+                                        {assignedTotals.posts} Assigned Quota
                                     </div>
                                 </div>
                             </div>
@@ -1350,16 +1356,30 @@ export default function GMDashboard() {
                                             normalized[s] = (normalized[s] || 0) + (count as number);
                                         });
                                         
-                                        return Object.entries(normalized).map(([status, count]) => (
-                                            <div key={status} className="pipeline-item">
-                                                <div className="pipeline-info">
-                                                    <span className="pipeline-label">{status}</span>
-                                                    <span className="pipeline-count" style={{ fontWeight: 800, color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px' }}>
-                                                        {count} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {stats.monthlyContent}</span>
-                                                    </span>
+                                        return Object.entries(normalized).map(([status, count]) => {
+                                            // Denominator Logic:
+                                            // Video: Reel, YouTube
+                                            // Graphic: Post
+                                            const s = status.toUpperCase();
+                                            let denominator = stats.monthlyContent || 0;
+                                            
+                                            if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
+                                                denominator = stats.videoCount || 0;
+                                            } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
+                                                denominator = stats.postsCount || 0;
+                                            }
+
+                                            return (
+                                                <div key={status} className="pipeline-item">
+                                                    <div className="pipeline-info">
+                                                        <span className="pipeline-label">{status}</span>
+                                                        <span className="pipeline-count" style={{ fontWeight: 800, color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px' }}>
+                                                            {count} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {denominator}</span>
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ));
+                                            );
+                                        });
                                     })()}
 
                                     {Object.keys(stats.statusBreakdown).length === 0 && (

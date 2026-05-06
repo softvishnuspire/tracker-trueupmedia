@@ -1156,7 +1156,6 @@ Significantly expanded the authority of the **Production Head (PH)** role to all
 - **Production Head Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Unified the status advancement UI, removed content type filters, and updated metric aggregation logic.
 - **API Library (`frontend/src/lib/api.ts`)**: Updated `phApi.updateStatus` to include the `note` field for audit trailing.
 - **Environment Configuration**: Updated `.env` files across root, `frontend/`, and `backend/` with new Supabase credentials and local API URL.
-<<<<<<< Updated upstream
 ## Recent Changes: Production Head Calendar Status Pill Fix (May 2026)
 ### Implementation Overview
 Resolved a UI discrepancy in the Production Head (PH) dashboard where Reels and Posts shared the same generic icon and lacked descriptive labels. The calendar view and live shoot queue now correctly differentiate between content types using specific Lucide icons and distinct CSS styling.
@@ -1181,7 +1180,6 @@ Resolved a UI discrepancy in the Production Head (PH) dashboard where Reels and 
 ### Affected Components
 - **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Updated rendering logic for queue items and calendar days.
 - **PH Styles (`frontend/src/app/ph/dashboard/ph.css`)**: Added specific styles for Posts, Reels, and YouTube content items.
-=======
 
 ## Recent Changes: Role-Based Task Visibility Optimization (May 2026)
 ### Implementation Overview
@@ -1211,4 +1209,3 @@ Optimized task visibility and management across all dashboard panels to reduce c
 - **Posting Dashboard**: `frontend/src/app/posting/dashboard/page.tsx` (Renamed queue and added role-completion filtering).
 - **Leadership Dashboards**: `Admin`, `GM`, `TL`, `COO` (Added role-completion filtering to emergency panels).
 - **API Client (`frontend/src/lib/api.ts`)**: No changes required (reused existing endpoints).
->>>>>>> Stashed changes

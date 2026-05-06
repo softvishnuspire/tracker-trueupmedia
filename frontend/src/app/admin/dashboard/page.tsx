@@ -16,12 +16,16 @@ interface Stats {
   statusSummary: Record<string, number>;
   reelsCount: number;
   postsCount: number;
+  youtubeCount: number;
+  videoCount: number;
   pendingCount: number;
   completedCount: number;
   pendingReels: number;
   pendingPosts: number;
   completedReels: number;
   completedPosts: number;
+  assignedReels: number;
+  assignedPosts: number;
   shootPendingReels: number;
 }
 
@@ -122,6 +126,8 @@ export default function AdminDashboard() {
 
       const reelsCount = periodData.filter(item => item.content_type === 'Reel').length;
       const postsCount = periodData.filter(item => item.content_type === 'Post').length;
+      const youtubeCount = periodData.filter(item => item.content_type === 'YouTube').length;
+      const videoCount = reelsCount + youtubeCount;
 
       // Pending vs Completed logic
       // Completed: Waiting for Posting or Posted
@@ -144,7 +150,7 @@ export default function AdminDashboard() {
 
       // Reels where shoot is not yet done
       const shootPendingReels = periodData.filter(item => 
-        item.content_type === 'Reel' && 
+        (item.content_type === 'Reel' || item.content_type === 'YouTube') && 
         ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED'].includes(item.status.toUpperCase())
       ).length;
 
@@ -161,6 +167,20 @@ export default function AdminDashboard() {
         percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
       });
 
+      const assignedTotals = (() => {
+        if (selectedClient && selectedClient !== 'all') {
+          const client = clients.find(c => c.id === selectedClient);
+          return {
+            reels: client?.reels_per_month || 0,
+            posts: client?.posts_per_month || 0
+          };
+        }
+        return clients.reduce((acc, c) => ({
+          reels: acc.reels + (c.reels_per_month || 0),
+          posts: acc.posts + (c.posts_per_month || 0)
+        }), { reels: 0, posts: 0 });
+      })();
+
       // Update stats state for the pipeline and summary
       if (selectedClient === 'all') {
         const statsRes = await adminApi.getStats();
@@ -170,10 +190,14 @@ export default function AdminDashboard() {
           totalItemsThisMonth: periodData.length,
           reelsCount,
           postsCount,
+          youtubeCount,
+          videoCount,
           completedCount,
           pendingCount,
           completedReels,
           completedPosts,
+          assignedReels: assignedTotals.reels,
+          assignedPosts: assignedTotals.posts,
           pendingReels,
           pendingPosts,
           shootPendingReels
@@ -185,10 +209,14 @@ export default function AdminDashboard() {
           statusSummary: breakdown,
           reelsCount,
           postsCount,
+          youtubeCount,
+          videoCount,
           completedCount,
           pendingCount,
           completedReels,
           completedPosts,
+          assignedReels: assignedTotals.reels,
+          assignedPosts: assignedTotals.posts,
           pendingReels,
           pendingPosts,
           shootPendingReels
@@ -397,8 +425,14 @@ export default function AdminDashboard() {
                 <Video size={28} />
               </div>
               <div className="stat-info">
-                <h3>Total Reels</h3>
-                <p className="stat-value">{stats?.reelsCount || 0}</p>
+                <h3>Reels Progress</h3>
+                <p className="stat-value">
+                  {stats?.completedReels || 0}
+                  <span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.reelsCount || 0}</span>
+                </p>
+                <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
+                  {stats?.assignedReels || 0} Assigned Quota
+                </div>
               </div>
             </div>
             <div className="stat-card">
@@ -406,8 +440,14 @@ export default function AdminDashboard() {
                 <FileText size={28} />
               </div>
               <div className="stat-info">
-                <h3>Total Posts</h3>
-                <p className="stat-value">{stats?.postsCount || 0}</p>
+                <h3>Posts Progress</h3>
+                <p className="stat-value">
+                  {stats?.completedPosts || 0}
+                  <span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.postsCount || 0}</span>
+                </p>
+                <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
+                  {stats?.assignedPosts || 0} Assigned Quota
+                </div>
               </div>
             </div>
             <div className="stat-card">
@@ -545,15 +585,29 @@ export default function AdminDashboard() {
                         normalized[s] = (normalized[s] || 0) + (count as number);
                     });
                     
-                    return Object.entries(normalized).map(([status, count]) => (
-                        <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>{status}</span>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                                <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>{count}</span>
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>/ {stats?.totalItemsThisMonth || 0}</span>
+                    return Object.entries(normalized).map(([status, count]) => {
+                        // Denominator Logic:
+                        // Video: Reel, YouTube
+                        // Graphic: Post
+                        const s = status.toUpperCase();
+                        let denominator = stats?.totalItemsThisMonth || 0;
+                        
+                        if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
+                            denominator = stats?.videoCount || 0;
+                        } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
+                            denominator = stats?.postsCount || 0;
+                        }
+
+                        return (
+                            <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>{status}</span>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                    <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>{count}</span>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>/ {denominator}</span>
+                                </div>
                             </div>
-                        </div>
-                    ));
+                        );
+                    });
                 })()}
 
                 {Object.keys(stats?.statusSummary || {}).length === 0 && (
