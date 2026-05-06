@@ -37,7 +37,7 @@ import {
     CalendarClock,
     Undo2
 } from 'lucide-react';
-import { postingApi, emergencyApi, settingsApi } from '@/lib/api';
+import { postingApi, emergencyApi, dashboardApi, settingsApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -59,7 +59,7 @@ interface ContentItem {
 
 export default function PostingDashboard() {
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company'>('dashboard');
-    const [queue, setQueue] = useState<ContentItem[]>([]);
+    const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
@@ -115,10 +115,15 @@ export default function PostingDashboard() {
                 percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
             });
 
-            // Fetch all emergency tasks
-            const emergencyRes = await emergencyApi.getAll();
-            setEmergencyTasks(emergencyRes.data);
-        } catch (err) { console.error('Error fetching today stats:', err); }
+            // Fetch all dashboard lists
+            const [emergencyRes, pendingRes] = await Promise.all([
+                emergencyApi.getAll(),
+                dashboardApi.getPendingImportant()
+            ]);
+            
+            setEmergencyTasks(emergencyRes.data || []);
+            setPendingTasks(pendingRes.data || []);
+        } catch (err) { console.error('Error fetching dashboard lists:', err); }
     };
 
     useEffect(() => {
@@ -145,7 +150,7 @@ export default function PostingDashboard() {
 
     useEffect(() => {
         if (view === 'dashboard') {
-            fetchTodayQueue();
+            fetchTodayStats();
         } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
             fetchClientCalendar();
         } else if (view === 'master' || view === 'company') {
@@ -160,16 +165,11 @@ export default function PostingDashboard() {
             if (res.data.length > 0 && selectedClient === 'all') {
                 // Keep 'all' for master, but maybe select first for client view if needed
             }
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error('Error fetching clients:', err); }
     };
 
     const fetchTodayQueue = async () => {
-        setLoading(true);
-        try {
-            const res = await postingApi.getToday();
-            setQueue(res.data);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
+        // Obsolete - fetching integrated into fetchTodayStats
     };
 
     const fetchClientCalendar = async () => {
@@ -216,7 +216,6 @@ export default function PostingDashboard() {
             // Refresh everything
             await Promise.all([
                 fetchTodayStats(),
-                fetchTodayQueue(),
                 view === 'client' ? fetchClientCalendar() : Promise.resolve(),
                 view === 'master' ? fetchMasterCalendar() : Promise.resolve()
             ]);
@@ -240,7 +239,6 @@ export default function PostingDashboard() {
             // Refresh everything
             await Promise.all([
                 fetchTodayStats(),
-                fetchTodayQueue(),
                 view === 'client' ? fetchClientCalendar() : Promise.resolve(),
                 view === 'master' ? fetchMasterCalendar() : Promise.resolve()
             ]);
@@ -267,7 +265,7 @@ export default function PostingDashboard() {
             const res = await postingApi.getContentDetails(activeItem.item.id, asOfDate);
             setActiveItem(res.data);
             fetchMasterCalendar();
-            fetchTodayQueue();
+            fetchTodayStats();
         } catch (err) {
             console.error(err);
             alert('Failed to undo status change. It might be because there is no more history to undo.');
@@ -280,7 +278,7 @@ export default function PostingDashboard() {
             const day = parseISO(item.scheduled_datetime);
             
             // Try to find tasks in calendarData first, fallback to queue if in dashboard view
-            let sourceList = calendarData.length > 0 ? calendarData : queue;
+            let sourceList = calendarData.length > 0 ? calendarData : pendingTasks;
             
             // If the item itself isn't in the source list (e.g. from emergency tasks), add it
             const tasksOnDay = sourceList.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
@@ -497,13 +495,13 @@ export default function PostingDashboard() {
                     <div className="header-content">
                         <div className="header-info">
                             <h1 className="page-title">
-                                {view === 'dashboard' && "Today's Posting Queue"}
+                                {view === 'dashboard' && "Pending Important Tasks"}
                                 {view === 'client' && 'Client Calendar'}
                                 {view === 'master' && 'Master Calendar'}
                                 {view === 'company' && 'Company Calendar'}
                             </h1>
                             <p className="page-subtitle">
-                                {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Content ready for publishing`}
+                                {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Overdue & Today's tasks`}
                                 {view === 'client' && 'Manage posting schedule for individual clients'}
                                 {view === 'master' && 'Review company-wide posting pipeline'}
                                 {view === 'company' && 'Historical view of content statuses (-7 days)'}
@@ -608,7 +606,7 @@ export default function PostingDashboard() {
                     <div className="emergency-panel">
                         <div className="emergency-panel-header">
                             <ShieldAlert size={24} color="#ef4444" />
-                            <h2 className="emergency-panel-title">All Emergency Tasks</h2>
+                            <h2 className="emergency-panel-title">Emergency Tasks</h2>
                         </div>
                         <div className="emergency-list">
                             {emergencyTasks.map(task => (
@@ -620,17 +618,42 @@ export default function PostingDashboard() {
                                     <div className="emergency-card-icon">
                                         {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
                                     </div>
-                                    <div className="emergency-card-body">
-                                        <div className="emergency-card-client">{task.clients?.company_name.toUpperCase()}</div>
-                                        <div className="emergency-card-details">
-                                            <span className="type">{task.content_type}</span>
-                                            <span className="dot">•</span>
-                                            <span className="time">{format(parseISO(task.scheduled_datetime), 'h:mm a')}</span>
+                                    <div className="emergency-card-info">
+                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                    </div>
+                                    <ArrowRight size={18} color="var(--text-muted)" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {view === 'dashboard' && pendingTasks.length > 0 && (
+                    <div className="emergency-panel" style={{ marginTop: '24px', borderColor: 'var(--accent)' }}>
+                        <div className="emergency-panel-header">
+                            <Clock size={24} color="var(--accent)" />
+                            <h2 className="emergency-panel-title">Pending Important Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {pendingTasks.map(task => (
+                                <div 
+                                    key={task.id} 
+                                    className="emergency-card"
+                                    onClick={() => handleItemClick(task)}
+                                    style={{ borderLeftColor: 'var(--accent)' }}
+                                >
+                                    <div className="emergency-card-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                    </div>
+                                    <div className="emergency-card-info">
+                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                            <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
                                         </div>
                                     </div>
-                                    <div className="emergency-card-arrow">
-                                        <ArrowRight size={18} />
-                                    </div>
+                                    <ArrowRight size={18} color="var(--text-muted)" />
                                 </div>
                             ))}
                         </div>
@@ -642,7 +665,7 @@ export default function PostingDashboard() {
                         <div className="posting-queue-section" style={{ marginTop: '24px' }}>
                             <div className="dashboard-card">
                                 <div className="card-header">
-                                    <h3 className="card-title">Live Posting Queue</h3>
+                                    <h3 className="card-title">Pending Important Tasks</h3>
                                     <span className="card-badge">Action Required</span>
                                 </div>
                                 
@@ -654,15 +677,15 @@ export default function PostingDashboard() {
                                             </div>
                                         ))}
                                     </div>
-                                ) : queue.length === 0 ? (
+                                ) : pendingTasks.length === 0 ? (
                                     <div className="posting-empty-state">
                                         <div className="empty-icon"><CheckCircle2 size={36} /></div>
                                         <h3>All Caught Up!</h3>
-                                        <p>No content is currently waiting to be posted.</p>
+                                        <p>Great job! All overdue and today's tasks have been processed.</p>
                                     </div>
                                 ) : (
                                     <div className="posting-queue">
-                                        {queue.map(item => (
+                                        {pendingTasks.map(item => (
                                             <div key={item.id} className={`queue-item ${item.status === 'POSTED' ? 'is-posted' : ''}`}>
                                                 <div className="queue-item-left" onClick={() => handleItemClick(item)}>
                                                     <div className="queue-time-badge">

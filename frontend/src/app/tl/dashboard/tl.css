@@ -1118,3 +1118,103 @@
         justify-content: space-between !important;
     }
 }
+
+
+/* --- Emergency & Pending Task Panels --- */
+.emergency-panel {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.1);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 32px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.emergency-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.emergency-panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ef4444;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.emergency-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.emergency-card {
+    background: var(--bg-surface);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 16px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.emergency-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    border-color: #ef4444;
+    box-shadow: 0 12px 30px rgba(239, 68, 68, 0.15);
+}
+
+.emergency-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(239, 68, 68, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ef4444;
+    flex-shrink: 0;
+}
+
+.emergency-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.emergency-card-client {
+    font-size: 11px;
+    font-weight: 800;
+    color: #ef4444;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 2px;
+}
+
+.emergency-card-type {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.emergency-card-arrow {
+    color: var(--text-muted);
+    opacity: 0.5;
+    transition: all 0.2s;
+}
+
+.emergency-card:hover .emergency-card-arrow {
+    opacity: 1;
+    transform: translateX(3px);
+    color: #ef4444;
+}

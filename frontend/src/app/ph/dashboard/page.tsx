@@ -34,7 +34,7 @@ import {
     CalendarClock,
     Undo2
 } from 'lucide-react';
-import { phApi, emergencyApi, settingsApi } from '@/lib/api';
+import { phApi, emergencyApi, dashboardApi, settingsApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -58,7 +58,7 @@ interface ContentItem {
 
 export default function ProductionHeadDashboard() {
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company'>('dashboard');
-    const [queue, setQueue] = useState<ContentItem[]>([]);
+    const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
@@ -139,10 +139,15 @@ export default function ProductionHeadDashboard() {
                 percentage: totalWeek > 0 ? Math.round((completedWeek / totalWeek) * 100) : 0
             });
 
-            // Fetch all emergency tasks (filtered for PH - usually backend does this but let's be safe)
-            const emergencyRes = await emergencyApi.getAll();
-            setEmergencyTasks(emergencyRes.data);
-        } catch (err) { console.error('Error fetching today stats:', err); }
+            // Fetch all dashboard lists
+            const [emergencyRes, pendingRes] = await Promise.all([
+                emergencyApi.getAll(),
+                dashboardApi.getPendingImportant()
+            ]);
+            
+            setEmergencyTasks(emergencyRes.data || []);
+            setPendingTasks(pendingRes.data || []);
+        } catch (err) { console.error('Error fetching dashboard lists:', err); }
     };
 
     useEffect(() => {
@@ -183,7 +188,7 @@ export default function ProductionHeadDashboard() {
 
     useEffect(() => {
         if (view === 'dashboard') {
-            fetchTodayQueue();
+            fetchTodayStats();
         } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
             fetchClientCalendar();
         } else if (view === 'master' || view === 'company') {
@@ -199,12 +204,7 @@ export default function ProductionHeadDashboard() {
     };
 
     const fetchTodayQueue = async () => {
-        setLoading(true);
-        try {
-            const res = await phApi.getToday();
-            setQueue(res.data);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
+        // Obsolete - fetching integrated into fetchTodayStats
     };
 
     const fetchClientCalendar = async () => {
@@ -244,7 +244,6 @@ export default function ProductionHeadDashboard() {
             
             await Promise.all([
                 fetchTodayStats(),
-                fetchTodayQueue(),
                 view === 'client' ? fetchClientCalendar() : Promise.resolve(),
                 view === 'master' ? fetchMasterCalendar() : Promise.resolve(),
                 view === 'company' ? fetchMasterCalendar() : Promise.resolve()
@@ -268,7 +267,6 @@ export default function ProductionHeadDashboard() {
             
             await Promise.all([
                 fetchTodayStats(),
-                fetchTodayQueue(),
                 view === 'client' ? fetchClientCalendar() : Promise.resolve(),
                 view === 'master' ? fetchMasterCalendar() : Promise.resolve()
             ]);
@@ -282,26 +280,6 @@ export default function ProductionHeadDashboard() {
         } finally { setActionId(null); }
     };
 
-    const handleUndoStatus = async () => {
-        if (!activeItem) return;
-        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
-        try {
-            await phApi.undoStatus(activeItem.item.id);
-            let asOfDate;
-            if (view === 'company') {
-                const d = new Date(); d.setDate(d.getDate() - 7);
-                asOfDate = d.toISOString();
-            }
-            const res = await phApi.getContentDetails(activeItem.item.id, asOfDate);
-            setActiveItem(res.data);
-            fetchMasterCalendar();
-            fetchTodayQueue();
-        } catch (err) {
-            console.error(err);
-            alert('Failed to undo status change. It might be because there is no more history to undo.');
-        }
-    };
-
     const handleAssignEmployee = async (employeeId: string) => {
         if (!activeItem) return;
         try {
@@ -311,9 +289,7 @@ export default function ProductionHeadDashboard() {
             setToast('Employee assignment updated');
             setTimeout(() => setToast(null), 3000);
             
-            // Refresh calendars/queue to reflect potential changes
-            if (view === 'dashboard') fetchTodayQueue();
-            else if (view === 'master' || view === 'company') fetchMasterCalendar();
+            if (view === 'master' || view === 'company') fetchMasterCalendar();
             else if (view === 'client') fetchClientCalendar();
             
         } catch (err) {
@@ -324,21 +300,14 @@ export default function ProductionHeadDashboard() {
 
     const handleItemClick = async (item: ContentItem) => {
         try {
-            // Find all tasks on the same day as the clicked item
             const day = parseISO(item.scheduled_datetime);
-            
-            // Try to find tasks in calendarData first, fallback to queue if in dashboard view
-            let sourceList = calendarData.length > 0 ? calendarData : queue;
-            
-            // If the item itself isn't in the source list (e.g. from emergency tasks), add it
+            let sourceList = calendarData.length > 0 ? calendarData : [];
             const tasksOnDay = sourceList.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
             
-            // Ensure the clicked item is included if it's from a different source (like emergencyTasks)
             if (!tasksOnDay.some(t => t.id === item.id)) {
                 tasksOnDay.push(item);
             }
 
-            // Sort them by time
             tasksOnDay.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
             
             setDayTasks(tasksOnDay);
@@ -483,13 +452,13 @@ export default function ProductionHeadDashboard() {
                     <div className="header-content">
                         <div className="header-info">
                             <h1 className="page-title">
-                                {view === 'dashboard' && "Today's Shoot Queue"}
+                                {view === 'dashboard' && "Production Dashboard"}
                                 {view === 'client' && 'Client Production'}
                                 {view === 'master' && 'Master Production Schedule'}
                                 {view === 'company' && 'Company Calendar'}
                             </h1>
                             <p className="page-subtitle">
-                                {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Content approved for shooting`}
+                                {view === 'dashboard' && `Today is ${format(new Date(), 'EEEE, MMMM d')}`}
                                 {view === 'client' && 'Manage shoot schedule for individual clients'}
                                 {view === 'master' && 'Review company-wide production pipeline'}
                                 {view === 'company' && 'Historical view of production schedule (-7 days)'}
@@ -574,27 +543,68 @@ export default function ProductionHeadDashboard() {
                     </div>
                 )}
 
-                {view === 'dashboard' && emergencyTasks.length > 0 && (
+                {view === 'dashboard' && (
                     <div className="emergency-panel">
                         <div className="emergency-panel-header">
                             <ShieldAlert size={24} color="#ef4444" />
-                            <h2 className="emergency-panel-title">Urgent Shoots</h2>
+                            <h2 className="emergency-panel-title">Emergency Tasks</h2>
                         </div>
                         <div className="emergency-list">
-                            {emergencyTasks.map(task => (
-                                <div key={task.id} className="emergency-card" onClick={() => handleItemClick(task)}>
-                                    <div className="emergency-card-icon"><Video size={20} /></div>
-                                    <div className="emergency-card-body">
-                                        <div className="emergency-card-client">{task.clients?.company_name.toUpperCase()}</div>
-                                        <div className="emergency-card-details">
-                                            <span className="type">{task.content_type}</span>
-                                            <span className="dot">•</span>
-                                            <span className="time">{format(parseISO(task.scheduled_datetime), 'h:mm a')}</span>
+                            {emergencyTasks.length > 0 ? (
+                                emergencyTasks.map(task => (
+                                    <div 
+                                        key={task.id} 
+                                        className="emergency-card"
+                                        onClick={() => handleItemClick(task)}
+                                    >
+                                        <div className="emergency-card-icon">
+                                            {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
                                         </div>
+                                        <div className="emergency-card-info">
+                                            <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                            <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                        </div>
+                                        <ArrowRight size={18} color="var(--text-muted)" />
                                     </div>
-                                    <div className="emergency-card-arrow"><ArrowRight size={18} /></div>
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '14px', fontStyle: 'italic', padding: '10px' }}>No emergency tasks active.</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {view === 'dashboard' && (
+                    <div className="emergency-panel" style={{ marginTop: '24px', borderColor: 'var(--accent)' }}>
+                        <div className="emergency-panel-header">
+                            <Clock size={24} color="var(--accent)" />
+                            <h2 className="emergency-panel-title">Pending Important Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {pendingTasks.length > 0 ? (
+                                pendingTasks.map(task => (
+                                    <div 
+                                        key={task.id} 
+                                        className="emergency-card"
+                                        onClick={() => handleItemClick(task)}
+                                        style={{ borderLeftColor: 'var(--accent)' }}
+                                    >
+                                        <div className="emergency-card-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                                            {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                        </div>
+                                        <div className="emergency-card-info">
+                                            <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                                <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
+                                            </div>
+                                        </div>
+                                        <ArrowRight size={18} color="var(--text-muted)" />
+                                    </div>
+                                ))
+                            ) : (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '14px', fontStyle: 'italic', padding: '10px' }}>No pending tasks for today.</p>
+                            )}
                         </div>
                     </div>
                 )}
@@ -604,8 +614,8 @@ export default function ProductionHeadDashboard() {
                         <div className="posting-queue-section" style={{ marginTop: '24px' }}>
                             <div className="dashboard-card">
                                 <div className="card-header">
-                                    <h3 className="card-title">Live Shoot Queue</h3>
-                                    <span className="card-badge">Production Mode</span>
+                                    <h3 className="card-title">Production Status Overview</h3>
+                                    <span className="card-badge">Live View</span>
                                 </div>
                                 
                                 {loading ? (
@@ -616,15 +626,15 @@ export default function ProductionHeadDashboard() {
                                             </div>
                                         ))}
                                     </div>
-                                ) : queue.length === 0 ? (
+                                ) : pendingTasks.length === 0 ? (
                                     <div className="posting-empty-state">
                                         <div className="empty-icon"><CheckCircle2 size={36} /></div>
-                                        <h3>No Shoots Pending</h3>
-                                        <p>Great job! All content for today has been processed.</p>
+                                        <h3>No Pending Tasks</h3>
+                                        <p>Great job! All overdue and today's tasks have been processed.</p>
                                     </div>
                                 ) : (
                                     <div className="posting-queue">
-                                        {queue.map(item => (
+                                        {pendingTasks.map(item => (
                                             <div key={item.id} className={`queue-item ${item.status === 'SHOOT DONE' || item.status === 'POSTED' ? 'is-posted' : ''}`}>
                                                 <div className="queue-item-left" onClick={() => handleItemClick(item)}>
                                                     <div className="queue-time-badge">
@@ -641,7 +651,7 @@ export default function ProductionHeadDashboard() {
                                                 </div>
                                                 <div className="queue-item-right">
                                                     <span className={`queue-type-badge ${item.content_type.toLowerCase()}`}>
-                                                        <Video size={12} />
+                                                        {item.content_type === 'Post' ? <FileText size={12} /> : <Video size={12} />}
                                                         {item.content_type}
                                                     </span>
                                                     {item.status === 'POSTED' ? (
@@ -709,8 +719,8 @@ export default function ProductionHeadDashboard() {
                                             <div className="day-items desktop-only">
                                                 {dayContent.map(item => (
                                                     <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}>
-                                                        <Video size={10} />
-                                                        <span className="truncate">{(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}{item.title}</span>
+                                                        {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                        <span className="truncate">{(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}{item.content_type}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -865,7 +875,6 @@ export default function ProductionHeadDashboard() {
                                                             
                                                             // Refresh data
                                                             fetchTodayStats();
-                                                            fetchTodayQueue();
                                                             if (view === 'client') fetchClientCalendar();
                                                             else fetchMasterCalendar();
                                                         } catch (err) { 
@@ -887,7 +896,7 @@ export default function ProductionHeadDashboard() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                                     <label className="detail-label" style={{ marginBottom: 0 }}>Production History</label>
                                     <button 
-                                        onClick={handleUndoStatus}
+                                        onClick={() => handleUndo(activeItem.item.id)}
                                         style={{ 
                                             display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
                                             background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 

@@ -1435,8 +1435,7 @@ app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
         const { data, error } = await supabase
             .from('content_items')
             .select(`*, clients (company_name)`)
-            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'DESIGNING IN PROGRESS', 'EDITING IN PROGRESS'])
-            .gte('scheduled_datetime', startDate)
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'])
             .lte('scheduled_datetime', endDate)
             .order('scheduled_datetime');
 
@@ -2538,28 +2537,124 @@ app.post('/api/emergency/:id/toggle', async (req, res) => {
     }
 });
 
-app.get('/api/emergency/all', async (req, res) => {
+// Emergency API: All emergency items (Role-Aware)
+app.get('/api/emergency/all', authenticateUser, async (req, res) => {
     try {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const dayStart = `${yyyy}-${mm}-${dd}T00:00:00`;
-        const dayEnd = `${yyyy}-${mm}-${dd}T23:59:59`;
+        const resolvedRole = await getRequesterRole(req.user);
+        const userId = req.user.id;
 
-        const { data, error } = await supabase
+        let query = supabase
             .from('content_items')
-            .select(`*, clients (company_name)`)
-            .or(`is_emergency.eq.true,and(scheduled_datetime.gte.${dayStart},scheduled_datetime.lte.${dayEnd})`)
-            .order('scheduled_datetime');
+            .select('*, clients(company_name, team_lead_id)')
+            .eq('is_emergency', true);
 
-        if (error) return res.status(500).json({ error: error.message });
-        const activeEmergencyTasks = (data || []).filter(
-            (item) => (item.status || '').toUpperCase() !== 'POSTED'
-        );
-        res.json(activeEmergencyTasks);
+        // Role-completion filtering
+        if (resolvedRole === 'PRODUCTION HEAD') {
+            query = query.not('status', 'in', '("WAITING FOR APPROVAL","APPROVED","WAITING FOR POSTING","POSTED")');
+        } else {
+            query = query.not('status', 'eq', 'POSTED');
+        }
+
+        // Team Lead scoping
+        if (resolvedRole === 'TEAM LEAD') {
+            const { data: clients, error: clientError } = await supabase
+                .from('clients')
+                .select('id')
+                .eq('team_lead_id', userId);
+            
+            if (clientError) throw clientError;
+            const clientIds = clients.map(c => c.id);
+            if (clientIds.length === 0) return res.json([]);
+            query = query.in('client_id', clientIds);
+        }
+
+        const { data, error } = await query.order('scheduled_datetime');
+        if (error) throw error;
+        res.json(data);
     } catch (err) {
-        console.error('Emergency all error:', err);
+        console.error('[Emergency API] Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// New Endpoint: Pending Important Tasks (Overdue & Today)
+app.get('/api/dashboard/pending-important', authenticateUser, async (req, res) => {
+    try {
+        const resolvedRole = await getRequesterRole(req.user);
+        const userId = req.user.id;
+        
+        const now = new Date();
+        const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+        let query = supabase
+            .from('content_items')
+            .select('*, clients(company_name, team_lead_id)')
+            .lte('scheduled_datetime', endDate);
+
+        // Role-completion filtering
+        if (resolvedRole === 'PRODUCTION HEAD') {
+            query = query.not('status', 'in', '("WAITING FOR APPROVAL","APPROVED","WAITING FOR POSTING","POSTED")');
+        } else {
+            query = query.not('status', 'eq', 'POSTED');
+        }
+
+        // Team Lead scoping
+        if (resolvedRole === 'TEAM LEAD') {
+            const { data: clients, error: clientError } = await supabase
+                .from('clients')
+                .select('id')
+                .eq('team_lead_id', userId);
+            
+            if (clientError) throw clientError;
+            const clientIds = clients.map(c => c.id);
+            if (clientIds.length === 0) return res.json([]);
+            query = query.in('client_id', clientIds);
+        }
+
+        const { data, error } = await query.order('scheduled_datetime', { ascending: false });
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        console.error('[Pending Important API] Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/emergency/all', authenticateUser, async (req, res) => {
+    try {
+        const resolvedRole = await getRequesterRole(req.user);
+        const userId = req.user.id;
+
+        let query = supabase
+            .from('content_items')
+            .select('*, clients(company_name, team_lead_id)')
+            .eq('is_emergency', true);
+
+        // Role-completion filtering
+        if (resolvedRole === 'PRODUCTION HEAD') {
+            query = query.not('status', 'in', '("WAITING FOR APPROVAL","APPROVED","WAITING FOR POSTING","POSTED")');
+        } else {
+            query = query.not('status', 'eq', 'POSTED');
+        }
+
+        // Team Lead scoping
+        if (resolvedRole === 'TEAM LEAD') {
+            const { data: clients, error: clientError } = await supabase
+                .from('clients')
+                .select('id')
+                .eq('team_lead_id', userId);
+            
+            if (clientError) throw clientError;
+            const clientIds = clients.map(c => c.id);
+            if (clientIds.length === 0) return res.json([]);
+            query = query.in('client_id', clientIds);
+        }
+
+        const { data, error } = await query.order('scheduled_datetime', { ascending: true });
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        console.error('[Emergency All API] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -2576,7 +2671,7 @@ app.get('/api/emergency/today', async (req, res) => {
         const { data, error } = await supabase
             .from('content_items')
             .select(`*, clients (company_name)`)
-            .or(`is_emergency.eq.true,and(scheduled_datetime.gte.${dayStart},scheduled_datetime.lte.${dayEnd})`)
+            .eq('is_emergency', true)
             .order('scheduled_datetime');
 
         if (error) return res.status(500).json({ error: error.message });

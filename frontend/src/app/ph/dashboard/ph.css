@@ -530,10 +530,58 @@
     color: #c084fc; 
     border-color: rgba(168, 85, 247, 0.2); 
 }
-.queue-type-badge.youtube { 
-    background: rgba(239, 68, 68, 0.1); 
-    color: #f87171; 
-    border-color: rgba(239, 68, 68, 0.2); 
+.queue-type-badge.youtube {
+    background: rgba(239, 68, 68, 0.1);
+    color: #EF4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.queue-type-badge.post {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366F1;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.content-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    transition: all 0.2s ease;
+}
+
+.content-item:hover {
+    transform: translateX(2px);
+    filter: brightness(1.1);
+}
+
+.content-item.post {
+    background: rgba(99, 102, 241, 0.08);
+    color: #6366F1;
+    border-left: 2px solid #6366F1;
+}
+
+.content-item.reel {
+    background: rgba(245, 158, 11, 0.08);
+    color: #F59E0B;
+    border-left: 2px solid #F59E0B;
+}
+
+.content-item.youtube {
+    background: rgba(239, 68, 68, 0.08);
+    color: #EF4444;
+    border-left: 2px solid #EF4444;
+}
+
+.content-item.emergency {
+    background: rgba(239, 68, 68, 0.15);
+    color: #EF4444;
+    border-left: 3px solid #EF4444;
+    animation: pulse 2s infinite;
 }
 
 .btn-mark-posted {
@@ -655,4 +703,104 @@
         width: 100%;
         justify-content: space-between;
     }
+}
+
+
+/* --- Emergency & Pending Task Panels --- */
+.emergency-panel {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.1);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 32px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.emergency-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.emergency-panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ef4444;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.emergency-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.emergency-card {
+    background: var(--bg-surface);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 16px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.emergency-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    border-color: #ef4444;
+    box-shadow: 0 12px 30px rgba(239, 68, 68, 0.15);
+}
+
+.emergency-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(239, 68, 68, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ef4444;
+    flex-shrink: 0;
+}
+
+.emergency-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.emergency-card-client {
+    font-size: 11px;
+    font-weight: 800;
+    color: #ef4444;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 2px;
+}
+
+.emergency-card-type {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.emergency-card-arrow {
+    color: var(--text-muted);
+    opacity: 0.5;
+    transition: all 0.2s;
+}
+
+.emergency-card:hover .emergency-card-arrow {
+    opacity: 1;
+    transform: translateX(3px);
+    color: #ef4444;
 }

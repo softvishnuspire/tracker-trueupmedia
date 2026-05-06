@@ -88,7 +88,10 @@ export default function CooDashboard() {
             }
 
             const emergencyRes = await emergencyApi.getAll();
-            setEmergencyTasks(emergencyRes.data);
+            const filteredEmergency = (emergencyRes.data || []).filter(item => 
+                (item.status || '').toUpperCase() !== 'POSTED'
+            );
+            setEmergencyTasks(filteredEmergency);
         } catch (err: any) {
             setError(err.message);
         } finally {
