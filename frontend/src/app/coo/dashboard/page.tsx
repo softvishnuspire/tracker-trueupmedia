@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { cooApi, emergencyApi } from '@/lib/api';
-import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2 } from 'lucide-react';
+import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2, Check, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, isSameMonth } from 'date-fns';
 
@@ -354,7 +354,12 @@ export default function CooDashboard() {
                                                     }}
                                                 >
                                                     {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                    <span>{item.title}</span>
+                                                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
+                                                    {item.status === 'POSTED' ? (
+                                                        <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                    ) : (
+                                                        <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

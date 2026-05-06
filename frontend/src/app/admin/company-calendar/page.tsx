@@ -26,7 +26,8 @@ import {
     ChevronDown,
     Check,
     CalendarClock,
-    Undo2
+    Undo2,
+    AlertTriangle
 } from 'lucide-react';
 import { adminApi, emergencyApi, ContentItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
@@ -331,11 +332,18 @@ export default function CompanyCalendar() {
                                                     onClick={() => handleItemClick(item)}
                                                     className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                 >
-                                                    {item.content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
-                                                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                                        {item.is_rescheduled ? '[R] ' : ''}
-                                                        [{item.clients?.company_name?.substring(0, 3)}] {item.content_type}
-                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+                                                        {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
+                                                            {item.is_rescheduled ? '[R] ' : ''}
+                                                            [{item.clients?.company_name?.substring(0, 3)}] {item.content_type}
+                                                        </span>
+                                                        {item.status === 'POSTED' ? (
+                                                            <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                        ) : (
+                                                            <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>

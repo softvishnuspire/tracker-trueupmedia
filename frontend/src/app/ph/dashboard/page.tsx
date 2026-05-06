@@ -29,6 +29,8 @@ import {
     Filter,
     Menu,
     Clock,
+    Check,
+    AlertTriangle,
     ShieldAlert,
     ArrowRight,
     CalendarClock,
@@ -719,8 +721,15 @@ export default function ProductionHeadDashboard() {
                                             <div className="day-items desktop-only">
                                                 {dayContent.map(item => (
                                                     <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}>
-                                                        {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                        <span className="truncate">{(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}{item.content_type}</span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                            {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                            <span className="truncate" style={{ flex: 1 }}>{(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}{item.content_type}</span>
+                                                            {['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status) ? (
+                                                                <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                            ) : (
+                                                                <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>

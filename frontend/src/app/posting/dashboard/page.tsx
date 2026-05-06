@@ -32,6 +32,7 @@ import {
     Clock,
     UserCircle,
     ShieldAlert,
+    Check,
     AlertTriangle,
     ArrowRight,
     CalendarClock,
@@ -793,11 +794,18 @@ export default function PostingDashboard() {
                                                         onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
                                                         className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                     >
-                                                        {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                        <span className="truncate">
-                                                            {(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
-                                                            {item.title}
-                                                        </span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                            {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                            <span className="truncate">
+                                                                {(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
+                                                                {item.title}
+                                                            </span>
+                                                            {item.status === 'POSTED' ? (
+                                                                <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                            ) : (
+                                                                <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>

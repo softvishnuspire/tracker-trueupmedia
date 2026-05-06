@@ -938,11 +938,23 @@ export default function TLDashboard() {
                                                             title={isPocView ? (item as PocNote).note_text : (item as ContentItem).content_type}
                                                         >
                                                             {isPocView ? <FileText size={10}/> : (item as ContentItem).content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
-                                                            <span className="truncate" style={{ fontSize: '9px' }}>
-                                                                {isPocView
-                                                                    ? (item as PocNote).note_text
-                                                                    : `${view === 'master' ? `[${(item as ContentItem).clients?.company_name?.substring(0,3)}] ` : ''}${(item as ContentItem).content_type}`}
-                                                            </span>
+                                                                {isPocView ? (
+                                                                    <span className="truncate" style={{ fontSize: '9px' }}>
+                                                                        {(item as PocNote).note_text}
+                                                                    </span>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                                        <span className="truncate" style={{ fontSize: '9px', flex: 1 }}>
+                                                                            {isMasterMode ? `[${(item as ContentItem).clients?.company_name?.substring(0,3)}] ` : ''}
+                                                                            {(item as ContentItem).content_type}
+                                                                        </span>
+                                                                        {(item as ContentItem).status === 'POSTED' ? (
+                                                                            <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                                        ) : (
+                                                                            <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                         </div>
                                                     ))}
                                                 </div>
