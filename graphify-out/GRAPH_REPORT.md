@@ -976,3 +976,157 @@ Fixed the `ScheduleExport` component so that the downloaded PDF calendar always 
 
 ### Affected Components
 - **ScheduleExport (`frontend/src/components/ScheduleExport.tsx`)**: Refactored period calculation, label, filename, and cleaned up unused imports.
+
+<<<<<<< Updated upstream
+---
+
+## Recent Changes: Production Head Dashboard UI Alignment & Premium Aesthetic (May 2026)
+### Implementation Overview
+Resolved a critical layout bug in the Production Head dashboard where the content was shifted significantly to the right. The issue was caused by nested layout containers, both providing a 280px sidebar margin. Additionally, upgraded the dashboard to a premium "Pro Max" aesthetic with glassmorphism, dynamic gradients, and responsive layouts.
+
+### Key Technical Decisions
+1. **Layout Consolidation**:
+   - Simplified `frontend/src/app/ph/layout.tsx` to a minimal pass-through component. This eliminated the redundant outer `.main-content` wrapper and sidebar, resolving the double-margin issue.
+   - Centralized layout control within `frontend/src/app/ph/dashboard/page.tsx` to better manage the dynamic sidebar state and sub-view navigation (Shoot Queue, Client Production, Master Schedule).
+
+2. **Premium Visual Overhaul**:
+   - **Glassmorphism**: Implemented `backdrop-filter: blur(20px)` and semi-transparent backgrounds for the sidebar and modals.
+   - **Modern Gradients**: Replaced flat colors with rich, linear gradients for stats cards (`.progress-meter-card`) and action buttons.
+   - **Typography & Spacing**: Upgraded font sizes, weights, and letter-spacing for a high-end feel. Increased padding and margins for better white space.
+   - **Micro-Animations**: Added entrance animations (`fadeInDown`) and smooth hover transitions for all interactive elements.
+
+3. **Responsive Design Fixes**:
+   - Refined the mobile experience by adding a dedicated `mobile-header-top` and a smooth slide-in sidebar.
+   - Implemented a `max-width: 1600px` constraint for the main content area to prevent extreme stretching on ultra-wide monitors.
+
+### Affected Components
+- **ProductionHeadLayout (`frontend/src/app/ph/layout.tsx`)**: Removed redundant shell and sidebar.
+- **ProductionHeadDashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Verified primary layout classes and structure.
+- **Style Sheet (`frontend/src/app/ph/dashboard/ph.css`)**: Comprehensive upgrade of all layout, card, sidebar, and mobile styles.
+=======
+## Recent Changes: Employee Task System Implementation (May 2026)
+### Implementation Overview
+Implemented a dedicated "Employee" role and task management system to streamline daily execution for content teams. This system allows Production Heads to delegate specific tasks to employees without cluttering the primary content production pipeline.
+
+### Key Technical Decisions
+1. **Independent Task Tracking**:
+   - Added `assigned_to` (linking to employee users) and `employee_task_status` (`PENDING`, `COMPLETED`) fields to content items.
+   - **Isolation**: Changes to `employee_task_status` are independent of the main production status (e.g., CONTENT APPROVED, WAITING FOR POSTING), ensuring operational oversight remains distinct from task execution.
+
+2. **Production Head Delegation UI**:
+   - Integrated a searchable employee assignment dropdown into the content details modal of the PH Dashboard.
+   - Added real-time task status visibility for Production Heads to monitor employee progress directly from the calendar view.
+
+3. **Dedicated Employee Dashboard**:
+   - **Workspace**: Created a new `/employee/dashboard` with a premium card-based layout.
+   - **Auto-Grouping**: Tasks are automatically grouped into "Overdue" and "Today's Assignments" based on the scheduled date.
+   - **Single-Action Workflow**: Simplified task completion with a one-click toggle that updates the internal task status.
+
+4. **Auth & Role Integration**:
+   - Expanded the login system to support the `EMPLOYEE` role.
+   - Updated the navigation system to provide role-specific sidebar layouts and permission-gated access to the employee workspace.
+
+### Affected Components
+- **API Client (`frontend/src/lib/api.ts`)**: Added `employeeApi` for task fetching/updating and updated `ContentItem` interface.
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Implemented assignment logic and status indicators in the details modal.
+- **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Created the primary interface for employee task management.
+- **Employee Layout (`frontend/src/app/employee/layout.tsx`)**: Established the role-specific navigation and theme.
+- **Login Page (`frontend/src/app/page.tsx`)**: Integrated role normalization and routing for employees.
+
+## Recent Changes: Employee Task System Implementation (May 2026)
+### Implementation Overview
+Completed the integration of the **Employee Task System**, enabling Production Heads to assign tasks to specific employees and allowing employees to manage their daily workflow with historical tracking.
+
+### Key Technical Decisions
+1. **Isolated Task Management**:
+   - Implemented `employee_task_status` in the `content_items` table, completely independent of the main production status flow (`status`).
+   - This allows employees to mark tasks as COMPLETED without interfering with the content approval or posting pipeline.
+
+2. **History & Dashboard Logic**:
+   - **Dashboard**: Automatically groups tasks into "Overdue" (pending past date) and "Today" (assigned for the current date) for maximum focus.
+   - **History View**: Added a dedicated History tab with a month picker (`YYYY-MM`) to fetch and display past assignments.
+   - **Backend Optimization**: Modified `/api/employee/tasks` to accept an optional `month` parameter, fetching either the active dashboard view or a full month's history.
+
+3. **Single Assignment Enforcement**:
+   - Enforced a single-assignment model where each `content_item` can be assigned to exactly one employee via the `assigned_to` column (foreign key to `users.user_id`).
+
+### Affected Components
+- **Backend (`backend/index.js`)**: Updated `/api/employee/tasks` endpoint; verified `/api/ph/content/:id/assign` logic.
+- **Frontend API (`frontend/src/lib/api.ts`)**: Updated `employeeApi` with month-based task retrieval.
+- **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Implemented the dual-view (Today/History) interface and toggle logic.
+- **Styles (`frontend/src/app/employee/dashboard/employee.css`)**: Added styles for the dashboard view toggle and history picker.
+
+## Recent Changes: Employee Dashboard Type Safety & CSS Fix (May 2026)
+### Implementation Overview
+Resolved critical TypeScript build errors and CSS compatibility warnings in the Employee Dashboard. These fixes ensure a stable build process and consistent text rendering across different browsers.
+
+### Key Technical Decisions
+1. **API Data Sanitization**:
+   - Implemented a mapping layer in `fetchDashboardTasks` and `fetchHistoryTasks` to ensure the `employee_task_status` field is never `undefined` or `null` before reaching the state.
+   - Defaulted missing statuses to `'PENDING'` as confirmed by requirements, aligning with the `Task` interface and preventing `"not assignable"` errors.
+
+2. **Strict Type Casting in State Updates**:
+   - Explicitly typed the functional state update in `handleToggleStatus` as `(prev: Task[]): Task[]`.
+   - Used explicit casting (`as 'PENDING' | 'COMPLETED'`) for the `newStatus` variable within the object spread to prevent TypeScript from widening the type to a generic `string`.
+
+3. **Standardized CSS Truncation**:
+   - Added the standard `line-clamp` property to the `.task-description` class in `employee.css`.
+   - This follows auto-prefixing best practices, resolving the lint warning while maintaining cross-browser support for text truncation.
+
+### Affected Components
+- **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Fixed interface mismatches and functional state update types.
+- **Employee Styles (`frontend/src/app/employee/dashboard/employee.css`)**: Added standard `line-clamp` property.
+>>>>>>> Stashed changes
+
+## Recent Changes: Admin Team Management Fixes (May 2026)
+### Implementation Overview
+Resolved a series of critical issues in the Admin Panel that prevented the addition and management of team members, specifically "Employee" roles. The fix covered backend authentication stability, role-based filtering logic, and frontend UI completeness.
+
+### Key Technical Decisions
+1. **Backend Environment Stability**:
+   - Identified and fixed missing Supabase credentials (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) in the backend `.env` file that caused "Critical Error" crashes on startup.
+   - Synchronized these keys with the frontend `.env.local` to ensure consistent auth behavior across the stack.
+
+2. **Role Visibility & Filtering**:
+   - Refactored `adminApi.getTeam` in `backend/index.js` to include a broader range of roles (GM, COO, ADMIN, etc.) in the team list, ensuring leadership and administration staff are visible and manageable.
+   - Standardized role normalization to ensure case-insensitive matching across the database and API.
+
+3. **Employee Role Integration**:
+   - Added the **"Employee"** role to the team member creation/editing dropdown in the Admin panel.
+   - Implemented dedicated CSS styling for the `.type-badge.employee` badge in `admin.css` for visual consistency in the team list.
+   - Verified that new employees are correctly registered in both Supabase Auth and the `public.users` database table.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated `getTeam` filtering and added debug logging for role resolution.
+- **Team Management UI (`frontend/src/app/admin/team/page.tsx`)**: Added "Employee" role to the creation modal.
+- **Style Sheets (`frontend/src/app/admin/admin.css`)**: Added employee badge colors.
+- **Environment (`backend/.env`)**: Restored critical Supabase connection strings.
+
+## Recent Changes: Employee Management and Production Head Assignment Fixes (May 2026)
+### Implementation Overview
+Resolved critical issues in the Production Head (PH) dashboard related to employee assignment and expanded the Admin panel to support the creation and management of the "EMPLOYEE" role. This ensures a complete workflow from user creation to task fulfillment.
+
+### Key Technical Decisions
+1. **Frontend Role Expansion**:
+   - Added `EMPLOYEE` to the role selection dropdown in the Admin Team Management page (`frontend/src/app/admin/team/page.tsx`).
+   - This allows Admins to create new accounts specifically for production staff.
+
+2. **PH Dashboard Bug Fixes**:
+   - **Identifier Sync**: Fixed a field name mismatch in the PH dashboard's employee assignment dropdown. Changed `emp.id` to `emp.user_id` to match the identifier returned by the backend, resolving the "Failed to assign employee" errors.
+   - **Enhanced Debugging**: Added detailed server-side logging to the PH assignment endpoint (`PATCH /api/ph/content/:id/assign`) to track request payloads and Supabase transaction results.
+
+3. **Backend Logic Refinement**:
+   - **Task State Management**: Updated the assignment logic to automatically set `employee_task_status` to `PENDING` when an employee is assigned, and clear it (`null`) if the item is unassigned.
+   - **Role Scoping**: Confirmed that PH operations do not require `team_lead_id` ownership, as the PH role is a singular, global production manager for the organization.
+
+4. **Employee Dashboard Visibility Fix**:
+   - **Broader Dashboard Scope**: Updated the default dashboard view to fetch all tasks for the current month plus any overdue pending tasks. This ensures that tasks are always visible regardless of minor server/client timezone differences.
+   - **Dashboard UI Expansion**: Added an "Upcoming Tasks" section to the employee dashboard (`frontend/src/app/employee/dashboard/page.tsx`). This ensures that tasks scheduled for future dates in the current month are visible on the main screen, preventing confusion when the "Today" view is empty but tasks are assigned.
+   - **State Reliability**: Verified that all 4 pending tasks (1 Overdue, 3 Upcoming) now correctly populate the employee dashboard as requested.
+
+### Affected Components
+- **Admin Team Management (`frontend/src/app/admin/team/page.tsx`)**: Added `EMPLOYEE` role support.
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Fixed assignment dropdown data mapping and `assigned_at` timestamping.
+- **Backend Entry Point (`backend/index.js`)**: Refactored employee task query to use `assigned_at`.
+- **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Implemented assignment-centric filtering (Today/Overdue) and UI updates.
+- **API Library (`frontend/src/lib/api.ts`)**: Verified `phApi.assignEmployee` and `TeamMember` type safety.

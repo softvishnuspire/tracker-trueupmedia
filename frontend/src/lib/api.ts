@@ -44,6 +44,8 @@ export interface ContentItem {
     is_emergency?: boolean;
     emergency_marked_at?: string;
     clients?: { company_name: string };
+    assigned_to?: string;
+    employee_task_status?: 'PENDING' | 'COMPLETED';
 }
 
 export interface ContentDetails {
@@ -197,6 +199,27 @@ export const phApi = {
     updateStatus: (id: string, newStatus: string, changedBy?: string) => 
         phBase.patch(`/api/ph/content/${id}/status`, { new_status: newStatus, changed_by: changedBy }),
     undoStatus: (id: string) => phBase.post(`/api/ph/content/${id}/undo`),
+    getEmployees: () => phBase.get<TeamMember[]>('/api/ph/employees'),
+    assignEmployee: (id: string, employeeId: string | null) => 
+        phBase.patch(`/api/ph/content/${id}/assign`, { assigned_to: employeeId }),
+};
+
+const employeeBase = axios.create({
+    baseURL: API_BASE_URL,
+});
+
+employeeBase.interceptors.request.use(async (config) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    return config;
+});
+
+export const employeeApi = {
+    getTasks: (month?: string) => employeeBase.get<ContentItem[]>(`/api/employee/tasks${month ? `?month=${month}` : ''}`),
+    updateTaskStatus: (id: string, status: 'PENDING' | 'COMPLETED') => 
+        employeeBase.patch(`/api/employee/tasks/${id}/status`, { status }),
 };
 
 const tlBase = axios.create({
@@ -340,6 +363,7 @@ api.interceptors.response.use((r) => r, handleAuthError);
 adminBase.interceptors.response.use((r) => r, handleAuthError);
 cooBase.interceptors.response.use((r) => r, handleAuthError);
 phBase.interceptors.response.use((r) => r, handleAuthError);
+employeeBase.interceptors.response.use((r) => r, handleAuthError);
 tlBase.interceptors.response.use((r) => r, handleAuthError);
 postingBase.interceptors.response.use((r) => r, handleAuthError);
 notificationBase.interceptors.response.use((r) => r, handleAuthError);

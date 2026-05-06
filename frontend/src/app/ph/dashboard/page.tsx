@@ -52,6 +52,8 @@ interface ContentItem {
     client_id: string;
     is_emergency?: boolean;
     clients?: { company_name: string };
+    assigned_to?: string;
+    employee_task_status?: 'PENDING' | 'COMPLETED';
 }
 
 export default function ProductionHeadDashboard() {
@@ -74,6 +76,7 @@ export default function ProductionHeadDashboard() {
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
+    const [employees, setEmployees] = useState<any[]>([]);
 
     const router = useRouter();
     const supabase = createClient();
@@ -161,6 +164,18 @@ export default function ProductionHeadDashboard() {
             }
         };
         fetchSettings();
+    }, []);
+
+    useEffect(() => {
+        const fetchEmployees = async () => {
+            try {
+                const res = await phApi.getEmployees();
+                setEmployees(res.data);
+            } catch (err) {
+                console.error('Error fetching employees:', err);
+            }
+        };
+        fetchEmployees();
     }, []);
 
     useEffect(() => {
@@ -280,6 +295,26 @@ export default function ProductionHeadDashboard() {
         } catch (err) {
             console.error(err);
             alert('Failed to undo status change. It might be because there is no more history to undo.');
+        }
+    };
+
+    const handleAssignEmployee = async (employeeId: string) => {
+        if (!activeItem) return;
+        try {
+            await phApi.assignEmployee(activeItem.item.id, employeeId || null as any);
+            const res = await phApi.getContentDetails(activeItem.item.id);
+            setActiveItem(res.data);
+            setToast('Employee assignment updated');
+            setTimeout(() => setToast(null), 3000);
+            
+            // Refresh calendars/queue to reflect potential changes
+            if (view === 'dashboard') fetchTodayQueue();
+            else if (view === 'master' || view === 'company') fetchMasterCalendar();
+            else if (view === 'client') fetchClientCalendar();
+            
+        } catch (err) {
+            console.error(err);
+            alert('Failed to assign employee');
         }
     };
 
@@ -738,6 +773,32 @@ export default function ProductionHeadDashboard() {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
                                             <span className={`status-badge ${activeItem.item.status.toLowerCase().replace(/ /g, '-')}`}>{activeItem.item.status}</span>
                                         </div>
+                                    </div>
+
+                                    <div className="detail-field" style={{ marginTop: '20px' }}>
+                                        <label className="detail-label">Employee Assignment</label>
+                                        <div style={{ position: 'relative', marginTop: '8px' }}>
+                                            <select 
+                                                className="client-dropdown" 
+                                                style={{ width: '100%', paddingRight: '32px' }}
+                                                value={activeItem.item.assigned_to || ''} 
+                                                onChange={(e) => handleAssignEmployee(e.target.value)}
+                                            >
+                                                <option value="">Unassigned</option>
+                                                {employees.map(emp => (
+                                                    <option key={emp.user_id} value={emp.user_id}>{emp.name}</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+                                        </div>
+                                        {activeItem.item.assigned_to && (
+                                            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Task Status:</span>
+                                                <span className={`status-badge ${activeItem.item.employee_task_status?.toLowerCase() || 'pending'}`} style={{ fontSize: '10px' }}>
+                                                    {activeItem.item.employee_task_status || 'PENDING'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                     
                                     {activeItem.item.status === 'CONTENT APPROVED' && view !== 'company' && (
