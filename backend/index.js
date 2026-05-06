@@ -211,6 +211,7 @@ const getRequesterRole = async (user) => {
     else if (upperId === 'PRODUCTION HEAD' || upperId === 'PH' || resolvedRole === 'PH') resolvedRole = 'PRODUCTION HEAD';
     else if (upperId === 'POSTING TEAM' || upperId === 'POSTING') resolvedRole = 'POSTING TEAM';
     else if (upperId === 'CLIENT') resolvedRole = 'CLIENT';
+    else if (upperId === 'EMPLOYEE') resolvedRole = 'EMPLOYEE';
 
     console.log(`[RoleResolver] Final resolved role for ${userId}: "${resolvedRole}"`);
 
@@ -229,6 +230,7 @@ const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER'];
 const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER'];
 const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER'];
 const CLIENT_ROLES = ['CLIENT', 'ADMIN'];
+const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN'];
 
 const requireRoles = (allowedRoles) => {
     const normalizedAllowed = allowedRoles.map((role) => normalizeRole(role));
@@ -739,7 +741,7 @@ app.get('/api/admin/team', async (req, res) => {
 
     const teamMembers = (data || []).filter(u => {
         const normalizedRole = (u.role || '').toUpperCase().trim().replace(/_/g, ' ');
-        const isMatch = ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM'].includes(normalizedRole);
+        const isMatch = ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE'].includes(normalizedRole);
         if (isMatch) console.log(`    MATCH: ${u.email}`);
         return isMatch;
     });
@@ -1501,6 +1503,117 @@ app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) =>
     }
 });
 
+// PH: Get Employees for Assignment
+app.get('/api/ph/employees', requireRoles(PH_ROLES), async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('user_id, name, email')
+            .eq('role', 'EMPLOYEE')
+            .order('name');
+        
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PH: Assign Employee to Content Item
+app.patch('/api/ph/content/:id/assign', requireRoles(PH_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { assigned_to } = req.body;
+
+    try {
+        const { data, error } = await supabase
+            .from('content_items')
+            .update({ 
+                assigned_to: assigned_to || null,
+                assigned_at: assigned_to ? new Date().toISOString() : null,
+                employee_task_status: 'PENDING'
+            })
+            .eq('id', id)
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Employee Endpoints ───
+app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) => {
+    const userId = req.user.id;
+    const { month } = req.query;
+
+    try {
+        if (month) {
+            // History view: fetch all assignments for a specific month
+            const [year, mon] = String(month).split('-');
+            const startDate = `${year}-${mon}-01T00:00:00`;
+            const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+            const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+            const { data, error } = await supabase
+                .from('content_items')
+                .select(`*, clients (company_name)`)
+                .eq('assigned_to', userId)
+                .gte('scheduled_datetime', startDate)
+                .lte('scheduled_datetime', endDate)
+                .order('scheduled_datetime', { ascending: false });
+
+            if (error) return res.status(500).json({ error: error.message });
+            return res.json(data);
+        }
+
+        // Default Dashboard view: today's tasks + overdue pending tasks
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        
+        const { data, error } = await supabase
+            .from('content_items')
+            .select(`*, clients (company_name)`)
+            .eq('assigned_to', userId)
+            .or(`scheduled_datetime.ilike.${todayStr}%,and(scheduled_datetime.lt.${todayStr},employee_task_status.eq.PENDING)`)
+            .order('scheduled_datetime', { ascending: true });
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.patch('/api/employee/tasks/:id/status', requireRoles(EMPLOYEE_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    const userId = req.user.id;
+
+    try {
+        const { data: item, error: fetchError } = await supabase
+            .from('content_items')
+            .select('assigned_to')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !item) return res.status(404).json({ error: 'Task not found' });
+        if (item.assigned_to !== userId && req.resolvedRole !== 'ADMIN') {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        const { data, error } = await supabase
+            .from('content_items')
+            .update({ employee_task_status: status })
+            .eq('id', id)
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // ─── Team Lead Endpoints ───
 app.get('/api/tl/clients', requireRoles(TL_ROLES), async (req, res) => {
     const { tlId } = req.query;
