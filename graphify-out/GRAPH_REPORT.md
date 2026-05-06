@@ -1,13 +1,13 @@
-# Graph Report - .  (2026-05-01)
+# Graph Report - .  (2026-05-06)
 
 ## Corpus Check
 - 122 files · ~263,712 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 199 nodes · 211 edges · 80 communities detected
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 4 edges (avg confidence: 0.83)
-- Token cost: 10,000 input · 5,000 output
+- 202 nodes · 215 edges · 82 communities detected
+- Extraction: 98.5% EXTRACTED · 1.5% INFERRED · 0% AMBIGUOUS
+- Token cost: 12,000 input · 6,000 output
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Frontend Pages|Frontend Pages]]
@@ -1130,3 +1130,28 @@ Resolved critical issues in the Production Head (PH) dashboard related to employ
 - **Backend Entry Point (`backend/index.js`)**: Refactored employee task query to use `assigned_at`.
 - **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Implemented assignment-centric filtering (Today/Overdue) and UI updates.
 - **API Library (`frontend/src/lib/api.ts`)**: Verified `phApi.assignEmployee` and `TeamMember` type safety.
+
+## Recent Changes: Robust Client Deletion & Dependency Management (May 2026)
+### Implementation Overview
+Resolved a critical **500 Internal Server Error** that occurred when administrators attempted to delete a client in the Admin Panel. The issue was caused by SQL Foreign Key constraint violations from `content_items` and `poc_communications` referencing the client.
+
+### Key Technical Decisions
+1. **Sequential Hard Deletion**:
+   - Implemented a multi-stage deletion sequence in the `DELETE /api/admin/clients/:id` route.
+   - **Step 1**: Fetch client metadata (email) and all associated `content_item` IDs.
+   - **Step 2**: Delete `status_logs` referencing those content items to break the first layer of constraints.
+   - **Step 3**: Delete all `content_items` belonging to the client.
+   - **Step 4**: Delete all `poc_communications` linked to the client.
+
+2. **Unified User/Auth Cleanup**:
+   - Integrated the removal of the client's **Supabase Auth** account and their corresponding record in the `public.users` table.
+   - This ensures that deleting a client fully frees up their email address for future re-registration and prevents orphaned authentication records.
+
+3. **Cache Synchronization**:
+   - Added invalidation for `admin_clients`, `gm_clients`, and `admin_team` caches to ensure the deletion is reflected immediately across all leadership dashboards.
+
+### Affected Components
+- **Backend Entry Point (`backend/index.js`)**: Refactored the client deletion route with comprehensive dependency cleanup logic.
+- **Admin Panel**: Client deletion now functions reliably without server crashes.
+- **Database Integrity**: Maintains a clean schema by properly removing dependent child records.
+

@@ -718,10 +718,104 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
 
 app.delete('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
-    const { error } = await supabase.from('clients').delete().eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
-    myCache.del(["gm_clients", "admin_clients"]);
-    res.json({ message: 'Client removed successfully' });
+    console.log(`[Admin] Hard delete request for client: ${id}`);
+
+    try {
+        // 1. Fetch client details to get email for user cleanup
+        const { data: client, error: fetchError } = await supabase
+            .from('clients')
+            .select('email, company_name')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !client) {
+            console.error(`[Admin] Delete failed: Client ${id} not found`);
+            return res.status(404).json({ error: 'Client not found' });
+        }
+
+        console.log(`[Admin] Starting comprehensive cleanup for ${client.company_name} (${client.email})`);
+
+        // 2. Fetch all content items for this client to clean up their logs
+        const { data: items, error: itemsFetchError } = await supabase
+            .from('content_items')
+            .select('id')
+            .eq('client_id', id);
+        
+        if (itemsFetchError) {
+            console.warn('[Admin] Items fetch warning:', itemsFetchError.message);
+        }
+
+        const itemIds = items?.map(i => i.id) || [];
+
+        // 3. Delete status logs for those items (Constraints: status_logs -> content_items)
+        if (itemIds.length > 0) {
+            console.log(`[Admin] Deleting status logs for ${itemIds.length} items`);
+            const { error: logDelError } = await supabase
+                .from('status_logs')
+                .delete()
+                .in('item_id', itemIds);
+            if (logDelError) console.warn('[Admin] Status logs deletion warning:', logDelError.message);
+        }
+
+        // 4. Delete content items (Constraints: content_items -> clients)
+        console.log('[Admin] Deleting content items');
+        const { error: itemDelError } = await supabase
+            .from('content_items')
+            .delete()
+            .eq('client_id', id);
+        if (itemDelError) console.warn('[Admin] Content items deletion warning:', itemDelError.message);
+
+        // 5. Delete POC communications (Constraints: poc_communications -> clients)
+        console.log('[Admin] Deleting POC communications');
+        const { error: pocDelError } = await supabase
+            .from('poc_communications')
+            .delete()
+            .eq('client_id', id);
+        if (pocDelError) console.warn('[Admin] POC communications deletion warning:', pocDelError.message);
+
+        // 6. Cleanup User Accounts (Auth + DB Users)
+        const { data: dbUser } = await supabase
+            .from('users')
+            .select('user_id')
+            .eq('email', client.email)
+            .single();
+
+        if (dbUser) {
+            const userId = dbUser.user_id;
+            console.log(`[Admin] Deleting associated user account: ${userId}`);
+            
+            // Delete user notifications
+            await supabase.from('notification_recipients').delete().eq('user_id', userId);
+            
+            // Delete from Auth (Supabase service role required)
+            const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+            if (authError) console.warn('[Admin] Auth deletion warning:', authError.message);
+
+            // Delete from users table
+            const { error: userTableError } = await supabase.from('users').delete().eq('user_id', userId);
+            if (userTableError) console.warn('[Admin] Users table deletion warning:', userTableError.message);
+        }
+
+        // 7. Finally delete the client record
+        console.log(`[Admin] Executing final client deletion for ID: ${id}`);
+        const { error: clientDelError } = await supabase
+            .from('clients')
+            .delete()
+            .eq('id', id);
+
+        if (clientDelError) {
+            console.error(`[Admin] Final client deletion error for ${id}:`, clientDelError.message);
+            return res.status(500).json({ error: `Final deletion failed: ${clientDelError.message}` });
+        }
+
+        console.log(`[Admin] Successfully hard-deleted client ${id} and all associated records.`);
+        myCache.del(["gm_clients", "admin_clients", "admin_team"]);
+        res.json({ message: 'Client and all associated data removed successfully' });
+
+    } catch (error) {
+        console.error(`[Admin] Crash during client deletion of ${id}:`, error);
+        res.status(500).json({ error: `Unexpected server error: ${error.message}` });
+    }
 });
 
 // ─── Admin: Team Management ───
