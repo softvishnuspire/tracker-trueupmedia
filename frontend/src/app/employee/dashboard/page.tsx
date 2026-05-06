@@ -5,7 +5,9 @@ import {
     format, 
     isToday, 
     isBefore, 
+    isAfter,
     startOfToday, 
+    endOfToday,
     parseISO 
 } from 'date-fns';
 import { 
@@ -104,9 +106,9 @@ export default function EmployeeDashboard() {
         }
     };
 
-    const todayTasks = tasks.filter(t => isToday(parseISO(t.scheduled_datetime)));
+    const todayTasks = tasks.filter(t => isToday(parseISO(t.assigned_at || t.scheduled_datetime)));
     const pendingTasks = tasks.filter(t => 
-        isBefore(parseISO(t.scheduled_datetime), startOfToday()) && 
+        isBefore(parseISO(t.assigned_at || t.scheduled_datetime), startOfToday()) && 
         t.employee_task_status === 'PENDING'
     );
 
@@ -183,6 +185,7 @@ export default function EmployeeDashboard() {
                     </div>
                 )}
             </section>
+
         </>
     );
 
@@ -295,9 +298,9 @@ function TaskCard({ task, onToggle, isUpdating }: { task: Task, onToggle: () => 
             <p className="task-description">{task.description || 'No additional instructions provided for this task.'}</p>
 
             <div className="task-footer">
-                <div className="task-time">
-                    <Clock size={14} />
-                    {format(parseISO(task.scheduled_datetime), 'MMM do, h:mm a')}
+                <div className="task-time" title={`Post Date: ${format(parseISO(task.scheduled_datetime), 'MMM do, h:mm a')}`}>
+                    <Calendar size={14} />
+                    Assigned: {format(parseISO(task.assigned_at || task.scheduled_datetime), 'MMM do')}
                 </div>
                 <button 
                     className={`btn-complete-toggle ${isCompleted ? 'completed' : 'pending'}`}

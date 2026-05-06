@@ -43,7 +43,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
             .update({ status: 'CONTENT APPROVED' })
             .eq('status', 'CONTENT READY')
             .select('*', { count: 'exact' });
-        
+
         if (error) {
             console.error('❌ Migration Error (CONTENT READY -> CONTENT APPROVED):', error.message);
         } else if (count > 0) {
@@ -66,7 +66,7 @@ async function getSystemSetting(key, defaultValue = null) {
             .select('value')
             .eq('key', key)
             .single();
-        
+
         if (error) {
             if (error.code === '42P01') {
                 console.warn(`⚠️ Table system_settings does not exist. Using default for ${key}.`);
@@ -91,7 +91,7 @@ const authenticateUser = async (req, res, next) => {
         }
 
         const token = authHeader.split(' ')[1];
-        
+
         // Fast path: Check cache first
         const cachedUser = myCache.get(`auth_${token}`);
         if (cachedUser) {
@@ -239,7 +239,7 @@ const requireRoles = (allowedRoles) => {
         try {
             const resolvedRole = await getRequesterRole(req.user);
             console.log(`[Auth] User: ${req.user?.id}, Resolved Role: ${resolvedRole}, Allowed: ${normalizedAllowed.join(', ')}`);
-            
+
             if (!resolvedRole) {
                 console.warn(`[Auth] No profile/role found for user ${req.user?.id}`);
                 return res.status(403).json({ error: 'User profile not found' });
@@ -492,7 +492,7 @@ app.get('/api/gm/content/:id', async (req, res) => {
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        
+
         const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
         res.json({ item: transformedItem, history: logsRes.data || [] });
     } catch (error) {
@@ -607,7 +607,7 @@ app.get('/api/admin/clients', async (req, res) => {
 app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
     console.log('POST /api/admin/clients - Body:', req.body);
     const { company_name, phone, email, address, posts_per_month, reels_per_month, youtube_per_month, batch_type, password } = req.body;
-    
+
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
     if (!email) return res.status(400).json({ error: 'Email is mandatory' });
     if (!password) return res.status(400).json({ error: 'Password is mandatory' });
@@ -618,9 +618,9 @@ app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
     try {
         // 1. Create Auth User
         const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-            email, 
-            password, 
-            email_confirm: true, 
+            email,
+            password,
+            email_confirm: true,
             user_metadata: { role: 'CLIENT', name: company_name }
         });
 
@@ -677,7 +677,7 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     const { id } = req.params;
     console.log(`PUT /api/admin/clients/${id} - Body:`, req.body);
     const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, youtube_per_month, batch_type, password } = req.body;
-    
+
     const updateObj = {
         company_name,
         phone,
@@ -693,7 +693,7 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
 
     if (password) {
         updateObj.password_hash = password;
-        
+
         try {
             const { data: dbUser } = await supabase.from('users').select('user_id').eq('email', email).single();
             if (dbUser) {
@@ -706,12 +706,12 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     }
 
     const { data, error } = await supabase.from('clients').update(updateObj).eq('id', id).select();
-    
+
     if (error) {
         console.error(`[Admin] Error updating client ${id}:`, error.message);
         return res.status(500).json({ error: error.message });
     }
-    
+
     myCache.del(["gm_clients", "admin_clients"]);
     res.json(data[0]);
 });
@@ -974,7 +974,7 @@ app.get('/api/admin/content/:id', async (req, res) => {
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        
+
         const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
         res.json({ item: transformedItem, history: logsRes.data || [] });
     } catch (error) {
@@ -1065,7 +1065,7 @@ app.get('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        
+
         const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
         res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
     } catch (error) {
@@ -1112,7 +1112,7 @@ app.get('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        
+
         const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
         res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
     } catch (error) {
@@ -1274,7 +1274,7 @@ app.get('/api/ph/stats', requireRoles(PH_ROLES), async (req, res) => {
         const now = new Date();
         const year = month ? parseInt(String(month).split('-')[0]) : now.getFullYear();
         const mon = month ? parseInt(String(month).split('-')[1]) : now.getMonth() + 1;
-        
+
         const startDate = `${year}-${String(mon).padStart(2, '0')}-01`;
         const endDate = `${year}-${String(mon).padStart(2, '0')}-${String(new Date(year, mon, 0).getDate()).padStart(2, '0')} 23:59:59`;
 
@@ -1418,7 +1418,7 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        
+
         const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
         res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
     } catch (error) {
@@ -1444,7 +1444,7 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
             .single();
 
         if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
-        
+
         if (item.content_type === 'Post') {
             return res.status(403).json({ error: 'Production Head has no power over Posts' });
         }
@@ -1511,7 +1511,7 @@ app.get('/api/ph/employees', requireRoles(PH_ROLES), async (req, res) => {
             .select('user_id, name, email')
             .eq('role', 'EMPLOYEE')
             .order('name');
-        
+
         if (error) return res.status(500).json({ error: error.message });
         res.json(data);
     } catch (err) {
@@ -1529,7 +1529,7 @@ app.patch('/api/ph/content/:id/assign', requireRoles(PH_ROLES), async (req, res)
     try {
         const { data, error } = await supabase
             .from('content_items')
-            .update({ 
+            .update({
                 assigned_to: assigned_to || null,
                 assigned_at: assigned_to ? new Date().toISOString() : null,
                 employee_task_status: assigned_to ? 'PENDING' : null
@@ -1541,7 +1541,7 @@ app.patch('/api/ph/content/:id/assign', requireRoles(PH_ROLES), async (req, res)
             console.error('[PH Assign] Supabase Error:', error);
             return res.status(500).json({ error: error.message });
         }
-        
+
         if (!data || data.length === 0) {
             console.warn(`[PH Assign] No rows updated for ID ${id}`);
             return res.status(404).json({ error: 'Content item not found' });
@@ -1562,7 +1562,7 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
 
     try {
         if (month) {
-            // History view: fetch all assignments for a specific month
+            // History view: fetch all assignments made in a specific month
             const [year, mon] = String(month).split('-');
             const startDate = `${year}-${mon}-01T00:00:00`;
             const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
@@ -1572,30 +1572,31 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
                 .from('content_items')
                 .select(`*, clients (company_name)`)
                 .eq('assigned_to', userId)
-                .gte('scheduled_datetime', startDate)
-                .lte('scheduled_datetime', endDate)
-                .order('scheduled_datetime', { ascending: false });
+                .gte('assigned_at', startDate)
+                .lte('assigned_at', endDate)
+                .order('assigned_at', { ascending: false });
 
             if (error) return res.status(500).json({ error: error.message });
             return res.json(data);
         }
 
-        // Default Dashboard view: today's tasks + overdue pending tasks
+        // Default Dashboard view: Assignments made this month + any overdue pending tasks
         const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
-        const tomorrow = new Date(now);
-        tomorrow.setDate(now.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        
+        // Start of current month
+        const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01T00:00:00`;
         
         const { data, error } = await supabase
             .from('content_items')
             .select(`*, clients (company_name)`)
             .eq('assigned_to', userId)
-            .or(`and(scheduled_datetime.gte.${todayStr},scheduled_datetime.lt.${tomorrowStr}),and(scheduled_datetime.lt.${todayStr},employee_task_status.eq.PENDING)`)
-            .order('scheduled_datetime', { ascending: true });
+            .or(`assigned_at.gte.${startOfMonth},employee_task_status.eq.PENDING`)
+            .order('assigned_at', { ascending: true });
 
         if (error) {
-            console.error('[EmployeeTasks] Query Error:', error.message);
+            console.error('[EmployeeTasks] Dashboard Query Error:', error.message);
             return res.status(500).json({ error: error.message });
         }
         res.json(data);
@@ -1765,7 +1766,7 @@ app.get('/api/tl/master-calendar', requireRoles(TL_ROLES), async (req, res) => {
     const { data, error } = await query.order('scheduled_datetime');
 
     if (error) return res.status(500).json({ error: error.message });
-    
+
     const transformedData = await applyHistoricalStatus(data, asOfDate);
     res.json(transformedData);
 });
@@ -2048,7 +2049,7 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
     const { data, error } = await query.order('scheduled_datetime');
 
     if (error) return res.status(500).json({ error: error.message });
-    
+
     const transformedData = await applyHistoricalStatus(data, asOfDate);
     res.json(transformedData);
 });
@@ -2077,7 +2078,7 @@ app.get('/api/posting/content/:id', requireRoles(POSTING_ROLES), async (req, res
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-        
+
         const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
         res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
     } catch (error) {
@@ -2651,7 +2652,7 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
             } catch (rollbackErr) {
                 console.error('[Onboarding] Rollback failed:', rollbackErr.message);
             }
-            
+
             // Provide specific error for duplicate company name which is common
             if (clientError.message.includes('unique_violation') || clientError.message.includes('already exists')) {
                 return res.status(400).json({ error: `A client with company name "${request.full_name}" already exists.` });
@@ -2671,7 +2672,7 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
 
         myCache.del("admin_clients");
         myCache.del("gm_clients");
-        
+
         res.json({ message: 'Client onboarded successfully', client_email: request.email });
 
     } catch (error) {
@@ -2697,7 +2698,7 @@ app.get('/api/settings', async (req, res) => {
         const { data, error } = await supabase
             .from('system_settings')
             .select('*');
-        
+
         if (error) {
             if (error.code === '42P01') return res.json([]);
             return res.status(500).json({ error: error.message });
@@ -2717,11 +2718,11 @@ app.patch('/api/admin/settings', requireRoles(ADMIN_ROLES), async (req, res) => 
             .from('system_settings')
             .upsert([{ key, value, updated_at: new Date().toISOString() }], { onConflict: 'key' })
             .select();
-        
+
         if (error) {
             return res.status(500).json({ error: error.message });
         }
-        
+
         myCache.del(`setting_${key}`);
         res.json(data[0]);
     } catch (err) {

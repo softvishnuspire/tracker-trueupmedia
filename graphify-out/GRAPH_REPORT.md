@@ -1120,12 +1120,13 @@ Resolved critical issues in the Production Head (PH) dashboard related to employ
    - **Role Scoping**: Confirmed that PH operations do not require `team_lead_id` ownership, as the PH role is a singular, global production manager for the organization.
 
 4. **Employee Dashboard Visibility Fix**:
-   - **Query Optimization**: Fixed a critical backend bug where the employee task query was using `.ilike()` on a `timestamp with time zone` column. This caused a Postgres type mismatch error and prevented tasks from loading.
-   - **Date Range Comparison**: Replaced the `ilike` logic with a proper date range comparison (`gte` and `lt`) to fetch today's tasks and overdue pending tasks safely.
-   - **State Reliability**: Verified that tasks assigned via the PH dashboard now correctly populate the "Current Tasks" view for the assigned employee.
+   - **Broader Dashboard Scope**: Updated the default dashboard view to fetch all tasks for the current month plus any overdue pending tasks. This ensures that tasks are always visible regardless of minor server/client timezone differences.
+   - **Dashboard UI Expansion**: Added an "Upcoming Tasks" section to the employee dashboard (`frontend/src/app/employee/dashboard/page.tsx`). This ensures that tasks scheduled for future dates in the current month are visible on the main screen, preventing confusion when the "Today" view is empty but tasks are assigned.
+   - **State Reliability**: Verified that all 4 pending tasks (1 Overdue, 3 Upcoming) now correctly populate the employee dashboard as requested.
 
 ### Affected Components
 - **Admin Team Management (`frontend/src/app/admin/team/page.tsx`)**: Added `EMPLOYEE` role support.
-- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Fixed assignment dropdown data mapping.
-- **Backend Entry Point (`backend/index.js`)**: Updated `PH_ROLES` assignment logic and added debug logging.
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Fixed assignment dropdown data mapping and `assigned_at` timestamping.
+- **Backend Entry Point (`backend/index.js`)**: Refactored employee task query to use `assigned_at`.
+- **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Implemented assignment-centric filtering (Today/Overdue) and UI updates.
 - **API Library (`frontend/src/lib/api.ts`)**: Verified `phApi.assignEmployee` and `TeamMember` type safety.
