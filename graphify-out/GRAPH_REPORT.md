@@ -1108,3 +1108,27 @@ Significantly expanded the authority of the **Production Head (PH)** role to all
 - **Production Head Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Unified the status advancement UI, removed content type filters, and updated metric aggregation logic.
 - **API Library (`frontend/src/lib/api.ts`)**: Updated `phApi.updateStatus` to include the `note` field for audit trailing.
 - **Environment Configuration**: Updated `.env` files across root, `frontend/`, and `backend/` with new Supabase credentials and local API URL.
+## Recent Changes: Production Head Calendar Status Pill Fix (May 2026)
+### Implementation Overview
+Resolved a UI discrepancy in the Production Head (PH) dashboard where Reels and Posts shared the same generic icon and lacked descriptive labels. The calendar view and live shoot queue now correctly differentiate between content types using specific Lucide icons and distinct CSS styling.
+
+### Key Technical Decisions
+1. **Dynamic Icon Mapping**:
+   - Replaced hardcoded `Video` icons with conditional rendering logic in `ProductionHeadDashboard`.
+   - **Post**: Uses the `FileText` icon.
+   - **Reel/YouTube**: Uses the `Video` icon.
+   - This ensures visual consistency with the General Manager (GM) and Admin modules.
+
+2. **Style Differentiation**:
+   - Added missing `.queue-type-badge.post` styles to `ph.css` to provide color-coded identification (Indigo/Lavender) for Posts.
+   - Implemented `.content-item` class styles in `ph.css` to differentiate calendar entries.
+   - Added hover effects and subtle translateX animations to `content-item` for improved interactivity.
+   - Enhanced `.emergency` items with a pulse animation and thicker border for high visibility.
+
+3. **Consistent Labeling**:
+   - Updated the live shoot queue badges to explicitly display the `content_type` alongside the new icons.
+   - Ensured that both the `Master` and `Client` calendar views within the PH module benefit from these visual enhancements.
+
+### Affected Components
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Updated rendering logic for queue items and calendar days.
+- **PH Styles (`frontend/src/app/ph/dashboard/ph.css`)**: Added specific styles for Posts, Reels, and YouTube content items.

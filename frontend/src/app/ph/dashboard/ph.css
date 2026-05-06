@@ -530,10 +530,58 @@
     color: #c084fc; 
     border-color: rgba(168, 85, 247, 0.2); 
 }
-.queue-type-badge.youtube { 
-    background: rgba(239, 68, 68, 0.1); 
-    color: #f87171; 
-    border-color: rgba(239, 68, 68, 0.2); 
+.queue-type-badge.youtube {
+    background: rgba(239, 68, 68, 0.1);
+    color: #EF4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.queue-type-badge.post {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366F1;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.content-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    transition: all 0.2s ease;
+}
+
+.content-item:hover {
+    transform: translateX(2px);
+    filter: brightness(1.1);
+}
+
+.content-item.post {
+    background: rgba(99, 102, 241, 0.08);
+    color: #6366F1;
+    border-left: 2px solid #6366F1;
+}
+
+.content-item.reel {
+    background: rgba(245, 158, 11, 0.08);
+    color: #F59E0B;
+    border-left: 2px solid #F59E0B;
+}
+
+.content-item.youtube {
+    background: rgba(239, 68, 68, 0.08);
+    color: #EF4444;
+    border-left: 2px solid #EF4444;
+}
+
+.content-item.emergency {
+    background: rgba(239, 68, 68, 0.15);
+    color: #EF4444;
+    border-left: 3px solid #EF4444;
+    animation: pulse 2s infinite;
 }
 
 .btn-mark-posted {
