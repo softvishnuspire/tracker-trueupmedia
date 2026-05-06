@@ -1077,3 +1077,55 @@ Resolved critical TypeScript build errors and CSS compatibility warnings in the 
 - **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Fixed interface mismatches and functional state update types.
 - **Employee Styles (`frontend/src/app/employee/dashboard/employee.css`)**: Added standard `line-clamp` property.
 >>>>>>> Stashed changes
+
+## Recent Changes: Admin Team Management Fixes (May 2026)
+### Implementation Overview
+Resolved a series of critical issues in the Admin Panel that prevented the addition and management of team members, specifically "Employee" roles. The fix covered backend authentication stability, role-based filtering logic, and frontend UI completeness.
+
+### Key Technical Decisions
+1. **Backend Environment Stability**:
+   - Identified and fixed missing Supabase credentials (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) in the backend `.env` file that caused "Critical Error" crashes on startup.
+   - Synchronized these keys with the frontend `.env.local` to ensure consistent auth behavior across the stack.
+
+2. **Role Visibility & Filtering**:
+   - Refactored `adminApi.getTeam` in `backend/index.js` to include a broader range of roles (GM, COO, ADMIN, etc.) in the team list, ensuring leadership and administration staff are visible and manageable.
+   - Standardized role normalization to ensure case-insensitive matching across the database and API.
+
+3. **Employee Role Integration**:
+   - Added the **"Employee"** role to the team member creation/editing dropdown in the Admin panel.
+   - Implemented dedicated CSS styling for the `.type-badge.employee` badge in `admin.css` for visual consistency in the team list.
+   - Verified that new employees are correctly registered in both Supabase Auth and the `public.users` database table.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated `getTeam` filtering and added debug logging for role resolution.
+- **Team Management UI (`frontend/src/app/admin/team/page.tsx`)**: Added "Employee" role to the creation modal.
+- **Style Sheets (`frontend/src/app/admin/admin.css`)**: Added employee badge colors.
+- **Environment (`backend/.env`)**: Restored critical Supabase connection strings.
+
+## Recent Changes: Employee Management and Production Head Assignment Fixes (May 2026)
+### Implementation Overview
+Resolved critical issues in the Production Head (PH) dashboard related to employee assignment and expanded the Admin panel to support the creation and management of the "EMPLOYEE" role. This ensures a complete workflow from user creation to task fulfillment.
+
+### Key Technical Decisions
+1. **Frontend Role Expansion**:
+   - Added `EMPLOYEE` to the role selection dropdown in the Admin Team Management page (`frontend/src/app/admin/team/page.tsx`).
+   - This allows Admins to create new accounts specifically for production staff.
+
+2. **PH Dashboard Bug Fixes**:
+   - **Identifier Sync**: Fixed a field name mismatch in the PH dashboard's employee assignment dropdown. Changed `emp.id` to `emp.user_id` to match the identifier returned by the backend, resolving the "Failed to assign employee" errors.
+   - **Enhanced Debugging**: Added detailed server-side logging to the PH assignment endpoint (`PATCH /api/ph/content/:id/assign`) to track request payloads and Supabase transaction results.
+
+3. **Backend Logic Refinement**:
+   - **Task State Management**: Updated the assignment logic to automatically set `employee_task_status` to `PENDING` when an employee is assigned, and clear it (`null`) if the item is unassigned.
+   - **Role Scoping**: Confirmed that PH operations do not require `team_lead_id` ownership, as the PH role is a singular, global production manager for the organization.
+
+4. **Employee Dashboard Visibility Fix**:
+   - **Query Optimization**: Fixed a critical backend bug where the employee task query was using `.ilike()` on a `timestamp with time zone` column. This caused a Postgres type mismatch error and prevented tasks from loading.
+   - **Date Range Comparison**: Replaced the `ilike` logic with a proper date range comparison (`gte` and `lt`) to fetch today's tasks and overdue pending tasks safely.
+   - **State Reliability**: Verified that tasks assigned via the PH dashboard now correctly populate the "Current Tasks" view for the assigned employee.
+
+### Affected Components
+- **Admin Team Management (`frontend/src/app/admin/team/page.tsx`)**: Added `EMPLOYEE` role support.
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Fixed assignment dropdown data mapping.
+- **Backend Entry Point (`backend/index.js`)**: Updated `PH_ROLES` assignment logic and added debug logging.
+- **API Library (`frontend/src/lib/api.ts`)**: Verified `phApi.assignEmployee` and `TeamMember` type safety.

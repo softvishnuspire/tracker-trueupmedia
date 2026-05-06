@@ -741,8 +741,8 @@ app.get('/api/admin/team', async (req, res) => {
 
     const teamMembers = (data || []).filter(u => {
         const normalizedRole = (u.role || '').toUpperCase().trim().replace(/_/g, ' ');
-        const isMatch = ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE'].includes(normalizedRole);
-        if (isMatch) console.log(`    MATCH: ${u.email}`);
+        const isMatch = ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE', 'GM', 'GENERAL MANAGER', 'COO', 'ADMIN'].includes(normalizedRole);
+        if (isMatch) console.log(`    MATCH: ${u.email} | Role: ${normalizedRole}`);
         return isMatch;
     });
 
@@ -1524,20 +1524,33 @@ app.patch('/api/ph/content/:id/assign', requireRoles(PH_ROLES), async (req, res)
     const { id } = req.params;
     const { assigned_to } = req.body;
 
+    console.log(`[PH Assign] Request for content ${id}, assign to ${assigned_to}`);
+
     try {
         const { data, error } = await supabase
             .from('content_items')
             .update({ 
                 assigned_to: assigned_to || null,
                 assigned_at: assigned_to ? new Date().toISOString() : null,
-                employee_task_status: 'PENDING'
+                employee_task_status: assigned_to ? 'PENDING' : null
             })
             .eq('id', id)
             .select();
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) {
+            console.error('[PH Assign] Supabase Error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+        
+        if (!data || data.length === 0) {
+            console.warn(`[PH Assign] No rows updated for ID ${id}`);
+            return res.status(404).json({ error: 'Content item not found' });
+        }
+
+        console.log(`[PH Assign] Successfully assigned ${id} to ${assigned_to}`);
         res.json(data[0]);
     } catch (err) {
+        console.error('[PH Assign] Exception:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -1570,15 +1583,21 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
         // Default Dashboard view: today's tasks + overdue pending tasks
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
         
         const { data, error } = await supabase
             .from('content_items')
             .select(`*, clients (company_name)`)
             .eq('assigned_to', userId)
-            .or(`scheduled_datetime.ilike.${todayStr}%,and(scheduled_datetime.lt.${todayStr},employee_task_status.eq.PENDING)`)
+            .or(`and(scheduled_datetime.gte.${todayStr},scheduled_datetime.lt.${tomorrowStr}),and(scheduled_datetime.lt.${todayStr},employee_task_status.eq.PENDING)`)
             .order('scheduled_datetime', { ascending: true });
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) {
+            console.error('[EmployeeTasks] Query Error:', error.message);
+            return res.status(500).json({ error: error.message });
+        }
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: err.message });

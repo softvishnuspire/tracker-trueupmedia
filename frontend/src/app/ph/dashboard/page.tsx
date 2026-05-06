@@ -786,7 +786,7 @@ export default function ProductionHeadDashboard() {
                                             >
                                                 <option value="">Unassigned</option>
                                                 {employees.map(emp => (
-                                                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                                    <option key={emp.user_id} value={emp.user_id}>{emp.name}</option>
                                                 ))}
                                             </select>
                                             <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
