@@ -34,22 +34,23 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
 
         try {
             const canvas = await html2canvas(element, {
-                scale: 2, // Scale 2 is usually enough for A4 and keeps file size reasonable
+                scale: 3, // Increased scale for high-definition clarity
                 useCORS: true,
                 backgroundColor: '#ffffff',
                 logging: false,
-                width: 1000,
-                height: 1414 // A4 Aspect Ratio (1000 * 297/210)
-            } as any);
+                allowTaint: true,
+                imageTimeout: 0
+            });
             const imgData = canvas.toDataURL('image/png', 1.0);
 
             const pdf = new jsPDF({
                 orientation: 'p',
                 unit: 'mm',
-                format: 'a4'
+                format: 'a4',
+                compress: false // Disable overall PDF compression for clarity
             });
 
-            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, undefined, 'NONE');
             pdf.save(filename);
         } catch (error) {
             console.error('Export failed:', error);
@@ -150,21 +151,20 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <img src="/logo.png" alt="TrueUp Media" style={{ height: '60px', objectFit: 'contain' }} />
-                        <p style={{ fontSize: '10px', fontWeight: 800, color: '#10b981', margin: '4px 0 0 0' }}>BY TRUEUP MEDIA</p>
                     </div>
                 </div>
 
                 <div style={{ width: '100%', height: '3px', background: '#10b981', marginBottom: '25px', borderRadius: '2px' }}></div>
 
                 {/* Summary Info Bar */}
-                <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', marginBottom: '30px', border: '1px solid #e2e8f0' }}>
+                <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', marginBottom: '30px', border: '1.2px solid #94a3b8' }}>
                     <div>
                         <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>PERIOD</p>
-                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{periodLabel.toUpperCase()}</p>
+                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#475569', margin: 0 }}>{periodLabel.toUpperCase()}</p>
                     </div>
                     <div>
                         <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>SCHEDULE TYPE</p>
-                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{batchType === '15-15' ? '15/15 BATCHING' : 'MONTHLY EXECUTION'}</p>
+                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#475569', margin: 0 }}>{batchType === '15-15' ? '15/15 BATCHING' : 'MONTHLY EXECUTION'}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>TOTAL CONTENT</p>
@@ -185,24 +185,24 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     </div>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
-                            <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
-                                <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>DAY OF WEEK</th>
-                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>POSTERS</th>
-                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>REELS</th>
-                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>YOUTUBE</th>
+                            <tr style={{ borderBottom: '1.2px solid #94a3b8', background: '#f8fafc' }}>
+                                <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#475569' }}>DAY OF WEEK</th>
+                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#475569' }}>POSTERS</th>
+                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#475569' }}>REELS</th>
+                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#475569' }}>YOUTUBE</th>
                             </tr>
                         </thead>
                         <tbody>
                             {weeklyStats.map((row, i) => (
-                                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                    <td style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, color: '#334155' }}>{row.day}</td>
+                                <tr key={i} style={{ borderBottom: '1px solid #cbd5e1' }}>
+                                    <td style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, color: '#475569' }}>{row.day}</td>
                                     <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#10b981' }}>
                                         {row.posterCount > 0 ? row.posterCount : '-'}
                                     </td>
-                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#22d3ee' }}>
+                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#0891b2' }}>
                                         {row.reelCount > 0 ? row.reelCount : '-'}
                                     </td>
-                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#f59e0b' }}>
+                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#d97706' }}>
                                         {row.youtubeCount > 0 ? row.youtubeCount : '-'}
                                     </td>
                                 </tr>
@@ -217,9 +217,9 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                         <div style={{ width: '4px', height: '22px', background: '#10b981', borderRadius: '3px' }}></div>
                         <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>CALENDAR VIEW</h3>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', border: '1.2px solid #94a3b8', borderRadius: '12px', overflow: 'hidden' }}>
                         {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
-                            <div key={day} style={{ padding: '10px', fontSize: '11px', fontWeight: 800, color: '#94a3b8', textAlign: 'center', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                            <div key={day} style={{ padding: '10px', fontSize: '11px', fontWeight: 800, color: '#475569', textAlign: 'center', background: '#f8fafc', borderBottom: '1.2px solid #94a3b8' }}>
                                 {day}
                             </div>
                         ))}
@@ -231,15 +231,15 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                 <div key={idx} style={{
                                     minHeight: '88px',
                                     padding: '8px',
-                                    borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #f1f5f9',
-                                    borderBottom: '1px solid #f1f5f9',
+                                    borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #cbd5e1',
+                                    borderBottom: '1px solid #cbd5e1',
                                     background: isInPeriod ? '#fff' : '#fcfdfe',
                                     position: 'relative'
                                 }}>
                                     <div style={{
                                         fontSize: '14px',
                                         fontWeight: 800,
-                                        color: isInPeriod ? '#94a3b8' : '#e2e8f0',
+                                        color: isInPeriod ? '#475569' : '#e2e8f0',
                                         marginBottom: '10px'
                                     }}>
                                         {format(day, 'dd')}
@@ -311,7 +311,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     bottom: '80px',
                     left: '80px',
                     right: '80px',
-                    borderTop: '1px solid #e2e8f0',
+                    borderTop: '1px solid #cbd5e1',
                     paddingTop: '30px',
                     display: 'flex',
                     justifyContent: 'space-between',
