@@ -678,6 +678,54 @@ Enhanced the Admin Dashboard analytics by adding granular tracking for monthly d
    - Included sub-labels (e.g., "12 R | 8 P") within these cards to provide at-a-glance category breakdowns without cluttering the main grid.
    - Utilized semantic coloring (Red/Danger for Pending, Green/Success for Completed) and distinct iconography.
 
+## Recent Changes: Unified Role-Aware Task Queue Implementation (May 2026)
+### Implementation Overview
+Finalized the system-wide standardization of task visibility by implementing distinct **Emergency** and **Pending Important** sections in every role-based dashboard. This update centralizes the logic for "Role Completion," ensuring tasks are only visible when they require active participation from the logged-in user.
+
+### Key Technical Decisions
+1. **Centralized Role-Aware Backend**:
+   - **Emergency API (`/api/emergency/all`)**: Refactored to include `authenticateUser` and role-based status filtering.
+   - **Pending API (`/api/dashboard/pending-important`)**: **(NEW)** Fetches all items where `scheduled_datetime <= TODAY_END` and status is within the role's responsibility window.
+   - **Role Scoping**: 
+     - **PH**: Responsibility ends at `WAITING FOR APPROVAL`.
+     - **Others**: Responsibility ends at `POSTED`.
+     - **TL**: Scoped to assigned clients only via backend `team_lead_id` check.
+
+2. **Frontend UI Standardization**:
+   - Implemented separate **Emergency Tasks** and **Pending Important Tasks** panels on the main Dashboard Overview for **Admin, GM, TL, Posting, and PH**.
+   - **Always-On Panels**: Sections now display even when empty (with helpful status messages), ensuring users always have a consistent navigational anchor for urgent work.
+   - **Layout Fixes**: Restored the missing CSS for `emergency-card-info` across all role dashboards, ensuring client names and task times are clearly visible.
+   - **Real-time Filtering**: Integrated the role-completion status logic directly into the API calls, allowing tasks to disappear from view immediately upon status updates.
+   - **Backend Implementation**: Added `/api/dashboard/pending-important` and `/api/emergency/all` with role-aware scoping to ensure Admin, GM, TL, and PH users only see actionable tasks.
+   - **UI/UX Excellence**: Used consistent iconography (`ShieldAlert` for Emergency, `Clock` for Pending), semantic coloring, and descriptive sub-labels (Client Name, Time, Status Pills).
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated auth-protected emergency and dashboard pending endpoints.
+- **Frontend API (`frontend/src/lib/api.ts`)**: Added `dashboardApi` for unified queue fetching.
+- **Role Dashboards**: `Admin`, `GM`, `TL`, `Posting`, `PH` (Updated `page.tsx` to include dual list panels and role-aware state management).
+
+## Recent Changes: Unified Task Queue Bug Fixes (May 2026)
+### Implementation Overview
+Resolved critical UI and logic errors introduced during the standardization of the role-aware task queue panels. This fix restores the Production Head (PH) and Posting dashboards to full operational status by addressing syntax errors and inconsistent state management.
+
+### Key Technical Decisions
+1. **JSX Structure Restoration (PH Dashboard)**:
+   - Fixed corrupted nested mapping in the `emergencyTasks` and `pendingTasks` panels.
+   - Restored missing closing tags (`main`, `div`) that caused build failures.
+   - Cleaned up the "Advance Status" logic to correctly respect the PH responsibility boundary (`WAITING FOR APPROVAL`).
+
+2. **State Variable Consolidation**:
+   - Standardized variable naming across PH and Posting dashboards.
+   - Replaced the obsolete `queue` and `setQueue` references with `pendingTasks` and `setPendingTasks` to align with the new unified API data structure.
+   - Removed the redundant `fetchTodayQueue` function in favor of the integrated `fetchTodayStats` logic.
+
+3. **Functionality Verification**:
+   - Ensured "Undo" and "Status Advancement" actions correctly trigger a background refetch of all dashboard stats and lists, maintaining a live view of the production pipeline.
+
+### Affected Components
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Fixed JSX syntax, variable naming, and status flow logic.
+- **Posting Dashboard (`frontend/src/app/posting/dashboard/page.tsx`)**: Replaced `queue` with `pendingTasks` and removed obsolete fetch logic.
+
 ### Affected Components
 - **AdminDashboard (`frontend/src/app/admin/dashboard/page.tsx`)**: Updated `Stats` interface, data aggregation logic, and card grid UI.
 
@@ -1108,6 +1156,7 @@ Significantly expanded the authority of the **Production Head (PH)** role to all
 - **Production Head Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Unified the status advancement UI, removed content type filters, and updated metric aggregation logic.
 - **API Library (`frontend/src/lib/api.ts`)**: Updated `phApi.updateStatus` to include the `note` field for audit trailing.
 - **Environment Configuration**: Updated `.env` files across root, `frontend/`, and `backend/` with new Supabase credentials and local API URL.
+<<<<<<< Updated upstream
 ## Recent Changes: Production Head Calendar Status Pill Fix (May 2026)
 ### Implementation Overview
 Resolved a UI discrepancy in the Production Head (PH) dashboard where Reels and Posts shared the same generic icon and lacked descriptive labels. The calendar view and live shoot queue now correctly differentiate between content types using specific Lucide icons and distinct CSS styling.
@@ -1132,3 +1181,34 @@ Resolved a UI discrepancy in the Production Head (PH) dashboard where Reels and 
 ### Affected Components
 - **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Updated rendering logic for queue items and calendar days.
 - **PH Styles (`frontend/src/app/ph/dashboard/ph.css`)**: Added specific styles for Posts, Reels, and YouTube content items.
+=======
+
+## Recent Changes: Role-Based Task Visibility Optimization (May 2026)
+### Implementation Overview
+Optimized task visibility and management across all dashboard panels to reduce clutter and improve operational focus. This update implements a strict segregation between **Emergency** and **Pending Important** tasks while ensuring tasks disappear from a role's view once their specific responsibilities are fulfilled.
+
+### Key Technical Decisions
+1. **Dynamic Backend Filtering**:
+   - **Emergency API**: Tightened `GET /api/emergency/all` to strictly return only tasks where `is_emergency = true`.
+   - **PH Today Queue**: Updated `GET /api/ph/today` to include past-due tasks and expanded status filtering to include intermediate stages (`EDITED`, `DESIGNING COMPLETED`) while maintaining the "WAITING FOR APPROVAL" boundary.
+   - **Status Flow Integrity**: Production Head is now capped at "WAITING FOR APPROVAL", as per the `STATUS_FLOWS` registry.
+
+2. **Frontend Task Classification & Segregation**:
+   - **EMERGENCY Section**: Standardized across all roles to show `is_emergency === true` tasks that have NOT yet reached the role's completion status (e.g., `POSTED` for most roles, `WAITING FOR APPROVAL` for PH).
+   - **PENDING IMPORTANT Section**: Renamed and repurposed the main daily queues to focus on overdue and today's tasks (`scheduled_datetime <= TODAY_END`).
+   - **Role-Completion Filtering**: Implemented client-side filtering logic to remove tasks from active views once a role has finished their part:
+     - **PH**: Excludes tasks at/beyond `WAITING FOR APPROVAL`.
+     - **Posting**: Excludes tasks at/beyond `POSTED`.
+     - **Leadership (Admin/GM/TL/COO)**: Excludes tasks at/beyond `POSTED`.
+
+3. **UI/UX Rebranding**:
+   - Renamed "Live Shoot Queue" and "Today's Posting Queue" to **"Pending Important Tasks"** across the PH and Posting dashboards.
+   - Updated empty state messaging to reflect the completion of "Overdue & Today's tasks".
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated emergency and today queue endpoint logic.
+- **Production Head Dashboard**: `frontend/src/app/ph/dashboard/page.tsx` (Major refactor of queue labels and filtering).
+- **Posting Dashboard**: `frontend/src/app/posting/dashboard/page.tsx` (Renamed queue and added role-completion filtering).
+- **Leadership Dashboards**: `Admin`, `GM`, `TL`, `COO` (Added role-completion filtering to emergency panels).
+- **API Client (`frontend/src/lib/api.ts`)**: No changes required (reused existing endpoints).
+>>>>>>> Stashed changes

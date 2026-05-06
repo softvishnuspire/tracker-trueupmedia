@@ -54,6 +54,7 @@ import {
 import {
     gmApi,
     emergencyApi,
+    dashboardApi,
     ContentItem,
     PocNote,
     StatusHistoryItem,
@@ -90,6 +91,7 @@ export default function GMDashboard() {
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc'>('dashboard');
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
+    const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
     const [selectedPocClient, setSelectedPocClient] = useState<string>('all');
@@ -433,10 +435,14 @@ export default function GMDashboard() {
             });
             setCalendarData(calendarData);
 
-            // Fetch all emergency tasks
-            const emergencyRes = await emergencyApi.getAll();
-            setEmergencyTasks(emergencyRes.data);
-
+            // Fetch all dashboard lists
+            const [emergencyRes, pendingRes] = await Promise.all([
+                emergencyApi.getAll(),
+                dashboardApi.getPendingImportant()
+            ]);
+            
+            setEmergencyTasks(emergencyRes.data || []);
+            setPendingTasks(pendingRes.data || []);
         } catch (err) { console.error(err); } finally { setLoading(false); }
     };
 
@@ -1053,18 +1059,13 @@ export default function GMDashboard() {
                 {view === 'dashboard' && emergencyTasks.length > 0 && (
                     <div className="emergency-panel">
                         <div className="emergency-panel-header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <ShieldAlert size={24} color="#ef4444" />
-                                <h2 className="emergency-panel-title">All Emergency Tasks</h2>
-                            </div>
-                            <div className="weeks-pending-badge">
-                                <span>Weeks Pending: {stats.weeksPending}</span>
-                            </div>
+                            <ShieldAlert size={24} color="#ef4444" />
+                            <h2 className="emergency-panel-title">Emergency Tasks</h2>
                         </div>
                         <div className="emergency-list">
-                            {emergencyTasks.map(task => (
-                                <div
-                                    key={task.id}
+                            {emergencyTasks.map((task: ContentItem) => (
+                                <div 
+                                    key={task.id} 
                                     className="emergency-card"
                                     onClick={() => handleItemClick(task)}
                                 >
@@ -1073,7 +1074,38 @@ export default function GMDashboard() {
                                     </div>
                                     <div className="emergency-card-info">
                                         <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                    </div>
+                                    <ArrowRight size={18} color="var(--text-muted)" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {view === 'dashboard' && pendingTasks.length > 0 && (
+                    <div className="emergency-panel" style={{ marginTop: '24px', borderColor: 'var(--accent)' }}>
+                        <div className="emergency-panel-header">
+                            <Clock size={24} color="var(--accent)" />
+                            <h2 className="emergency-panel-title">Pending Important Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {pendingTasks.map((task: ContentItem) => (
+                                <div 
+                                    key={task.id} 
+                                    className="emergency-card"
+                                    onClick={() => handleItemClick(task)}
+                                    style={{ borderLeftColor: 'var(--accent)' }}
+                                >
+                                    <div className="emergency-card-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                    </div>
+                                    <div className="emergency-card-info">
+                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                            <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
+                                        </div>
                                     </div>
                                     <ArrowRight size={18} color="var(--text-muted)" />
                                 </div>

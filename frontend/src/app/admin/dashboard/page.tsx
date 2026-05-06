@@ -5,7 +5,7 @@ import {
   Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, 
   X, Clock, Undo2, Check, Edit2, Trash2, ChevronDown, Filter, ChevronLeft, ChevronRight 
 } from 'lucide-react';
-import { adminApi, emergencyApi, gmApi, ContentItem, StatusHistoryItem } from '@/lib/api';
+import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistoryItem } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, isSameMonth, subMonths, addMonths } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
@@ -37,6 +37,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [activeItem, setActiveItem] = useState<ContentDetails | null>(null);
@@ -70,13 +71,16 @@ export default function AdminDashboard() {
     return date >= start && date <= end;
   };
 
-  const fetchEmergencyTasks = async () => {
+  const fetchDashboardLists = async () => {
     try {
-      const emergencyRes = await emergencyApi.getAll();
-      setEmergencyTasks(emergencyRes.data);
+      const [emergencyRes, pendingRes] = await Promise.all([
+        emergencyApi.getAll(),
+        dashboardApi.getPendingImportant()
+      ]);
+      setEmergencyTasks(emergencyRes.data || []);
+      setPendingTasks(pendingRes.data || []);
     } catch (err) {
-      console.error('Failed to load emergency tasks:', err instanceof Error ? err.message : String(err));
-      setError(err instanceof Error ? err.message : String(err));
+      console.error('Failed to load dashboard lists:', err);
     }
   };
 
@@ -106,8 +110,6 @@ export default function AdminDashboard() {
         );
         data = calendarRes.data || [];
       }
-      setCalendarData(data);
-
       setCalendarData(data);
 
       // Filter data for the current period stats
@@ -193,10 +195,9 @@ export default function AdminDashboard() {
         });
       }
 
-      // Fetch all emergency tasks
-      await fetchEmergencyTasks();
+      await fetchDashboardLists();
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load dashboard data:', err instanceof Error ? err.message : String(err));
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -234,6 +235,10 @@ export default function AdminDashboard() {
       console.error('Error fetching details:', err);
     }
   };
+
+  const handleItemClick = (task: ContentItem) => {
+      handleTaskClick(task.id);
+  }
 
   const navigateToTask = async (direction: 'next' | 'prev') => {
     if (!activeItem || dayTasks.length <= 1) return;
@@ -290,7 +295,7 @@ export default function AdminDashboard() {
       if (res.data.success) {
         const detailsRes = await adminApi.getContentDetails(activeItem.item.id);
         setActiveItem(detailsRes.data);
-        fetchEmergencyTasks();
+        fetchDashboardLists();
       }
     } catch (err: unknown) {
       if (err instanceof Error) alert(err.message);
@@ -601,38 +606,71 @@ export default function AdminDashboard() {
       </div>
 
 
-      {emergencyTasks.length > 0 && (
-        <div className="emergency-panel" style={{ marginTop: '32px' }}>
-          <div className="emergency-panel-header">
-            <ShieldAlert size={24} color="#ef4444" />
-            <h2 className="emergency-panel-title">All Emergency Tasks</h2>
-          </div>
-          <div className="emergency-list">
-            {emergencyTasks.map((task: ContentItem) => (
-              <div
-                key={task.id}
+      <div className="emergency-panel">
+        <div className="emergency-panel-header">
+          <ShieldAlert size={24} color="#ef4444" />
+          <h2 className="emergency-panel-title">Emergency Tasks</h2>
+        </div>
+        <div className="emergency-list">
+          {emergencyTasks.length > 0 ? (
+            emergencyTasks.map(task => (
+              <div 
+                key={task.id} 
                 className="emergency-card"
-                onClick={() => handleTaskClick(task.id)}
+                onClick={() => handleItemClick(task)}
               >
                 <div className="emergency-card-icon">
                   {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
                 </div>
-                <div className="emergency-card-body">
-                  <div className="emergency-card-client">{task.clients?.company_name?.toUpperCase()}</div>
-                  <div className="emergency-card-details">
-                    <span className="type">{task.content_type}</span>
-                    <span className="dot">•</span>
-                    <span className="time">{format(parseISO(task.scheduled_datetime), 'h:mm a')}</span>
+                <div className="emergency-card-info">
+                  <p className="emergency-card-client">{task.clients?.company_name}</p>
+                  <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                </div>
+                <div className="emergency-card-arrow">
+                  <ArrowRight size={18} />
+                </div>
+              </div>
+            ))
+          ) : (
+            <p style={{ color: 'var(--text-muted)', fontSize: '14px', fontStyle: 'italic', padding: '10px' }}>No emergency tasks active.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="emergency-panel" style={{ marginTop: '24px', borderColor: 'var(--accent)' }}>
+        <div className="emergency-panel-header">
+          <Clock size={24} color="var(--accent)" />
+          <h2 className="emergency-panel-title">Pending Important Tasks</h2>
+        </div>
+        <div className="emergency-list">
+          {pendingTasks.length > 0 ? (
+            pendingTasks.map(task => (
+              <div 
+                key={task.id} 
+                className="emergency-card"
+                onClick={() => handleItemClick(task)}
+                style={{ borderLeftColor: 'var(--accent)' }}
+              >
+                <div className="emergency-card-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                  {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                </div>
+                <div className="emergency-card-info">
+                  <p className="emergency-card-client">{task.clients?.company_name}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                    <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
                   </div>
                 </div>
                 <div className="emergency-card-arrow">
                   <ArrowRight size={18} />
                 </div>
               </div>
-            ))}
-          </div>
+            ))
+          ) : (
+            <p style={{ color: 'var(--text-muted)', fontSize: '14px', fontStyle: 'italic', padding: '10px' }}>No pending tasks for today.</p>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Task Details Modal */}
       {isModalOpen && activeItem && (

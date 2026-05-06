@@ -369,6 +369,11 @@ postingBase.interceptors.response.use((r) => r, handleAuthError);
 notificationBase.interceptors.response.use((r) => r, handleAuthError);
 emergencyBase.interceptors.response.use((r) => r, handleAuthError);
 
+// ─── Dashboard APIs (Role-Aware) ───
+export const dashboardApi = {
+    getPendingImportant: () => api.get<ContentItem[]>('/api/dashboard/pending-important'),
+};
+
 export const publicApi = {
     submitOnboarding: (data: { full_name: string; email: string; phone_number?: string }) => 
         axios.post(`${API_BASE_URL}/api/onboarding/submit`, data),

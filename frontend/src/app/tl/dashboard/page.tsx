@@ -40,7 +40,7 @@ import {
     Undo2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { tlApi, gmApi, emergencyApi, ContentItem, PocNote, StatusHistoryItem, settingsApi } from '@/lib/api';
+import { tlApi, gmApi, emergencyApi, dashboardApi, ContentItem, PocNote, StatusHistoryItem, settingsApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -72,6 +72,7 @@ export default function TLDashboard() {
     const [searchQuery, setSearchQuery] = useState('');
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
+    const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
     const [isPocModalOpen, setIsPocModalOpen] = useState(false);
     const [selectedPocDate, setSelectedPocDate] = useState<Date | null>(null);
@@ -171,11 +172,14 @@ export default function TLDashboard() {
                 setCalendarData(res.data || []);
             }
             
-            // Fetch and filter emergency tasks for assigned clients
-            const emergencyRes = await emergencyApi.getAll();
-            const assignedClientIds = clients.map(c => c.id);
-            const filteredEmergency = (emergencyRes.data || []).filter(task => assignedClientIds.includes(task.client_id));
-            setEmergencyTasks(filteredEmergency);
+            // Fetch and filter dashboard lists
+            const [emergencyRes, pendingRes] = await Promise.all([
+                emergencyApi.getAll(),
+                dashboardApi.getPendingImportant()
+            ]);
+            
+            setEmergencyTasks(emergencyRes.data || []);
+            setPendingTasks(pendingRes.data || []);
         } catch (err) { console.error(err); } finally { setLoading(false); }
     };
 
@@ -780,29 +784,68 @@ export default function TLDashboard() {
                     </div>
                 )}
 
-                {view === 'dashboard' && emergencyTasks.length > 0 && (
+                {view === 'dashboard' && (
                     <div className="emergency-panel">
                         <div className="emergency-panel-header">
                             <ShieldAlert size={24} color="#ef4444" />
-                            <h2 className="emergency-panel-title">All Emergency Tasks</h2>
+                            <h2 className="emergency-panel-title">Emergency Tasks</h2>
                         </div>
                         <div className="emergency-list">
-                            {emergencyTasks.map(task => (
-                                <div 
-                                    key={task.id} 
-                                    className="emergency-card"
-                                    onClick={() => handleItemClick(task)}
-                                >
-                                    <div className="emergency-card-icon">
-                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                            {emergencyTasks.length > 0 ? (
+                                emergencyTasks.map(task => (
+                                    <div 
+                                        key={task.id} 
+                                        className="emergency-card"
+                                        onClick={() => handleItemClick(task)}
+                                    >
+                                        <div className="emergency-card-icon">
+                                            {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                        </div>
+                                        <div className="emergency-card-info">
+                                            <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                            <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                        </div>
+                                        <ArrowRight size={18} color="var(--text-muted)" />
                                     </div>
-                                    <div className="emergency-card-info">
-                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                                ))
+                            ) : (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '14px', fontStyle: 'italic', padding: '10px' }}>No emergency tasks active.</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {view === 'dashboard' && (
+                    <div className="emergency-panel" style={{ marginTop: '24px', borderColor: 'var(--accent)' }}>
+                        <div className="emergency-panel-header">
+                            <Clock size={24} color="var(--accent)" />
+                            <h2 className="emergency-panel-title">Pending Important Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {pendingTasks.length > 0 ? (
+                                pendingTasks.map(task => (
+                                    <div 
+                                        key={task.id} 
+                                        className="emergency-card"
+                                        onClick={() => handleItemClick(task)}
+                                        style={{ borderLeftColor: 'var(--accent)' }}
+                                    >
+                                        <div className="emergency-card-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                                            {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                        </div>
+                                        <div className="emergency-card-info">
+                                            <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                                <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
+                                            </div>
+                                        </div>
+                                        <ArrowRight size={18} color="var(--text-muted)" />
                                     </div>
-                                    <ArrowRight size={18} color="var(--text-muted)" />
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '14px', fontStyle: 'italic', padding: '10px' }}>No pending tasks for today.</p>
+                            )}
                         </div>
                     </div>
                 )}
