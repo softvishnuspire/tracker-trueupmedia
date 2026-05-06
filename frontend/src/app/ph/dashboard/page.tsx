@@ -108,11 +108,12 @@ export default function ProductionHeadDashboard() {
             const data = res.data as ContentItem[];
             const today = new Date();
             const todayItems = data.filter(item => 
-                isSameDay(parseISO(item.scheduled_datetime), today) && 
-                ['Reel', 'YouTube'].includes(item.content_type)
+                isSameDay(parseISO(item.scheduled_datetime), today)
             );
             const totalToday = todayItems.length;
-            const completedToday = todayItems.filter(item => item.status === 'SHOOT DONE' || item.status === 'POSTED').length;
+            const completedToday = todayItems.filter(item => 
+                ['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
+            ).length;
             
             setTodayStats({
                 total: totalToday,
@@ -126,10 +127,12 @@ export default function ProductionHeadDashboard() {
             const endOfWk = endOfWeek(new Date(), { weekStartsOn: 1 });
             const weekItems = data.filter(item => {
                 const d = parseISO(item.scheduled_datetime);
-                return d >= startOfWk && d <= endOfWk && ['Reel', 'YouTube'].includes(item.content_type);
+                return d >= startOfWk && d <= endOfWk;
             });
             const totalWeek = weekItems.length;
-            const completedWeek = weekItems.filter(item => item.status === 'SHOOT DONE' || item.status === 'POSTED').length;
+            const completedWeek = weekItems.filter(item => 
+                ['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
+            ).length;
             setWeekStats({
                 total: totalWeek,
                 completed: completedWeek,
@@ -138,7 +141,7 @@ export default function ProductionHeadDashboard() {
 
             // Fetch all emergency tasks (filtered for PH - usually backend does this but let's be safe)
             const emergencyRes = await emergencyApi.getAll();
-            setEmergencyTasks(emergencyRes.data.filter((i: any) => i.content_type !== 'Post'));
+            setEmergencyTasks(emergencyRes.data);
         } catch (err) { console.error('Error fetching today stats:', err); }
     };
 
@@ -231,19 +234,20 @@ export default function ProductionHeadDashboard() {
         finally { setLoading(false); }
     };
 
-    const handleMarkShootDone = async (id: string) => {
+    const handleUpdateStatus = async (id: string, nextStatus: string) => {
         setActionId(id);
         try {
             const actorId = user?.id;
-            await phApi.updateStatus(id, 'SHOOT DONE', actorId);
-            setToast('Shoot marked as DONE!');
+            await phApi.updateStatus(id, nextStatus, undefined, actorId);
+            setToast(`Status updated to ${nextStatus}`);
             setTimeout(() => setToast(null), 3000);
             
             await Promise.all([
                 fetchTodayStats(),
                 fetchTodayQueue(),
                 view === 'client' ? fetchClientCalendar() : Promise.resolve(),
-                view === 'master' ? fetchMasterCalendar() : Promise.resolve()
+                view === 'master' ? fetchMasterCalendar() : Promise.resolve(),
+                view === 'company' ? fetchMasterCalendar() : Promise.resolve()
             ]);
             
             if (activeItem?.item?.id === id) {
@@ -251,7 +255,7 @@ export default function ProductionHeadDashboard() {
                 setActiveItem(res.data);
             }
         } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to mark as shoot done');
+            alert(err.response?.data?.error || 'Failed to update status');
         } finally { setActionId(null); }
     };
 
@@ -259,7 +263,7 @@ export default function ProductionHeadDashboard() {
         setActionId(id);
         try {
             await phApi.undoStatus(id);
-            setToast('Reverted to Content Approved');
+            setToast('Status reverted');
             setTimeout(() => setToast(null), 3000);
             
             await Promise.all([
@@ -384,8 +388,10 @@ export default function ProductionHeadDashboard() {
         end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
     });
 
-    const monthTotal = calendarData.filter(i => ['Reel', 'YouTube'].includes(i.content_type)).length;
-    const monthCompleted = calendarData.filter(i => (i.status === 'SHOOT DONE' || i.status === 'POSTED') && ['Reel', 'YouTube'].includes(i.content_type)).length;
+    const monthTotal = calendarData.length;
+    const monthCompleted = calendarData.filter(item => 
+        ['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
+    ).length;
     const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
 
     return (
@@ -638,16 +644,35 @@ export default function ProductionHeadDashboard() {
                                                         <Video size={12} />
                                                         {item.content_type}
                                                     </span>
-                                                    {item.status === 'SHOOT DONE' ? (
-                                                        <button className="btn-rollback" onClick={() => handleUndo(item.id)} disabled={actionId === item.id} title="Revert to Content Approved">
-                                                            {actionId === item.id ? '...' : 'Undo'}
-                                                        </button>
-                                                    ) : item.status === 'POSTED' ? (
+                                                    {item.status === 'POSTED' ? (
                                                         <span className="status-badge posted">Posted</span>
                                                     ) : (
-                                                        <button className="btn-mark-posted" style={{ background: 'var(--accent)' }} onClick={() => handleMarkShootDone(item.id)} disabled={actionId === item.id}>
-                                                            {actionId === item.id ? 'Saving...' : 'Mark Shoot Done'}
-                                                        </button>
+                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                            {(() => {
+                                                                const flows: any = {
+                                                                    'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                                                    'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                                                    'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                                                };
+                                                                const flow = flows[item.content_type] || [];
+                                                                const currentIdx = flow.indexOf(item.status);
+                                                                const nextStatus = flow[currentIdx + 1];
+                                                                const limitIdx = flow.indexOf('WAITING FOR APPROVAL');
+                                                                
+                                                                if (!nextStatus || currentIdx >= limitIdx) return null;
+
+                                                                return (
+                                                                    <button className="btn-mark-posted" style={{ background: 'var(--accent)' }} onClick={() => handleUpdateStatus(item.id, nextStatus)} disabled={actionId === item.id}>
+                                                                        {actionId === item.id ? '...' : `Advance to ${nextStatus}`}
+                                                                    </button>
+                                                                );
+                                                            })()}
+                                                            {item.status !== 'PENDING' && (
+                                                                <button className="btn-rollback" onClick={() => handleUndo(item.id)} disabled={actionId === item.id} title="Undo last step">
+                                                                    {actionId === item.id ? '...' : 'Undo'}
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -801,13 +826,7 @@ export default function ProductionHeadDashboard() {
                                         )}
                                     </div>
                                     
-                                    {activeItem.item.status === 'CONTENT APPROVED' && view !== 'company' && (
-                                        <button className="btn-mark-posted" style={{ width: '100%', marginTop: '24px', padding: '16px', fontSize: '16px', background: 'var(--accent)' }} onClick={() => handleMarkShootDone(activeItem.item.id)} disabled={actionId === activeItem.item.id}>
-                                            {actionId === activeItem.item.id ? 'Saving...' : 'Mark Shoot Done'}
-                                        </button>
-                                    )}
-
-                                    {view === 'company' && (() => {
+                                    {(() => {
                                         const flows: any = {
                                             'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
                                             'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
@@ -816,9 +835,9 @@ export default function ProductionHeadDashboard() {
                                         const flow = flows[activeItem.item.content_type] || [];
                                         const currentIdx = flow.indexOf(activeItem.item.status);
                                         const nextStatus = flow[currentIdx + 1];
-                                        const isSpecialStatus = activeItem.item.status === 'SHOOT DONE' || activeItem.item.status === 'POSTED';
+                                        const limitIdx = flow.indexOf('WAITING FOR APPROVAL');
 
-                                        if (!nextStatus || isSpecialStatus) return null;
+                                        if (!nextStatus || currentIdx >= limitIdx) return null;
 
                                         return (
                                             <div style={{ marginTop: '24px', padding: '16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
@@ -835,12 +854,24 @@ export default function ProductionHeadDashboard() {
                                                     onClick={async () => {
                                                         try {
                                                             await phApi.updateStatus(activeItem.item.id, nextStatus, statusNote.trim() || undefined);
-                                                            const d = new Date(); d.setDate(d.getDate() - 7);
-                                                            const res = await phApi.getContentDetails(activeItem.item.id, d.toISOString());
+                                                            let asOfDate;
+                                                            if (view === 'company') {
+                                                                const d = new Date(); d.setDate(d.getDate() - 7);
+                                                                asOfDate = d.toISOString();
+                                                            }
+                                                            const res = await phApi.getContentDetails(activeItem.item.id, asOfDate);
                                                             setActiveItem(res.data);
                                                             setStatusNote('');
-                                                            fetchMasterCalendar();
-                                                        } catch (err) { alert('Failed to update status'); }
+                                                            
+                                                            // Refresh data
+                                                            fetchTodayStats();
+                                                            fetchTodayQueue();
+                                                            if (view === 'client') fetchClientCalendar();
+                                                            else fetchMasterCalendar();
+                                                        } catch (err) { 
+                                                            console.error(err);
+                                                            alert('Failed to update status'); 
+                                                        }
                                                     }}
                                                 >
                                                     Advance to {nextStatus}

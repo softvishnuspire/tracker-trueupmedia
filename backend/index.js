@@ -1405,7 +1405,6 @@ app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
         let query = supabase
             .from('content_items')
             .select('*, clients(company_name)')
-            .in('content_type', ['Reel', 'YouTube'])
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate);
 
@@ -1436,8 +1435,7 @@ app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
         const { data, error } = await supabase
             .from('content_items')
             .select(`*, clients (company_name)`)
-            .in('status', ['CONTENT APPROVED', 'SHOOT DONE'])
-            .in('content_type', ['Reel', 'YouTube'])
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'DESIGNING IN PROGRESS', 'EDITING IN PROGRESS'])
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate)
             .order('scheduled_datetime');
@@ -1464,7 +1462,6 @@ app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
             .from('content_items')
             .select(`*, clients (company_name)`)
             .eq('client_id', client_id)
-            .in('content_type', ['Reel', 'YouTube'])
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate);
 
@@ -1520,14 +1517,14 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
     }
 });
 
-// PH: Mark Shoot Done
+// PH: Update Content Status (Now with expanded powers up to WAITING FOR APPROVAL)
 app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res) => {
     const { id } = req.params;
-    const { status, new_status, changed_by } = req.body;
+    const { status, new_status, note, changed_by } = req.body;
     const finalStatus = new_status || status;
 
-    if (finalStatus !== 'SHOOT DONE') {
-        return res.status(400).json({ error: 'Production Head can only mark status as SHOOT DONE' });
+    if (!finalStatus) {
+        return res.status(400).json({ error: 'Missing new status' });
     }
 
     try {
@@ -1539,17 +1536,22 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
 
         if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
 
-        if (item.content_type === 'Post') {
-            return res.status(403).json({ error: 'Production Head has no power over Posts' });
+        // Validate if the new status is within PH's authority
+        const flow = STATUS_FLOWS[item.content_type] || [];
+        const targetIdx = flow.indexOf(finalStatus);
+        const limitIdx = flow.indexOf('WAITING FOR APPROVAL');
+
+        if (targetIdx === -1) {
+            return res.status(400).json({ error: `Invalid status "${finalStatus}" for content type ${item.content_type}` });
         }
 
-        if (item.status !== 'CONTENT APPROVED') {
-            return res.status(400).json({ error: 'Shoot can only be marked DONE if current status is CONTENT APPROVED' });
+        if (targetIdx > limitIdx && limitIdx !== -1) {
+            return res.status(403).json({ error: 'Production Head authority capped at WAITING FOR APPROVAL' });
         }
 
         const { error: updateError } = await supabase
             .from('content_items')
-            .update({ status: 'SHOOT DONE', updated_at: new Date().toISOString() })
+            .update({ status: finalStatus, updated_at: new Date().toISOString() })
             .eq('id', id);
 
         if (updateError) return res.status(500).json({ error: updateError.message });
@@ -1557,18 +1559,18 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
         await supabase.from('status_logs').insert([{
             item_id: id,
             old_status: item.status,
-            new_status: 'SHOOT DONE',
-            note: 'Marked as shoot done by Production Head',
+            new_status: finalStatus,
+            note: note || `Updated to ${finalStatus} by Production Head`,
             changed_by: changed_by || req.user.id
         }]);
 
-        res.json({ message: 'Success', status: 'SHOOT DONE' });
+        res.json({ message: 'Success', status: finalStatus });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// PH: Undo Shoot Done
+// PH: Undo Status Change (Generalized)
 app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
@@ -1576,22 +1578,22 @@ app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) =>
             .from('status_logs')
             .select('*')
             .eq('item_id', id)
-            .eq('new_status', 'SHOOT DONE')
             .order('changed_at', { ascending: false })
             .limit(1)
             .single();
 
-        if (logFetchError || !latestLog) return res.status(404).json({ error: 'No recent production history found' });
+        if (logFetchError || !latestLog) return res.status(404).json({ error: 'No recent history found' });
 
+        // Ensure PH was the one who made the change (optional but safer)
         const { error: revertError } = await supabase
             .from('content_items')
-            .update({ status: 'CONTENT APPROVED', updated_at: new Date().toISOString() })
+            .update({ status: latestLog.old_status, updated_at: new Date().toISOString() })
             .eq('id', id);
 
         if (revertError) return res.status(500).json({ error: 'Failed to revert status' });
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
-        res.json({ message: 'Success', status: 'CONTENT APPROVED' });
+        res.json({ message: 'Success', status: latestLog.old_status });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

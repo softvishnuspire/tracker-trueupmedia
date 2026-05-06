@@ -196,8 +196,8 @@ export const phApi = {
     getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
         phBase.get<ContentItem[]>(`/api/ph/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
     getContentDetails: (id: string, asOfDate?: string) => phBase.get<ContentDetails>(`/api/ph/content/${id}${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
-    updateStatus: (id: string, newStatus: string, changedBy?: string) => 
-        phBase.patch(`/api/ph/content/${id}/status`, { new_status: newStatus, changed_by: changedBy }),
+    updateStatus: (id: string, newStatus: string, note?: string, changedBy?: string) => 
+        phBase.patch(`/api/ph/content/${id}/status`, { new_status: newStatus, note, changed_by: changedBy }),
     undoStatus: (id: string) => phBase.post(`/api/ph/content/${id}/undo`),
     getEmployees: () => phBase.get<TeamMember[]>('/api/ph/employees'),
     assignEmployee: (id: string, employeeId: string | null) => 
