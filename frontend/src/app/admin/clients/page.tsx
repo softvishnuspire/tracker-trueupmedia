@@ -112,7 +112,7 @@ export default function ClientManagement() {
         <div className="header-content">
           <div className="header-info">
             <h1 className="page-title">Client Management</h1>
-            <p className="page-subtitle">Onboard and manage TrueUp Media client companies • <strong>{clients.length} Clients</strong> • <strong>{totalReels} Reels/mo</strong> • <strong>{totalPosts} Posts/mo</strong></p>
+
           </div>
           <div className="header-controls">
             <button className="btn-add" onClick={handleAddClick}>

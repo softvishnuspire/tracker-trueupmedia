@@ -20,9 +20,10 @@ interface ScheduleExportProps {
     month: Date;
     batchType?: '1-1' | '15-15';
     clientLogo?: string; // Base64 or URL
+    summaryOnly?: boolean;
 }
 
-const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month, batchType = '1-1', clientLogo }) => {
+const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month, batchType = '1-1', clientLogo, summaryOnly }) => {
     const exportRef = React.useRef<HTMLDivElement>(null);
 
     const handleDownload = async () => {
@@ -149,11 +150,11 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <img src="/logo.png" alt="TrueUp Media" style={{ height: '60px', objectFit: 'contain' }} />
-                        <p style={{ fontSize: '10px', fontWeight: 800, color: '#6366f1', margin: '4px 0 0 0' }}>BY TRUEUP MEDIA</p>
+                        <p style={{ fontSize: '10px', fontWeight: 800, color: '#10b981', margin: '4px 0 0 0' }}>BY TRUEUP MEDIA</p>
                     </div>
                 </div>
 
-                <div style={{ width: '100%', height: '3px', background: 'linear-gradient(to right, #6366f1, #3b82f6, #94a3b8)', marginBottom: '25px', borderRadius: '2px' }}></div>
+                <div style={{ width: '100%', height: '3px', background: '#10b981', marginBottom: '25px', borderRadius: '2px' }}></div>
 
                 {/* Summary Info Bar */}
                 <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', marginBottom: '30px', border: '1px solid #e2e8f0' }}>
@@ -167,7 +168,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>TOTAL CONTENT</p>
-                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#6366f1', margin: 0 }}>
+                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#10b981', margin: 0 }}>
                             {data.filter(item => {
                                 const d = parseISO(item.scheduled_datetime);
                                 return d >= periodStart && d <= periodEnd;
@@ -195,7 +196,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                             {weeklyStats.map((row, i) => (
                                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                     <td style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, color: '#334155' }}>{row.day}</td>
-                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#6366f1' }}>
+                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#10b981' }}>
                                         {row.posterCount > 0 ? row.posterCount : '-'}
                                     </td>
                                     <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#22d3ee' }}>
@@ -213,7 +214,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 {/* Monthly Calendar View */}
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
-                        <div style={{ width: '4px', height: '22px', background: '#6366f1', borderRadius: '3px' }}></div>
+                        <div style={{ width: '4px', height: '22px', background: '#10b981', borderRadius: '3px' }}></div>
                         <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>CALENDAR VIEW</h3>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
@@ -244,20 +245,59 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                         {format(day, 'dd')}
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        {dayItems.map((item, i) => (
-                                            <div key={i} style={{
-                                                fontSize: '10px',
-                                                fontWeight: 800,
-                                                padding: '4px 8px',
-                                                borderRadius: '6px',
-                                                background: item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.1)' : item.content_type === 'Reel' ? 'rgba(34, 211, 238, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                                                color: item.content_type === 'Post' ? '#4f46e5' : item.content_type === 'Reel' ? '#0891b2' : '#d97706',
-                                                textAlign: 'center',
-                                                border: `1px solid ${item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.2)' : item.content_type === 'Reel' ? 'rgba(34, 211, 238, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
-                                            }}>
-                                                {item.content_type.toUpperCase()}
+                                        {summaryOnly ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                {(() => {
+                                                    const postCount = dayItems.filter(i => i.content_type === 'Post').length;
+                                                    const reelCount = dayItems.filter(i => i.content_type === 'Reel').length;
+                                                    const youtubeCount = dayItems.filter(i => i.content_type === 'YouTube').length;
+
+                                                    return (
+                                                        <>
+                                                            {reelCount > 0 && (
+                                                                <div style={{
+                                                                    fontSize: '10px', fontWeight: 900, padding: '3px 6px', borderRadius: '5px',
+                                                                    background: 'rgba(34, 211, 238, 0.1)', color: '#0891b2', textAlign: 'center', border: '1px solid rgba(34, 211, 238, 0.2)'
+                                                                }}>
+                                                                    {reelCount} REEL{reelCount > 1 ? 'S' : ''}
+                                                                </div>
+                                                            )}
+                                                            {postCount > 0 && (
+                                                                <div style={{
+                                                                    fontSize: '10px', fontWeight: 900, padding: '3px 6px', borderRadius: '5px',
+                                                                    background: 'rgba(99, 102, 241, 0.1)', color: '#4f46e5', textAlign: 'center', border: '1px solid rgba(99, 102, 241, 0.2)'
+                                                                }}>
+                                                                    {postCount} POST{postCount > 1 ? 'S' : ''}
+                                                                </div>
+                                                            )}
+                                                            {youtubeCount > 0 && (
+                                                                <div style={{
+                                                                    fontSize: '10px', fontWeight: 900, padding: '3px 6px', borderRadius: '5px',
+                                                                    background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)'
+                                                                }}>
+                                                                    {youtubeCount} YT
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
-                                        ))}
+                                        ) : (
+                                            dayItems.map((item, i) => (
+                                                <div key={i} style={{
+                                                    fontSize: '10px',
+                                                    fontWeight: 800,
+                                                    padding: '4px 8px',
+                                                    borderRadius: '6px',
+                                                    background: item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.1)' : item.content_type === 'Reel' ? 'rgba(34, 211, 238, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                                    color: item.content_type === 'Post' ? '#4f46e5' : item.content_type === 'Reel' ? '#0891b2' : '#d97706',
+                                                    textAlign: 'center',
+                                                    border: `1px solid ${item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.2)' : item.content_type === 'Reel' ? 'rgba(34, 211, 238, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
+                                                }}>
+                                                    {item.content_type.toUpperCase()}
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -279,7 +319,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 }}>
                     <p style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', margin: 0 }}>© {new Date().getFullYear()} TRUEUP MEDIA SOLUTIONS</p>
                     <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0, letterSpacing: '0.05em' }}>PRECISION IN DIGITAL MARKETING</p>
-                    <p style={{ fontSize: '12px', fontWeight: 700, color: '#6366f1', margin: 0 }}>TRUEUPMEDIA.IN</p>
+                    <p style={{ fontSize: '12px', fontWeight: 700, color: '#10b981', margin: 0 }}>TRUEUPMEDIA.COM</p>
                 </div>
             </div>
         </>
