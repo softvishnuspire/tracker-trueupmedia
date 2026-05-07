@@ -122,8 +122,12 @@ export default function PostingDashboard() {
                 dashboardApi.getPendingImportant()
             ]);
             
-            setEmergencyTasks(emergencyRes.data || []);
-            setPendingTasks(pendingRes.data || []);
+            // For Posting Team, only show tasks that are WAITING FOR POSTING
+            const filteredEmergency = (emergencyRes.data || []).filter((item: any) => item.status === 'WAITING FOR POSTING');
+            const filteredPending = (pendingRes.data || []).filter((item: any) => item.status === 'WAITING FOR POSTING');
+
+            setEmergencyTasks(filteredEmergency);
+            setPendingTasks(filteredPending);
         } catch (err) { console.error('Error fetching dashboard lists:', err); }
     };
 

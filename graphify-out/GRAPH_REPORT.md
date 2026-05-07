@@ -132,9 +132,10 @@ Nodes (6): fetchClients(), fetchTeam(), handleAddClick(), handleDeleteClick(), h
 Cohesion: 0.39
 Nodes (5): fetchDashboardData(), fetchEmergencyTasks(), handleSaveEdit(), handleStatusUpdate(), handleUndoStatus()
 
-### Community 3 - "Community 3"
+### Community 3 - "Posting Workflow"
 Cohesion: 0.57
 Nodes (7): fetchClientCalendar(), fetchMasterCalendar(), fetchTodayQueue(), fetchTodayStats(), handleDeleteContent(), handleMarkPosted(), handleUndo()
+*Update (2026-05-07): Restricted dashboard visibility to 'WAITING FOR POSTING' status only.*
 
 ### Community 4 - "Community 4"
 Cohesion: 0.32
