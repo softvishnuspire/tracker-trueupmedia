@@ -34,7 +34,9 @@ import {
     ShieldAlert,
     ArrowRight,
     CalendarClock,
-    Undo2
+    Undo2,
+    Layers,
+    Film
 } from 'lucide-react';
 import { phApi, emergencyApi, dashboardApi, settingsApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -73,7 +75,19 @@ export default function ProductionHeadDashboard() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [statusNote, setStatusNote] = useState('');
     const [user, setUser] = useState<any>(null);
-    const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
+    const [todayStats, setTodayStats] = useState({ 
+        total: 0, 
+        completed: 0, 
+        percentage: 0, 
+        remaining: 0,
+        pendingReels: 0,
+        pendingPosts: 0,
+        monthPosts: 0,
+        monthReels: 0,
+        monthShoots: 0,
+        monthPending: 0,
+        pendingShoots: 0
+    });
     const [weekStats, setWeekStats] = useState({ total: 0, completed: 0, percentage: 0 });
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
@@ -124,6 +138,8 @@ export default function ProductionHeadDashboard() {
                 percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
             });
 
+            setCalendarData(data);
+
             // Calculate Weekly Stats
             const startOfWk = startOfWeek(new Date(), { weekStartsOn: 1 });
             const endOfWk = endOfWeek(new Date(), { weekStartsOn: 1 });
@@ -148,7 +164,33 @@ export default function ProductionHeadDashboard() {
             ]);
             
             setEmergencyTasks(emergencyRes.data || []);
-            setPendingTasks(pendingRes.data || []);
+            const allPending = pendingRes.data || [];
+            setPendingTasks(allPending);
+
+            const pReels = allPending.filter((t: ContentItem) => t.content_type === 'Reel').length;
+            const pPosts = allPending.filter((t: ContentItem) => t.content_type === 'Post').length;
+            const pShoots = allPending.filter((t: ContentItem) => t.content_type === 'Reel' || t.content_type === 'YouTube').length;
+
+            // Monthly Totals
+            const mPosts = data.filter(i => i.content_type === 'Post').length;
+            const mReels = data.filter(i => i.content_type === 'Reel').length;
+            const mShoots = data.filter(i => i.content_type === 'Reel' || i.content_type === 'YouTube').length;
+            const mPending = data.filter(i => !['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(i.status)).length;
+
+            setTodayStats(prev => ({
+                ...prev,
+                total: totalToday,
+                completed: completedToday,
+                remaining: totalToday - completedToday,
+                percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0,
+                pendingReels: pReels,
+                pendingPosts: pPosts,
+                monthPosts: mPosts,
+                monthReels: mReels,
+                monthShoots: mShoots,
+                monthPending: mPending,
+                pendingShoots: pShoots
+            }));
         } catch (err) { console.error('Error fetching dashboard lists:', err); }
     };
 
@@ -460,11 +502,17 @@ export default function ProductionHeadDashboard() {
                                 {view === 'company' && 'Company Calendar'}
                             </h1>
                             <p className="page-subtitle">
-                                {view === 'dashboard' && `Today is ${format(new Date(), 'EEEE, MMMM d')}`}
+                                {view === 'dashboard' && (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Clock size={16} className="text-accent" />
+                                        {format(new Date(), 'EEEE, MMMM d')}
+                                    </span>
+                                )}
                                 {view === 'client' && 'Manage shoot schedule for individual clients'}
                                 {view === 'master' && 'Review company-wide production pipeline'}
                                 {view === 'company' && 'Historical view of production schedule (-7 days)'}
                             </p>
+
                         </div>
 
                         <div className="header-controls">
@@ -503,43 +551,158 @@ export default function ProductionHeadDashboard() {
                 </header>
 
                 {view === 'dashboard' && (
-                    <div className="daily-stats-banner">
-                        <div className="posting-stats-grid">
-                            <div className="progress-meter-card">
-                                <h3 className="stat-label">Today's Shoots</h3>
-                                <div className="progress-values">
-                                    <span className="current">{todayStats.completed}</span>
-                                    <span className="separator">/</span>
-                                    <span className="total">{todayStats.total}</span>
-                                    <span className="unit">Shoots</span>
+                    <div className="daily-stats-banner" style={{ width: '100%' }}>
+                        <div className="stats-rows-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
+                            <div className="posting-stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', width: '100%' }}>
+                                <div className="progress-meter-card">
+                                    <div className="card-icon-overlay"><Video size={24} /></div>
+                                    <h3 className="stat-label">Today's Shoots</h3>
+                                    <div className="progress-values">
+                                        <span className="current">{todayStats.completed}</span>
+                                        <span className="separator">/</span>
+                                        <span className="total">{todayStats.total}</span>
+                                        <span className="unit">Shoots</span>
+                                    </div>
+                                    <div className="meter-labels">
+                                        <span className="percentage">{todayStats.percentage}% Done</span>
+                                        <div className="progress-bar-container">
+                                            <div className="progress-bar-fill" style={{ width: `${todayStats.percentage}%` }}></div>
+                                        </div>
+                                    </div>
+
                                 </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{todayStats.percentage}% Done</span>
+                                <div className="progress-meter-card">
+                                    <div className="card-icon-overlay"><CalendarClock size={24} /></div>
+                                    <h3 className="stat-label">Week's Production</h3>
+                                    <div className="progress-values">
+                                        <span className="current">{weekStats.completed}</span>
+                                        <span className="separator">/</span>
+                                        <span className="total">{weekStats.total}</span>
+                                        <span className="unit">Shoots</span>
+                                    </div>
+                                    <div className="meter-labels">
+                                        <span className="percentage">{weekStats.percentage}% Done</span>
+                                        <div className="progress-bar-container">
+                                            <div className="progress-bar-fill" style={{ width: `${weekStats.percentage}%` }}></div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                                <div className="progress-meter-card">
+                                    <div className="card-icon-overlay"><Layers size={24} /></div>
+                                    <h3 className="stat-label">Monthly Pipeline</h3>
+                                    <div className="progress-values">
+                                        <span className="current">{monthCompleted}</span>
+                                        <span className="separator">/</span>
+                                        <span className="total">{monthTotal}</span>
+                                        <span className="unit">Items</span>
+                                    </div>
+                                    <div className="meter-labels">
+                                        <span className="percentage">{monthPercentage}% Shot</span>
+                                        <div className="progress-bar-container">
+                                            <div className="progress-bar-fill" style={{ width: `${monthPercentage}%` }}></div>
+                                        </div>
+                                    </div>
+
                                 </div>
                             </div>
-                            <div className="progress-meter-card">
-                                <h3 className="stat-label">Week's Production</h3>
-                                <div className="progress-values">
-                                    <span className="current">{weekStats.completed}</span>
-                                    <span className="separator">/</span>
-                                    <span className="total">{weekStats.total}</span>
-                                    <span className="unit">Shoots</span>
+
+                            <div className="posting-stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', width: '100%' }}>
+                                <div className="progress-meter-card pending-reels">
+                                    <div className="card-icon-overlay"><Video size={24} /></div>
+                                    <h3 className="stat-label">Pending Reels</h3>
+                                    <div className="progress-values">
+                                        <span className="current">{todayStats.pendingReels}</span>
+                                        <span className="unit">Remaining</span>
+                                    </div>
+                                    <div className="meter-labels">
+                                        <span className="percentage" style={{ color: '#c084fc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <AlertTriangle size={14} />
+                                            Action Required
+                                        </span>
+                                    </div>
+
                                 </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{weekStats.percentage}% Done</span>
+                                <div className="progress-meter-card pending-shoots">
+                                    <div className="card-icon-overlay"><Film size={24} /></div>
+                                    <h3 className="stat-label">Pending Shoots</h3>
+                                    <div className="progress-values">
+                                        <span className="current">{todayStats.pendingShoots}</span>
+                                        <span className="unit">Shoots</span>
+                                    </div>
+                                    <div className="meter-labels">
+                                        <span className="percentage" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Clock size={14} />
+                                            Production Queue
+                                        </span>
+                                    </div>
+
+                                </div>
+                                <div className="progress-meter-card pending-posts">
+                                    <div className="card-icon-overlay"><FileText size={24} /></div>
+                                    <h3 className="stat-label">Pending Posts</h3>
+                                    <div className="progress-values">
+                                        <span className="current">{todayStats.pendingPosts}</span>
+                                        <span className="unit">Remaining</span>
+                                    </div>
+                                    <div className="meter-labels">
+                                        <span className="percentage" style={{ color: '#6366f1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <AlertTriangle size={14} />
+                                            Action Required
+                                        </span>
+                                    </div>
+
                                 </div>
                             </div>
-                            <div className="progress-meter-card">
-                                <h3 className="stat-label">Monthly Pipeline</h3>
-                                <div className="progress-values">
-                                    <span className="current">{monthCompleted}</span>
-                                    <span className="separator">/</span>
-                                    <span className="total">{monthTotal}</span>
-                                    <span className="unit">Items</span>
+
+                            <div className="posting-stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', width: '100%' }}>
+                                <div className="progress-meter-card total-pending">
+                                    <div className="card-icon-overlay"><ShieldAlert size={24} /></div>
+                                    <h3 className="stat-label">Total Pending</h3>
+                                    <div className="progress-values">
+                                        <span className="current">{pendingTasks.length}</span>
+                                        <span className="unit">Total Tasks</span>
+                                    </div>
+                                    <div className="meter-labels">
+                                        <span className="percentage" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <ShieldAlert size={14} />
+                                            Critical Queue
+                                        </span>
+                                    </div>
+
                                 </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{monthPercentage}% Shot</span>
+                                <div className="progress-meter-card summary-card" style={{ gridColumn: 'span 2' }}>
+                                    <div className="card-icon-overlay"><Layers size={24} /></div>
+                                    <h3 className="stat-label">Monthly Production Summary</h3>
+                                    <div className="summary-grid" style={{ 
+                                        display: 'grid', 
+                                        gridTemplateColumns: 'repeat(4, 1fr)', 
+                                        gap: '20px', 
+                                        marginTop: '12px',
+                                        background: 'rgba(255, 255, 255, 0.03)',
+                                        padding: '20px',
+                                        borderRadius: '20px',
+                                        border: '1px solid rgba(255, 255, 255, 0.05)'
+                                    }}>
+                                        <div className="summary-item">
+                                            <span className="summary-val" style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', fontFamily: 'Fira Sans' }}>{todayStats.monthShoots}</span>
+                                            <span className="summary-lab" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginTop: '4px', display: 'block' }}>Shoots</span>
+                                        </div>
+                                        <div className="summary-item">
+                                            <span className="summary-val" style={{ fontSize: '24px', fontWeight: 800, color: '#c084fc', fontFamily: 'Fira Sans' }}>{todayStats.monthReels}</span>
+                                            <span className="summary-lab" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginTop: '4px', display: 'block' }}>Reels</span>
+                                        </div>
+                                        <div className="summary-item">
+                                            <span className="summary-val" style={{ fontSize: '24px', fontWeight: 800, color: '#6366f1', fontFamily: 'Fira Sans' }}>{todayStats.monthPosts}</span>
+                                            <span className="summary-lab" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginTop: '4px', display: 'block' }}>Posts</span>
+                                        </div>
+                                        <div className="summary-item">
+                                            <span className="summary-val" style={{ fontSize: '24px', fontWeight: 800, color: '#ef4444', fontFamily: 'Fira Sans' }}>{todayStats.monthPending}</span>
+                                            <span className="summary-lab" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginTop: '4px', display: 'block' }}>Pending</span>
+                                        </div>
+                                    </div>
                                 </div>
+
                             </div>
                         </div>
                     </div>
@@ -674,8 +837,13 @@ export default function ProductionHeadDashboard() {
                                                                 if (!nextStatus || currentIdx >= limitIdx) return null;
 
                                                                 return (
-                                                                    <button className="btn-mark-posted" style={{ background: 'var(--accent)' }} onClick={() => handleUpdateStatus(item.id, nextStatus)} disabled={actionId === item.id}>
-                                                                        {actionId === item.id ? '...' : `Advance to ${nextStatus}`}
+                                                                    <button className="btn-mark-posted" onClick={() => handleUpdateStatus(item.id, nextStatus)} disabled={actionId === item.id}>
+                                                                        {actionId === item.id ? '...' : (
+                                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                                <CheckCircle2 size={14} />
+                                                                                {nextStatus.replace(/_/g, ' ')}
+                                                                            </span>
+                                                                        )}
                                                                     </button>
                                                                 );
                                                             })()}
