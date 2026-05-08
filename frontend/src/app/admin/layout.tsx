@@ -14,7 +14,8 @@ import {
     X,
     UserPlus,
     CalendarClock,
-    Settings2
+    Settings2,
+    Activity
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
@@ -90,6 +91,7 @@ export default function AdminLayout({
     { name: 'Company Calendar', path: '/admin/company-calendar', icon: <CalendarClock size={20} /> },
     { name: 'System Toggles', path: '/admin/toggles', icon: <Settings2 size={20} /> },
     { name: 'Client Onboarding', path: '/admin/onboarding', icon: <UserPlus size={20} /> },
+    { name: 'Employee Tracking', path: '/admin/employee-tracking', icon: <Activity size={20} /> },
   ];
 
   return (

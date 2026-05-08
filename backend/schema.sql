@@ -17,6 +17,7 @@ CREATE TABLE public.clients (
   batch_type text NOT NULL DEFAULT '1-1'::text CHECK (batch_type = ANY (ARRAY['1-1'::text, '15-15'::text])),
   youtube_per_month integer DEFAULT 0,
   password_hash text,
+  updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT clients_pkey PRIMARY KEY (id),
   CONSTRAINT clients_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id),
   CONSTRAINT clients_team_lead_id_fkey FOREIGN KEY (team_lead_id) REFERENCES public.users(user_id)
@@ -60,6 +61,15 @@ CREATE TABLE public.notifications (
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT notifications_pkey PRIMARY KEY (notification_id),
   CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.onboarding_requests (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  full_name text NOT NULL,
+  email text NOT NULL UNIQUE,
+  phone_number text,
+  status text DEFAULT 'pending'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT onboarding_requests_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.poc_communications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

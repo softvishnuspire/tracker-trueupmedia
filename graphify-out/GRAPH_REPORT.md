@@ -1211,6 +1211,7 @@ Optimized task visibility and management across all dashboard panels to reduce c
 - **Leadership Dashboards**: `Admin`, `GM`, `TL`, `COO` (Added role-completion filtering to emergency panels).
 - **API Client (`frontend/src/lib/api.ts`)**: No changes required (reused existing endpoints).
 
+<<<<<<< Updated upstream
 ## Recent Changes: Team Lead Visibility in Task Details (May 2026)
 ### Implementation Overview
 Prominently integrated the assigned Team Lead's name into the content detail modal and the Client Calendar header across all task views. This enhancement ensures maximum visibility and accountability for client management.
@@ -1236,3 +1237,39 @@ Prominently integrated the assigned Team Lead's name into the content detail mod
 - **Admin Pages**: `dashboard/page.tsx`, `master-calendar/page.tsx`, `client-calendar/[id]/page.tsx` (Header & Modal).
 - **Role Dashboards**: `GM`, `TL`, `PH`, `Posting` (`dashboard/page.tsx` in each) - added header badges.
 - **Task Modals**: Standardized visibility in the header area.
+=======
+## Recent Changes: Employee Productivity & TL Tracking Module (May 2026)
+### Implementation Overview
+Created a comprehensive productivity tracking system for Administrators to monitor Team Lead engagement and Employee task completion efficiency in real-time. This module bridges the gap between client communications and content production workflows.
+
+### Key Technical Decisions
+1. **Aggregated Backend Tracking (`/api/admin/tracking/productivity`)**:
+   - Developed a multi-role aggregation endpoint that computes daily performance metrics.
+   - **Team Lead Logic**: Calculates the engagement ratio (M/N) by checking `poc_communications` against total assigned clients for the current date.
+   - **Employee Logic**: Aggregates task statuses (`CONTENT NOT STARTED`, `WAITING FOR POSTING`, etc.) from `content_items` for every user with the `EMPLOYEE` role.
+
+2. **API & Type Safety Integration**:
+   - Added `getTrackingStats` helper to `frontend/src/lib/api.ts`.
+   - Defined strict TypeScript interfaces (`TlTrackingStats`, `EmployeeTrackingStats`, `TrackingProductivityResponse`) to ensure data integrity across the dashboard.
+
+3. **Premium Dashboard UI/UX**:
+   - Implemented a "Pro Max" dashboard at `frontend/src/app/admin/employee-tracking/page.tsx` using **Glassmorphism** and **Backdrop-filters**.
+   - **Custom Radial Progress**: Built SVG-based dynamic rings to visualize the Team Lead engagement ratio (M/N).
+   - **Global Metrics Overview**: Added an aggregate summary section at the top of the dashboard displaying overall fleet performance (Average Engagement, Production Velocity, Total Client Load).
+   - **Micro-animations**: Integrated `framer-motion` for smooth entrance animations and hover effects on metric cards.
+   - **Live Indicators**: Added pulse animations and high-contrast status badges for real-time operational status.
+
+4. **Navigation Integration**:
+   - Added "Employee Tracking" to the Admin sidebar with the `Activity` icon, ensuring seamless accessibility.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Added `/api/admin/tracking/productivity` aggregation endpoint.
+- **Admin Layout (`frontend/src/app/admin/layout.tsx`)**: Integrated navigation link and icons.
+- **API Library (`frontend/src/lib/api.ts`)**: Added tracking types and fetcher.
+- **Tracking Dashboard (`frontend/src/app/admin/employee-tracking/page.tsx`)**: New primary view for admin tracking.
+
+### Refinement (May 8, 2026)
+- **Schema Fix**: Corrected `content_items.current_status` to `status` in the productivity endpoint.
+- **Filtering**: Updated Employee tracking to only list staff with tasks scheduled for today.
+- **Metrics**: Added daily content flow metrics to Team Lead cards, showing total and completed tasks (WAITING FOR POSTING/POSTED) for all their assigned clients.
+>>>>>>> Stashed changes

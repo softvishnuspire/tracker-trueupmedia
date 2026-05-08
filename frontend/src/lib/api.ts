@@ -128,6 +128,38 @@ export interface OnboardingRequest {
     created_at: string;
 }
 
+export interface TlTrackingStats {
+    id: string;
+    name: string;
+    email: string;
+    totalClients: number;
+    talkedToday: number;
+    progress: number;
+    todayContentTotal: number;
+    todayContentDone: number;
+    assignedClients: {
+        id: string;
+        name: string;
+        talkedToday: boolean;
+    }[];
+}
+
+export interface EmployeeTrackingStats {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    assignedTasks: number;
+    completedTasks: number;
+    completionRate: number;
+}
+
+export interface TrackingProductivityResponse {
+    date: string;
+    teamLeads: TlTrackingStats[];
+    employees: EmployeeTrackingStats[];
+}
+
 export const adminApi = {
     getClients: () => adminBase.get<Client[]>('/api/admin/clients'),
     addClient: (data: Partial<Client>) => adminBase.post('/api/admin/clients', data),
@@ -150,6 +182,7 @@ export const adminApi = {
     getOnboardingRequests: () => adminBase.get<OnboardingRequest[]>('/api/admin/onboarding-requests'),
     acceptOnboarding: (id: string, password: string) => adminBase.post(`/api/admin/onboarding-requests/${id}/accept`, { password }),
     rejectOnboarding: (id: string) => adminBase.post(`/api/admin/onboarding-requests/${id}/reject`),
+    getTrackingStats: () => adminBase.get<TrackingProductivityResponse>('/api/admin/tracking/productivity'),
 };
 
 const cooBase = axios.create({

@@ -1000,6 +1000,121 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     }
 });
 
+// ─── Admin: Employee & TL Tracking ───
+app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+        // 1. Fetch all Team Leads and Employees
+        const { data: users, error: userError } = await supabase
+            .from('users')
+            .select('user_id, name, email, role, role_identifier');
+
+        if (userError) throw userError;
+
+        const teamLeads = users.filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role || u.role_identifier));
+        const employees = users.filter(u => ['EMPLOYEE', 'POSTING TEAM'].includes(u.role || u.role_identifier));
+
+        // 2. Fetch Client Assignments for TLs
+        const { data: clients, error: clientError } = await supabase
+            .from('clients')
+            .select('id, company_name, team_lead_id')
+            .eq('is_active', true)
+            .eq('is_deleted', false);
+
+        if (clientError) throw clientError;
+
+        // 3. Fetch Today's POC Communications
+        const { data: pocComms, error: pocError } = await supabase
+            .from('poc_communications')
+            .select('client_id, team_lead_id')
+            .eq('note_date', today);
+
+        if (pocError) throw pocError;
+
+        // 4. Fetch TODAY'S Content Items (for both Employee and TL stats)
+        const { data: todayTasks, error: taskError } = await supabase
+            .from('content_items')
+            .select('id, client_id, assigned_to, employee_task_status, status, scheduled_datetime')
+            .gte('scheduled_datetime', `${today}T00:00:00Z`)
+            .lte('scheduled_datetime', `${today}T23:59:59Z`);
+
+        if (taskError) throw taskError;
+
+        // --- Aggregate TL Stats ---
+        const tlStats = teamLeads.map(tl => {
+            const assignedClients = clients.filter(c => c.team_lead_id === tl.user_id);
+            const assignedClientIds = assignedClients.map(c => c.id);
+            const totalAssigned = assignedClients.length;
+            
+            // Count unique clients talked to today
+            const talkedToClientIds = new Set(
+                pocComms
+                    .filter(p => p.team_lead_id === tl.user_id)
+                    .map(p => p.client_id)
+            );
+            
+            const talkedCount = assignedClients.filter(c => talkedToClientIds.has(c.id)).length;
+
+            // Content Flow for TL's Clients (Total tasks for today across all their clients)
+            const tlClientsContent = todayTasks.filter(t => assignedClientIds.includes(t.client_id));
+            const todayContentTotal = tlClientsContent.length;
+            const todayContentDone = tlClientsContent.filter(t => 
+                ['WAITING FOR POSTING', 'POSTED'].includes(t.status)
+            ).length;
+
+            return {
+                id: tl.user_id,
+                name: tl.name,
+                email: tl.email,
+                totalClients: totalAssigned,
+                talkedToday: talkedCount,
+                progress: totalAssigned > 0 ? (talkedCount / totalAssigned) : 0,
+                todayContentTotal,
+                todayContentDone,
+                assignedClients: assignedClients.map(c => ({
+                    id: c.id,
+                    name: c.company_name,
+                    talkedToday: talkedToClientIds.has(c.id)
+                }))
+            };
+        });
+
+        // --- Aggregate Employee Stats (Only those with tasks today) ---
+        const activeEmpIds = new Set(todayTasks.map(t => t.assigned_to).filter(Boolean));
+        
+        const empStats = employees
+            .filter(emp => activeEmpIds.has(emp.user_id)) // Only show employees with today's tasks
+            .map(emp => {
+                const empTasks = todayTasks.filter(t => t.assigned_to === emp.user_id);
+                const total = empTasks.length;
+                const completedTasks = empTasks.filter(t => 
+                    ['COMPLETED', 'POSTED', 'APPROVED'].includes(t.employee_task_status || '')
+                ).length;
+
+                return {
+                    id: emp.user_id,
+                    name: emp.name,
+                    email: emp.email,
+                    role: emp.role_identifier || emp.role,
+                    assignedTasks: total,
+                    completedTasks: completedTasks,
+                    completionRate: total > 0 ? (completedTasks / total) : 0
+                };
+            });
+
+        res.json({
+            date: today,
+            teamLeads: tlStats,
+            employees: empStats
+        });
+
+    } catch (error) {
+        console.error('[Tracking API] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ─── Admin: Dashboard Stats ───
 app.get('/api/admin/stats', async (req, res) => {
     const now = new Date();
