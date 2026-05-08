@@ -804,6 +804,9 @@ export default function AdminDashboard() {
 
             <div className="detail-body">
               <h2 className="detail-title">{activeItem.item.title}</h2>
+              <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '-8px', marginBottom: '16px' }}>
+                Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+              </p>
               {activeItem.item.description && (
                 <p className="detail-description">{activeItem.item.description}</p>
               )}

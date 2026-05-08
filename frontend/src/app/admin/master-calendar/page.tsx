@@ -430,6 +430,9 @@ export default function MasterCalendar() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{selectedItem.item.title || selectedItem.item.content_type}</h3>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (

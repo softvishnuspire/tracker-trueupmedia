@@ -30,6 +30,7 @@ export interface Client {
     batch_type?: '1-1' | '15-15';
     password?: string; // For adding/updating clients
     created_at: string;
+    team_lead?: { name: string };
 }
 
 export interface ContentItem {
@@ -43,7 +44,7 @@ export interface ContentItem {
     is_rescheduled?: boolean;
     is_emergency?: boolean;
     emergency_marked_at?: string;
-    clients?: { company_name: string };
+    clients?: { company_name: string; team_lead?: { name: string } };
     assigned_to?: string;
     employee_task_status?: 'PENDING' | 'COMPLETED';
 }

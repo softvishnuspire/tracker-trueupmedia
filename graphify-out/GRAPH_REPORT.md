@@ -1210,3 +1210,29 @@ Optimized task visibility and management across all dashboard panels to reduce c
 - **Posting Dashboard**: `frontend/src/app/posting/dashboard/page.tsx` (Renamed queue and added role-completion filtering).
 - **Leadership Dashboards**: `Admin`, `GM`, `TL`, `COO` (Added role-completion filtering to emergency panels).
 - **API Client (`frontend/src/lib/api.ts`)**: No changes required (reused existing endpoints).
+
+## Recent Changes: Team Lead Visibility in Task Details (May 2026)
+### Implementation Overview
+Prominently integrated the assigned Team Lead's name into the content detail modal and the Client Calendar header across all task views. This enhancement ensures maximum visibility and accountability for client management.
+
+### Key Technical Decisions
+1. **Backend Data Exposure**:
+   - Updated content detail API endpoints and the `admin/clients` list endpoint in `backend/index.js` to include a nested join with the `users` table via `clients.team_lead_id`.
+   - Used Supabase join syntax: `.select('*, team_lead:team_lead_id (name)')`.
+
+2. **Frontend Type Safety**:
+   - Extended the `ContentItem` and `Client` interfaces in `frontend/src/lib/api.ts` to include the nested `team_lead?: { name: string }` object.
+
+3. **UI/UX Consistency**:
+   - **Modals**: The Team Lead name appears as a secondary header directly below the task title in all dashboard and calendar modals.
+   - **Global Dashboard Headers**: Integrated a styled "Team Lead" badge into the primary page header across all role-based dashboards (Admin, GM, TL, PH, and Posting) when a client is selected.
+   - **Client Calendar Header**: Added a styled badge to the dedicated Client Calendar page.
+   - Implemented a fallback value ("Not Assigned") for missing data to maintain accountability.
+   - Applied consistent styling: `background: rgba(99, 102, 241, 0.1)`, `color: var(--accent)`, and `fontWeight: 700`.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated `gm/clients`, `ph/clients`, `posting/clients`, `tl/clients`, and various calendar/content endpoints to join with `team_lead_id`.
+- **Frontend API (`frontend/src/lib/api.ts`)**: Updated `ContentItem` and `Client` interfaces.
+- **Admin Pages**: `dashboard/page.tsx`, `master-calendar/page.tsx`, `client-calendar/[id]/page.tsx` (Header & Modal).
+- **Role Dashboards**: `GM`, `TL`, `PH`, `Posting` (`dashboard/page.tsx` in each) - added header badges.
+- **Task Modals**: Standardized visibility in the header area.

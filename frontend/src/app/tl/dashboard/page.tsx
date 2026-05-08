@@ -614,8 +614,21 @@ export default function TLDashboard() {
 
                 <header className="page-header page-header-safe">
                     <div>
-                        <h1 className="page-title">
+                        <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             {view === 'master' ? 'Master Calendar' : view === 'company' ? 'Company Calendar' : view === 'poc' ? 'POC Communication' : 'Client Dashboard'}
+                            {view === 'client' && selectedClient && (
+                                <span style={{ 
+                                    fontSize: '14px', 
+                                    background: 'rgba(99, 102, 241, 0.1)', 
+                                    color: 'var(--accent)', 
+                                    padding: '4px 12px', 
+                                    borderRadius: '20px', 
+                                    fontWeight: 700,
+                                    border: '1px solid rgba(99, 102, 241, 0.2)'
+                                }}>
+                                    Team Lead: {clients.find(c => c.id === selectedClient)?.team_lead?.name || 'Not Assigned'}
+                                </span>
+                            )}
                         </h1>
                         <p className="page-subtitle">
                             {view === 'master'
@@ -998,6 +1011,9 @@ export default function TLDashboard() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{activeItem.item.title}</h3>
+                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
@@ -1034,7 +1050,6 @@ export default function TLDashboard() {
 
                         <div className="detail-grid">
                             <div className="detail-info">
-
                                 <div style={{ display: 'flex', gap: '24px' }}>
                                     <div>
                                         <label className="detail-label">{isCompanyMode ? 'Calendar Date' : 'Scheduled Date'}</label>

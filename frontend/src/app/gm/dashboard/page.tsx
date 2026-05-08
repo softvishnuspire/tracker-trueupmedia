@@ -874,7 +874,24 @@ export default function GMDashboard() {
                         <div className="header-info">
                             <h1 className="page-title">
                                 {view === 'dashboard' && 'Dashboard Overview'}
-                                {view === 'client' && (selectedClient ? 'Client Calendar' : 'Client Calendars')}
+                                {view === 'client' && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <span>{selectedClient ? 'Client Calendar' : 'Client Calendars'}</span>
+                                        {selectedClient && (
+                                            <span style={{ 
+                                                fontSize: '14px', 
+                                                background: 'rgba(99, 102, 241, 0.1)', 
+                                                color: 'var(--accent)', 
+                                                padding: '4px 12px', 
+                                                borderRadius: '20px', 
+                                                fontWeight: 700,
+                                                border: '1px solid rgba(99, 102, 241, 0.2)'
+                                            }}>
+                                                Team Lead: {clients.find(c => c.id === selectedClient)?.team_lead?.name || 'Not Assigned'}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                                 {view === 'master' && 'Master Calendar'}
                                 {view === 'company' && 'Company Calendar'}
                                 {view === 'teams' && 'Team Management'}
@@ -1855,6 +1872,9 @@ export default function GMDashboard() {
                                     )}
                                 </div>
                                 <h3 className="modal-title" style={{ marginTop: '8px' }}>{activeItem.item.title || activeItem.item.content_type}</h3>
+                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 {dayTasks.length > 1 && (

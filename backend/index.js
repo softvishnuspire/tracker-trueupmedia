@@ -379,7 +379,7 @@ app.get('/api/gm/clients', requireRoles(GM_ROLES), async (req, res) => {
 
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name, batch_type, posts_per_month, reels_per_month')
+        .select('id, company_name, batch_type, posts_per_month, reels_per_month, team_lead:team_lead_id (name)')
         .eq('is_active', true)
         .eq('is_deleted', false);
 
@@ -487,7 +487,7 @@ app.get('/api/gm/content/:id', async (req, res) => {
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -598,7 +598,7 @@ app.get('/api/admin/clients', async (req, res) => {
     const cached = myCache.get("admin_clients");
     if (cached) return res.json(cached);
 
-    const { data, error } = await supabase.from('clients').select('*').eq('is_deleted', false).order('company_name');
+    const { data, error } = await supabase.from('clients').select('*, team_lead:team_lead_id (name)').eq('is_deleted', false).order('company_name');
     if (error) return res.status(500).json({ error: error.message });
     myCache.set("admin_clients", data);
     res.json(data);
@@ -1043,7 +1043,7 @@ app.get('/api/admin/master-calendar', async (req, res) => {
 
     let query = supabase
         .from('content_items')
-        .select(`*, clients (company_name)`)
+        .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
@@ -1063,7 +1063,7 @@ app.get('/api/admin/content/:id', async (req, res) => {
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -1154,7 +1154,7 @@ app.get('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -1201,7 +1201,7 @@ app.get('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -1404,7 +1404,7 @@ app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
 
         let query = supabase
             .from('content_items')
-            .select('*, clients(company_name)')
+            .select('*, clients(company_name, team_lead:team_lead_id (name))')
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate);
 
@@ -1434,7 +1434,7 @@ app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
 
         const { data, error } = await supabase
             .from('content_items')
-            .select(`*, clients (company_name)`)
+            .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
             .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'])
             .lte('scheduled_datetime', endDate)
             .order('scheduled_datetime');
@@ -1459,7 +1459,7 @@ app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
 
         let query = supabase
             .from('content_items')
-            .select(`*, clients (company_name)`)
+            .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
             .eq('client_id', client_id)
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate);
@@ -1485,7 +1485,7 @@ app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('clients')
-            .select('id, company_name')
+            .select('id, company_name, team_lead:team_lead_id (name)')
             .eq('is_active', true)
             .eq('is_deleted', false)
             .order('company_name');
@@ -1503,7 +1503,7 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -1738,7 +1738,7 @@ app.get('/api/tl/clients', requireRoles(TL_ROLES), async (req, res) => {
 
     const { data, error } = await supabase
         .from('clients')
-        .select('*')
+        .select('*, team_lead:team_lead_id (name)')
         .eq('team_lead_id', tlId)
         .eq('is_active', true)
         .eq('is_deleted', false)
@@ -2069,7 +2069,7 @@ app.get('/api/posting/today', requireRoles(POSTING_ROLES), async (req, res) => {
 
         const { data, error } = await supabase
             .from('content_items')
-            .select(`*, clients (company_name)`)
+            .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
             .in('status', ['WAITING FOR POSTING', 'POSTED'])
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate)
@@ -2094,7 +2094,7 @@ app.get('/api/posting/calendar', requireRoles(POSTING_ROLES), async (req, res) =
 
     let query = supabase
         .from('content_items')
-        .select(`*, clients (company_name)`)
+        .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
         .eq('client_id', client_id)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
@@ -2126,7 +2126,7 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
 
     let query = supabase
         .from('content_items')
-        .select(`*, clients (company_name)`)
+        .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
@@ -2153,7 +2153,7 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
 app.get('/api/posting/clients', requireRoles(POSTING_ROLES), async (req, res) => {
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name, posts_per_month, reels_per_month')
+        .select('id, company_name, posts_per_month, reels_per_month, team_lead:team_lead_id (name)')
         .eq('is_active', true)
         .eq('is_deleted', false)
         .order('company_name');
@@ -2168,7 +2168,7 @@ app.get('/api/posting/content/:id', requireRoles(POSTING_ROLES), async (req, res
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
