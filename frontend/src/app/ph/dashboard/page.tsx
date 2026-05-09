@@ -867,7 +867,7 @@ export default function ProductionHeadDashboard() {
                                                                 const flow = flows[item.content_type] || [];
                                                                 const currentIdx = flow.indexOf(item.status);
                                                                 const nextStatus = flow[currentIdx + 1];
-                                                                const limitIdx = flow.indexOf('WAITING FOR APPROVAL');
+                                                                const limitIdx = flow.indexOf('APPROVED');
                                                                 
                                                                 if (!nextStatus || currentIdx >= limitIdx) return null;
 
@@ -1104,7 +1104,7 @@ export default function ProductionHeadDashboard() {
                                         const flow = flows[activeItem.item.content_type] || [];
                                         const currentIdx = flow.indexOf(activeItem.item.status);
                                         const nextStatus = flow[currentIdx + 1];
-                                        const limitIdx = flow.indexOf('WAITING FOR APPROVAL');
+                                        const limitIdx = flow.indexOf('APPROVED');
 
                                         if (!nextStatus || currentIdx >= limitIdx) return null;
 
@@ -1167,17 +1167,43 @@ export default function ProductionHeadDashboard() {
                                         Undo Last Step
                                     </button>
                                 </div>
-                                <div className="history-timeline" style={{ marginTop: '16px' }}>
-                                    {activeItem.history?.map((h: any, i: number) => (
-                                        <div key={i} className="history-item" style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-                                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--accent)', marginTop: '4px' }}></div>
-                                            <div>
-                                                <p style={{ fontWeight: 600, fontSize: '14px' }}>{h.old_status} → {h.new_status}</p>
-                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{h.users?.name || 'System'} • {format(parseISO(h.changed_at), 'MMM d, h:mm a')}</p>
-                                                {h.note && <p style={{ fontSize: '13px', fontStyle: 'italic', marginTop: '4px' }}>"{h.note}"</p>}
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="timeline-container" style={{ marginTop: '16px' }}>
+                                    <div className="timeline-line"></div>
+                                    {(() => {
+                                        const flows: any = {
+                                            'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                        };
+                                        const flow = flows[activeItem.item.content_type] || [];
+                                        const currentIdx = flow.indexOf(activeItem.item.status);
+
+                                        return flow.map((status: string, idx: number) => {
+                                            const isCompleted = idx < currentIdx || activeItem.item.status === 'POSTED';
+                                            const isCurrent = idx === currentIdx && activeItem.item.status !== 'POSTED';
+                                            const historyEntry = activeItem.history?.find((h: any) => h.new_status === status);
+
+                                            return (
+                                                <div key={status} className={`timeline-step ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                                                    <div className="step-indicator">
+                                                        {isCompleted ? <Check size={14} /> : isCurrent ? <div className="current-dot" /> : null}
+                                                    </div>
+                                                    <div className="step-content">
+                                                        <span className="step-title">{status}</span>
+                                                        {historyEntry && (
+                                                            <div className="step-meta">
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                    <span className="step-user">{historyEntry.users?.role_identifier || historyEntry.users?.name || 'System'}</span>
+                                                                    <span className="step-time">{format(parseISO(historyEntry.changed_at), 'MMM d, HH:mm')}</span>
+                                                                </div>
+                                                                {historyEntry.note && <p className="step-note">&quot;{historyEntry.note}&quot;</p>}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        });
+                                    })()}
                                 </div>
                             </div>
                         </div>
