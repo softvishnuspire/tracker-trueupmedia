@@ -840,6 +840,53 @@
     color: var(--text-muted);
 }
 
+/* Date Picker */
+.date-picker-box {
+    position: relative;
+    width: 180px;
+}
+
+.date-picker-box input {
+    width: 100%;
+    padding: 10px 12px 10px 40px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    outline: none;
+    transition: all 0.2s;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.date-picker-box input:focus {
+    border-color: var(--accent);
+    background: var(--bg-hover);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.calendar-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.date-picker-box input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    filter: invert(1);
+    opacity: 0.6;
+}
+
+[data-theme='light'] .date-picker-box input::-webkit-calendar-picker-indicator {
+    filter: none;
+}
+
 .admin-table {
     width: 100%;
     border-collapse: collapse;

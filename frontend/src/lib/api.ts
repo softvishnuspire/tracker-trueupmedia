@@ -182,7 +182,7 @@ export const adminApi = {
     getOnboardingRequests: () => adminBase.get<OnboardingRequest[]>('/api/admin/onboarding-requests'),
     acceptOnboarding: (id: string, password: string) => adminBase.post(`/api/admin/onboarding-requests/${id}/accept`, { password }),
     rejectOnboarding: (id: string) => adminBase.post(`/api/admin/onboarding-requests/${id}/reject`),
-    getTrackingStats: () => adminBase.get<TrackingProductivityResponse>('/api/admin/tracking/productivity'),
+    getTrackingStats: (date?: string) => adminBase.get<TrackingProductivityResponse>(`/api/admin/tracking/productivity${date ? `?date=${date}` : ''}`),
 };
 
 const cooBase = axios.create({

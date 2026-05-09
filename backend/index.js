@@ -989,7 +989,7 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
 // ─── Admin: Employee & TL Tracking ───
 app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const today = req.query.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
         // 1. Fetch all Team Leads and Employees
         const { data: users, error: userError } = await supabase

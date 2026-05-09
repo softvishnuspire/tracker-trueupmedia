@@ -68,11 +68,12 @@ export default function EmployeeTrackingPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'tl' | 'employee'>('tl');
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-    const fetchStats = async () => {
+    const fetchStats = async (date = selectedDate) => {
         setLoading(true);
         try {
-            const res = await adminApi.getTrackingStats();
+            const res = await adminApi.getTrackingStats(date);
             setStats(res.data);
         } catch (err) {
             console.error('Error fetching tracking stats:', err);
@@ -82,8 +83,8 @@ export default function EmployeeTrackingPage() {
     };
 
     useEffect(() => {
-        fetchStats();
-    }, []);
+        fetchStats(selectedDate);
+    }, [selectedDate]);
 
     const filteredTLs = stats?.teamLeads.filter(tl => 
         tl.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -106,6 +107,14 @@ export default function EmployeeTrackingPage() {
                     <p className="page-subtitle">Real-time productivity and engagement metrics</p>
                 </div>
                 <div className="header-controls">
+                    <div className="date-picker-box">
+                        <Calendar className="calendar-icon" size={18} />
+                        <input 
+                            type="date" 
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                        />
+                    </div>
                     <div className="search-input-box">
                         <Search className="search-icon" size={18} />
                         <input 
@@ -115,7 +124,7 @@ export default function EmployeeTrackingPage() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <button className="refresh-btn" onClick={fetchStats} disabled={loading}>
+                    <button className="refresh-btn" onClick={() => fetchStats()} disabled={loading}>
                         <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
                     </button>
                 </div>

@@ -1483,3 +1483,36 @@ Created a comprehensive productivity tracking system for Administrators to monit
 - **Role Dashboards**: `GM`, `TL`, `PH`, `Posting` (`dashboard/page.tsx` in each) - added header badges.
 - **Task Modals**: Standardized visibility in the header area across all views including the new Production Schedule.
 - **Styles**: Updated `admin.css` with mobile-responsive calendar tokens.
+### Affected Components
+- **Backend API (`backend/index.js`)**: Added `/api/admin/tracking/productivity` aggregation endpoint.
+- **Admin Layout (`frontend/src/app/admin/layout.tsx`)**: Integrated navigation link and icons.
+- **API Library (`frontend/src/lib/api.ts`)**: Added tracking types and fetcher.
+- **Tracking Dashboard (`frontend/src/app/admin/employee-tracking/page.tsx`)**: New primary view for admin tracking.
+
+### Refinement (May 8, 2026)
+- **Schema Fix**: Corrected `content_items.current_status` to `status` in the productivity endpoint.
+- **Filtering**: Updated Employee tracking to only list staff with tasks scheduled for today.
+- **Metrics**: Added daily content flow metrics to Team Lead cards, showing total and completed tasks (WAITING FOR POSTING/POSTED) for all their assigned clients.
+
+## Recent Changes: Date-Based Historical Tracking (May 2026)
+### Implementation Overview
+Enhanced the Employee Tracking module to allow Administrators to view historical productivity data for any specific date, moving beyond the previous limitation of "today only" metrics.
+
+### Key Technical Decisions
+1. **Parameterized Backend Tracking**:
+   - Updated `/api/admin/tracking/productivity` in `backend/index.js` to accept an optional `date` query parameter (YYYY-MM-DD).
+   - Dynamically filters `poc_communications` (via `note_date`) and `content_items` (via `scheduled_datetime` range) based on the provided date, with a fallback to the current server date.
+
+2. **Frontend API Enhancement**:
+   - Modified `getTrackingStats` in `frontend/src/lib/api.ts` to support the new `date` parameter, ensuring type-safe passing of historical date strings to the backend.
+
+3. **Interactive UI/UX**:
+   - Added a styled **Date Picker** to the `EmployeeTrackingPage` header controls.
+   - Implemented state-driven refetching: changing the date automatically triggers a data refresh for the entire dashboard.
+   - Integrated `lucide-react` `Calendar` icon and updated `admin.css` with custom styles for the date input to match the application's premium aesthetic (dark mode support, glassmorphism).
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated productivity endpoint logic to handle date-based filtering.
+- **Frontend API (`frontend/src/lib/api.ts`)**: Updated `getTrackingStats` signature.
+- **Tracking Page (`frontend/src/app/admin/employee-tracking/page.tsx`)**: Added date picker UI, state management, and refetch logic.
+- **Styles (`frontend/src/app/admin/admin.css`)**: Added `.date-picker-box` and related input styles.
