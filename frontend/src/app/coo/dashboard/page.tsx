@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { cooApi, emergencyApi } from '@/lib/api';
-import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2, Check, AlertTriangle } from 'lucide-react';
+import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2, Check, AlertTriangle, User as UserIcon, Phone, Mail, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, isSameMonth } from 'date-fns';
 
@@ -445,6 +445,7 @@ export default function CooDashboard() {
                             onChange={(e) => setSelectedClient(e.target.value)}
                         >
                             <option value="all">All Clients</option>
+                            <option value="freelancer">Freelancer Clients</option>
                             {clients.map(c => (
                                 <option key={c.id} value={c.id}>{c.company_name}</option>
                             ))}
@@ -536,9 +537,27 @@ export default function CooDashboard() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
                                 <div className="detail-section">
                                     <div className="detail-field">
-                                        <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Client</label>
-                                        <p className="detail-value" style={{ fontSize: '15px', fontWeight: 700 }}>{activeItem.item.clients?.company_name}</p>
+                                        <p className="detail-value" style={{ fontSize: '15px', fontWeight: 700 }}>{activeItem.item.clients?.company_name || activeItem.item.freelancer_name || 'N/A'}</p>
                                     </div>
+                                    {activeItem.item.freelancer_name && (
+                                        <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                                            <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '8px' }}>Freelancer Details</p>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                    <UserIcon size={14} className="text-muted" />
+                                                    <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_name}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                    <Phone size={14} className="text-muted" />
+                                                    <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_phone}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                    <Mail size={14} className="text-muted" />
+                                                    <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_email}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="detail-field" style={{ marginTop: '20px' }}>
                                         <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Scheduled For</label>
                                         <div className="date-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

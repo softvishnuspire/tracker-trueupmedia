@@ -412,7 +412,11 @@ app.get('/api/gm/master-calendar', requireRoles(GM_ROLES), async (req, res) => {
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
-    if (client_id) query = query.eq('client_id', client_id);
+    if (client_id === 'freelancer') {
+        query = query.is('client_id', null);
+    } else if (client_id) {
+        query = query.eq('client_id', client_id);
+    }
     if (content_type) query = query.eq('content_type', content_type);
 
     const { data, error } = await query.order('scheduled_datetime');
@@ -448,6 +452,66 @@ app.post('/api/gm/content', requireRoles(GM_ROLES), async (req, res) => {
         return res.status(500).json({ error: err.message });
     }
 });
+
+app.post('/api/ph/freelancer-content', requireRoles(PH_ROLES), async (req, res) => {
+    const { freelancer_name, freelancer_phone, freelancer_email, content_type, scheduled_datetime, title, description } = req.body;
+    const initial_status = 'PENDING';
+
+    try {
+        const { data, error } = await supabase
+            .from('content_items')
+            .insert([{ 
+                freelancer_name, 
+                freelancer_phone, 
+                freelancer_email, 
+                content_type, 
+                scheduled_datetime, 
+                title: title || `Freelancer: ${freelancer_name}`,
+                description: description || `Task for ${freelancer_name}`,
+                status: initial_status 
+            }])
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        const newItem = data[0];
+
+        // Trigger internal notification for Admins and GMs
+        try {
+            const { data: recipients } = await supabase
+                .from('users')
+                .select('user_id')
+                .in('role', ['ADMIN', 'GM', 'GENERAL MANAGER']);
+
+            if (recipients && recipients.length > 0) {
+                const { data: notif, error: notifError } = await supabase
+                    .from('notifications')
+                    .insert([{
+                        title: 'New Freelancer Task',
+                        message: `New ${content_type} created for ${freelancer_name} scheduled on ${new Date(scheduled_datetime).toLocaleDateString()}`,
+                        type: 'INFO',
+                        sender_id: req.user.id
+                    }])
+                    .select()
+                    .single();
+
+                if (notif) {
+                    const recipientInserts = recipients.map(r => ({
+                        notification_id: notif.notification_id,
+                        user_id: r.user_id
+                    }));
+                    await supabase.from('notification_recipients').insert(recipientInserts);
+                }
+            }
+        } catch (notifErr) {
+            console.error('Failed to trigger freelancer notification:', notifErr);
+        }
+
+        res.json(newItem);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 
 app.put('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
     const { id } = req.params;
@@ -1148,7 +1212,11 @@ app.get('/api/admin/master-calendar', async (req, res) => {
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
-    if (client_id) query = query.eq('client_id', client_id);
+    if (client_id === 'freelancer') {
+        query = query.is('client_id', null);
+    } else if (client_id) {
+        query = query.eq('client_id', client_id);
+    }
     if (content_type) query = query.eq('content_type', content_type);
 
     const { data, error } = await query.order('scheduled_datetime');
@@ -1240,7 +1308,11 @@ app.get('/api/coo/master-calendar', requireRoles(COO_ROLES), async (req, res) =>
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
-    if (client_id) query = query.eq('client_id', client_id);
+    if (client_id === 'freelancer') {
+        query = query.is('client_id', null);
+    } else if (client_id) {
+        query = query.eq('client_id', client_id);
+    }
     if (content_type) query = query.eq('content_type', content_type);
 
     const { data, error } = await query.order('scheduled_datetime');
@@ -1510,7 +1582,11 @@ app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate);
 
-        if (client_id) query = query.eq('client_id', client_id);
+        if (client_id === 'freelancer') {
+            query = query.is('client_id', null);
+        } else if (client_id) {
+            query = query.eq('client_id', client_id);
+        }
         if (content_type) query = query.eq('content_type', content_type);
 
         const { data, error } = await query
@@ -1937,8 +2013,8 @@ app.get('/api/tl/calendar-duplicate', requireRoles(TL_ROLES), async (req, res) =
 });
 
 app.get('/api/tl/master-calendar', requireRoles(TL_ROLES), async (req, res) => {
-    const { month, tlId, content_type, asOfDate } = req.query;
-    console.log(`Fetching master calendar for month ${month}, TL ${tlId}`);
+    const { month, tlId, client_id, content_type, asOfDate } = req.query;
+    console.log(`Fetching master calendar for month ${month}, TL ${tlId}, Client ${client_id}`);
 
     if (!month || !tlId) return res.status(400).json({ error: 'Missing month or tlId' });
 
@@ -1949,9 +2025,9 @@ app.get('/api/tl/master-calendar', requireRoles(TL_ROLES), async (req, res) => {
         .eq('team_lead_id', tlId);
 
     if (clientsError) return res.status(500).json({ error: clientsError.message });
-    if (!clients || clients.length === 0) return res.json([]);
-
-    const clientIds = clients.map(c => c.id);
+    
+    // We continue even if clients is empty, as we might want to see freelancers
+    const clientIds = (clients || []).map(c => c.id);
 
     const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
@@ -1961,9 +2037,17 @@ app.get('/api/tl/master-calendar', requireRoles(TL_ROLES), async (req, res) => {
     let query = supabase
         .from('content_items')
         .select(`*, clients (company_name)`)
-        .in('client_id', clientIds)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
+
+    if (client_id === 'freelancer') {
+        query = query.is('client_id', null);
+    } else if (client_id) {
+        query = query.eq('client_id', client_id);
+    } else {
+        if (clientIds.length === 0) return res.json([]);
+        query = query.in('client_id', clientIds);
+    }
 
     if (content_type) query = query.eq('content_type', content_type);
 
@@ -2239,7 +2323,11 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
-    if (client_id) query = query.eq('client_id', client_id);
+    if (client_id === 'freelancer') {
+        query = query.is('client_id', null);
+    } else if (client_id) {
+        query = query.eq('client_id', client_id);
+    }
 
     // Strictly filter by status unless 'all' is explicitly requested (for stats)
     if (all === 'true') {

@@ -47,6 +47,9 @@ export interface ContentItem {
     clients?: { company_name: string; team_lead?: { name: string } };
     assigned_to?: string;
     employee_task_status?: 'PENDING' | 'COMPLETED';
+    freelancer_name?: string;
+    freelancer_phone?: string;
+    freelancer_email?: string;
 }
 
 export interface ContentDetails {
@@ -236,6 +239,7 @@ export const phApi = {
     getEmployees: () => phBase.get<TeamMember[]>('/api/ph/employees'),
     assignEmployee: (id: string, employeeId: string | null) => 
         phBase.patch(`/api/ph/content/${id}/assign`, { assigned_to: employeeId }),
+    addFreelancerContent: (data: any) => phBase.post('/api/ph/freelancer-content', data),
 };
 
 const employeeBase = axios.create({
@@ -271,8 +275,8 @@ tlBase.interceptors.request.use(async (config) => {
 export const tlApi = {
     getClients: (tlId: string) => tlBase.get<Client[]>(`clients?tlId=${tlId}`),
     getCalendar: (clientId: string, month: string, tlId: string) => tlBase.get(`calendar?client_id=${clientId}&month=${month}&tlId=${tlId}`),
-    getMasterCalendar: (month: string, tlId: string, contentType?: string, asOfDate?: string) =>
-        tlBase.get<ContentItem[]>(`master-calendar?month=${month}&tlId=${tlId}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
+    getMasterCalendar: (month: string, tlId: string, clientId?: string, contentType?: string, asOfDate?: string) =>
+        tlBase.get<ContentItem[]>(`master-calendar?month=${month}&tlId=${tlId}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
     getPocNotes: (month: string, tlId: string, clientId?: string) =>
         tlBase.get<PocNote[]>(`poc-notes?month=${month}&tlId=${tlId}${clientId ? `&client_id=${clientId}` : ''}`),
     addPocNote: (data: { tlId: string; client_id: string; note_date: string; note_text: string }) =>

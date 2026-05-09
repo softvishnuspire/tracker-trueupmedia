@@ -30,13 +30,19 @@ import {
     Check,
     CalendarClock,
     Undo2,
-    AlertTriangle
+    AlertTriangle,
+    ShieldAlert,
+    Plus,
+    User as UserIcon,
+    Phone,
+    Mail
 } from 'lucide-react';
 import { gmApi, adminApi, emergencyApi, ContentItem } from '@/lib/api';
-import { ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
+import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import { getClientAbbreviation } from '@/lib/utils';
+import { createClient } from '@/utils/supabase/client';
 
 
 
@@ -51,14 +57,33 @@ export default function MasterCalendar() {
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
+    const [isFreelancerModalOpen, setIsFreelancerModalOpen] = useState(false);
+    const [userRole, setUserRole] = useState<string | null>(null);
+
+    const supabase = createClient();
 
     useEffect(() => {
+        const fetchUserData = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('role, role_identifier')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                const role = profile?.role_identifier || profile?.role || user.user_metadata?.role;
+                setUserRole(role?.toUpperCase());
+            }
+        };
+
         const fetchClients = async () => {
             try {
                 const res = await adminApi.getClients();
                 setClients(res.data);
             } catch (err) { console.error(err); }
         };
+        fetchUserData();
         fetchClients();
     }, []);
 
@@ -217,6 +242,7 @@ export default function MasterCalendar() {
                                     onChange={(e) => setSelectedClient(e.target.value)}
                                 >
                                     <option value="all">All Clients</option>
+                                    <option value="freelancer">Freelancer Clients</option>
                                     {clients.map(c => (
                                         <option key={c.id} value={c.id}>{c.company_name}</option>
                                     ))}
@@ -273,8 +299,31 @@ export default function MasterCalendar() {
                             <ChevronRight size={20} />
                         </button>
                     </div>
+
+                    {(userRole === 'ADMIN' || userRole === 'GM' || userRole === 'GENERAL MANAGER' || userRole === 'PRODUCTION HEAD' || userRole === 'PH') && (
+                        <button 
+                            onClick={() => setIsFreelancerModalOpen(true)}
+                            className="month-btn"
+                            style={{ 
+                                background: 'linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%)', 
+                                color: 'white',
+                                border: 'none',
+                                marginLeft: '8px',
+                                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                            }}
+                            title="Create Freelancer Task"
+                        >
+                            <Plus size={20} />
+                        </button>
+                    )}
                 </div>
             </header>
+
+            <FreelancerTaskModal 
+                isOpen={isFreelancerModalOpen}
+                onClose={() => setIsFreelancerModalOpen(false)}
+                onSuccess={() => fetchMasterData()}
+            />
 
             <div className="status-summary-row">
                 <div className="status-pill status-pill-reels">
@@ -355,7 +404,7 @@ export default function MasterCalendar() {
                                                         {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                         <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
                                                             {item.is_rescheduled ? '[R] ' : ''}
-                                                            [{getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
+                                                            [{item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
                                                         </span>
                                                         {item.status === 'POSTED' ? (
                                                             <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
@@ -410,7 +459,7 @@ export default function MasterCalendar() {
                                     }}></div>
                                     <div style={{ flex: 1 }}>
                                         <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                            {item.clients?.company_name}
+                                            {item.freelancer_name || item.clients?.company_name}
                                         </p>
                                         <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.content_type}</p>
                                     </div>
@@ -431,7 +480,7 @@ export default function MasterCalendar() {
                                         {selectedItem.item.content_type}
                                     </span>
                                     <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
-                                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{selectedItem.item.clients?.company_name}</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{selectedItem.item.freelancer_name || selectedItem.item.clients?.company_name}</span>
                                     {dayTasks.length > 1 && (
                                         <>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
@@ -445,6 +494,25 @@ export default function MasterCalendar() {
                                 <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
                                     Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
                                 </p>
+                                {selectedItem.item.freelancer_name && (
+                                    <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                                        <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '8px' }}>Freelancer Details</p>
+                                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <UserIcon size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{selectedItem.item.freelancer_name}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <Phone size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{selectedItem.item.freelancer_phone}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <Mail size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{selectedItem.item.freelancer_email}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
