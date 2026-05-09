@@ -36,6 +36,7 @@ import { gmApi, adminApi, emergencyApi, ContentItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
+import { getClientAbbreviation } from '@/lib/utils';
 
 
 
@@ -354,7 +355,7 @@ export default function MasterCalendar() {
                                                         {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                         <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
                                                             {item.is_rescheduled ? '[R] ' : ''}
-                                                            [{item.clients?.company_name?.substring(0, 3)}] {item.content_type}
+                                                            [{getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
                                                         </span>
                                                         {item.status === 'POSTED' ? (
                                                             <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
@@ -441,6 +442,9 @@ export default function MasterCalendar() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{selectedItem.item.title || selectedItem.item.content_type}</h3>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (

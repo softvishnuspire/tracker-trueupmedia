@@ -365,7 +365,7 @@ app.get('/api/gm/clients', requireRoles(GM_ROLES), async (req, res) => {
 
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name, batch_type, posts_per_month, reels_per_month')
+        .select('id, company_name, batch_type, posts_per_month, reels_per_month, team_lead:team_lead_id (name)')
         .eq('is_active', true)
         .eq('is_deleted', false);
 
@@ -473,7 +473,7 @@ app.get('/api/gm/content/:id', async (req, res) => {
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -584,7 +584,7 @@ app.get('/api/admin/clients', async (req, res) => {
     const cached = myCache.get("admin_clients");
     if (cached) return res.json(cached);
 
-    const { data, error } = await supabase.from('clients').select('*').eq('is_deleted', false).order('company_name');
+    const { data, error } = await supabase.from('clients').select('*, team_lead:team_lead_id (name)').eq('is_deleted', false).order('company_name');
     if (error) return res.status(500).json({ error: error.message });
     myCache.set("admin_clients", data);
     res.json(data);
@@ -986,6 +986,121 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     }
 });
 
+// ─── Admin: Employee & TL Tracking ───
+app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+        // 1. Fetch all Team Leads and Employees
+        const { data: users, error: userError } = await supabase
+            .from('users')
+            .select('user_id, name, email, role, role_identifier');
+
+        if (userError) throw userError;
+
+        const teamLeads = users.filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role || u.role_identifier));
+        const employees = users.filter(u => ['EMPLOYEE', 'POSTING TEAM'].includes(u.role || u.role_identifier));
+
+        // 2. Fetch Client Assignments for TLs
+        const { data: clients, error: clientError } = await supabase
+            .from('clients')
+            .select('id, company_name, team_lead_id')
+            .eq('is_active', true)
+            .eq('is_deleted', false);
+
+        if (clientError) throw clientError;
+
+        // 3. Fetch Today's POC Communications
+        const { data: pocComms, error: pocError } = await supabase
+            .from('poc_communications')
+            .select('client_id, team_lead_id')
+            .eq('note_date', today);
+
+        if (pocError) throw pocError;
+
+        // 4. Fetch TODAY'S Content Items (for both Employee and TL stats)
+        const { data: todayTasks, error: taskError } = await supabase
+            .from('content_items')
+            .select('id, client_id, assigned_to, employee_task_status, status, scheduled_datetime')
+            .gte('scheduled_datetime', `${today}T00:00:00Z`)
+            .lte('scheduled_datetime', `${today}T23:59:59Z`);
+
+        if (taskError) throw taskError;
+
+        // --- Aggregate TL Stats ---
+        const tlStats = teamLeads.map(tl => {
+            const assignedClients = clients.filter(c => c.team_lead_id === tl.user_id);
+            const assignedClientIds = assignedClients.map(c => c.id);
+            const totalAssigned = assignedClients.length;
+            
+            // Count unique clients talked to today
+            const talkedToClientIds = new Set(
+                pocComms
+                    .filter(p => p.team_lead_id === tl.user_id)
+                    .map(p => p.client_id)
+            );
+            
+            const talkedCount = assignedClients.filter(c => talkedToClientIds.has(c.id)).length;
+
+            // Content Flow for TL's Clients (Total tasks for today across all their clients)
+            const tlClientsContent = todayTasks.filter(t => assignedClientIds.includes(t.client_id));
+            const todayContentTotal = tlClientsContent.length;
+            const todayContentDone = tlClientsContent.filter(t => 
+                ['WAITING FOR POSTING', 'POSTED'].includes(t.status)
+            ).length;
+
+            return {
+                id: tl.user_id,
+                name: tl.name,
+                email: tl.email,
+                totalClients: totalAssigned,
+                talkedToday: talkedCount,
+                progress: totalAssigned > 0 ? (talkedCount / totalAssigned) : 0,
+                todayContentTotal,
+                todayContentDone,
+                assignedClients: assignedClients.map(c => ({
+                    id: c.id,
+                    name: c.company_name,
+                    talkedToday: talkedToClientIds.has(c.id)
+                }))
+            };
+        });
+
+        // --- Aggregate Employee Stats (Only those with tasks today) ---
+        const activeEmpIds = new Set(todayTasks.map(t => t.assigned_to).filter(Boolean));
+        
+        const empStats = employees
+            .filter(emp => activeEmpIds.has(emp.user_id)) // Only show employees with today's tasks
+            .map(emp => {
+                const empTasks = todayTasks.filter(t => t.assigned_to === emp.user_id);
+                const total = empTasks.length;
+                const completedTasks = empTasks.filter(t => 
+                    ['COMPLETED', 'POSTED', 'APPROVED'].includes(t.employee_task_status || '')
+                ).length;
+
+                return {
+                    id: emp.user_id,
+                    name: emp.name,
+                    email: emp.email,
+                    role: emp.role_identifier || emp.role,
+                    assignedTasks: total,
+                    completedTasks: completedTasks,
+                    completionRate: total > 0 ? (completedTasks / total) : 0
+                };
+            });
+
+        res.json({
+            date: today,
+            teamLeads: tlStats,
+            employees: empStats
+        });
+
+    } catch (error) {
+        console.error('[Tracking API] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ─── Admin: Dashboard Stats ───
 app.get('/api/admin/stats', async (req, res) => {
     const now = new Date();
@@ -1029,7 +1144,7 @@ app.get('/api/admin/master-calendar', async (req, res) => {
 
     let query = supabase
         .from('content_items')
-        .select(`*, clients (company_name)`)
+        .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
@@ -1049,7 +1164,7 @@ app.get('/api/admin/content/:id', async (req, res) => {
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -1140,7 +1255,7 @@ app.get('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -1187,7 +1302,7 @@ app.get('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -1362,7 +1477,8 @@ app.get('/api/ph/stats', requireRoles(PH_ROLES), async (req, res) => {
             .from('content_items')
             .select('content_type')
             .gte('scheduled_datetime', startDate)
-            .lte('scheduled_datetime', endDate);
+            .lte('scheduled_datetime', endDate)
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
 
         if (error) return res.status(500).json({ error: error.message });
 
@@ -1390,14 +1506,16 @@ app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
 
         let query = supabase
             .from('content_items')
-            .select('*, clients(company_name)')
+            .select('*, clients(company_name, team_lead:team_lead_id (name))')
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate);
 
         if (client_id) query = query.eq('client_id', client_id);
         if (content_type) query = query.eq('content_type', content_type);
 
-        const { data, error } = await query.order('scheduled_datetime');
+        const { data, error } = await query
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'])
+            .order('scheduled_datetime');
         if (error) return res.status(500).json({ error: error.message });
 
         const transformedData = await applyHistoricalStatus(data, asOfDate);
@@ -1420,8 +1538,8 @@ app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
 
         const { data, error } = await supabase
             .from('content_items')
-            .select(`*, clients (company_name)`)
-            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'])
+            .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'])
             .lte('scheduled_datetime', endDate)
             .order('scheduled_datetime');
 
@@ -1445,13 +1563,13 @@ app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
 
         let query = supabase
             .from('content_items')
-            .select(`*, clients (company_name)`)
+            .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
             .eq('client_id', client_id)
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate);
 
         if (all === 'true') {
-            // No status filter
+            query = query.in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
         } else if (status) {
             query = query.eq('status', status);
         } else {
@@ -1471,7 +1589,7 @@ app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('clients')
-            .select('id, company_name')
+            .select('id, company_name, team_lead:team_lead_id (name)')
             .eq('is_active', true)
             .eq('is_deleted', false)
             .order('company_name');
@@ -1489,11 +1607,16 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+
+        const productionStatuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
+        if (!productionStatuses.includes(itemRes.data.status)) {
+            return res.status(403).json({ error: 'Access denied: Content is not yet in production phase.' });
+        }
 
         const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
         res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
@@ -1724,7 +1847,7 @@ app.get('/api/tl/clients', requireRoles(TL_ROLES), async (req, res) => {
 
     const { data, error } = await supabase
         .from('clients')
-        .select('*')
+        .select('*, team_lead:team_lead_id (name)')
         .eq('team_lead_id', tlId)
         .eq('is_active', true)
         .eq('is_deleted', false)
@@ -2055,7 +2178,7 @@ app.get('/api/posting/today', requireRoles(POSTING_ROLES), async (req, res) => {
 
         const { data, error } = await supabase
             .from('content_items')
-            .select(`*, clients (company_name)`)
+            .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
             .in('status', ['WAITING FOR POSTING', 'POSTED'])
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate)
@@ -2080,7 +2203,7 @@ app.get('/api/posting/calendar', requireRoles(POSTING_ROLES), async (req, res) =
 
     let query = supabase
         .from('content_items')
-        .select(`*, clients (company_name)`)
+        .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
         .eq('client_id', client_id)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
@@ -2112,7 +2235,7 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
 
     let query = supabase
         .from('content_items')
-        .select(`*, clients (company_name)`)
+        .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
@@ -2139,7 +2262,7 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
 app.get('/api/posting/clients', requireRoles(POSTING_ROLES), async (req, res) => {
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name, posts_per_month, reels_per_month')
+        .select('id, company_name, posts_per_month, reels_per_month, team_lead:team_lead_id (name)')
         .eq('is_active', true)
         .eq('is_deleted', false)
         .order('company_name');
@@ -2154,7 +2277,7 @@ app.get('/api/posting/content/:id', requireRoles(POSTING_ROLES), async (req, res
     const { asOfDate } = req.query;
     try {
         const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name)`).eq('id', id).single(),
+            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
             supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
         ]);
 
@@ -2579,7 +2702,7 @@ app.get('/api/dashboard/pending-important', authenticateUser, async (req, res) =
 
         // Role-completion filtering
         if (resolvedRole === 'PRODUCTION HEAD') {
-            query = query.not('status', 'in', '("WAITING FOR APPROVAL","APPROVED","WAITING FOR POSTING","POSTED")');
+            query = query.in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
         } else {
             query = query.not('status', 'eq', 'POSTED');
         }
@@ -2618,7 +2741,7 @@ app.get('/api/emergency/all', authenticateUser, async (req, res) => {
 
         // Role-completion filtering
         if (resolvedRole === 'PRODUCTION HEAD') {
-            query = query.not('status', 'in', '("WAITING FOR APPROVAL","APPROVED","WAITING FOR POSTING","POSTED")');
+            query = query.in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
         } else {
             query = query.not('status', 'eq', 'POSTED');
         }

@@ -45,6 +45,7 @@ import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
+import { getClientAbbreviation } from '@/lib/utils';
 
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
@@ -576,7 +577,7 @@ export default function TLDashboard() {
                                                         fontSize: '10px',
                                                         fontWeight: 800
                                                     }}>
-                                                        {c.company_name?.charAt(0) || '?'}
+                                                        {getClientAbbreviation(c.company_name).charAt(0)}
                                                     </div>
                                                     <span className="truncate">{c.company_name}</span>
                                                 </div>
@@ -625,8 +626,21 @@ export default function TLDashboard() {
 
                 <header className="page-header page-header-safe">
                     <div>
-                        <h1 className="page-title">
+                        <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             {view === 'master' ? 'Master Calendar' : view === 'company' ? 'Company Calendar' : view === 'poc' ? 'POC Communication' : 'Client Dashboard'}
+                            {view === 'client' && selectedClient && (
+                                <span style={{ 
+                                    fontSize: '14px', 
+                                    background: 'rgba(99, 102, 241, 0.1)', 
+                                    color: 'var(--accent)', 
+                                    padding: '4px 12px', 
+                                    borderRadius: '20px', 
+                                    fontWeight: 700,
+                                    border: '1px solid rgba(99, 102, 241, 0.2)'
+                                }}>
+                                    Team Lead: {clients.find(c => c.id === selectedClient)?.team_lead?.name || 'Not Assigned'}
+                                </span>
+                            )}
                         </h1>
                         <p className="page-subtitle">
                             {view === 'master'
@@ -956,7 +970,7 @@ export default function TLDashboard() {
                                                                 ) : (
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                                         <span className="truncate" style={{ fontSize: '9px', flex: 1 }}>
-                                                                            {isMasterMode ? `[${(item as ContentItem).clients?.company_name?.substring(0,3)}] ` : ''}
+                                                                            {isMasterMode ? `[${getClientAbbreviation((item as ContentItem).clients?.company_name)}] ` : ''}
                                                                             {(item as ContentItem).content_type}
                                                                         </span>
                                                                         {(item as ContentItem).status === 'POSTED' ? (
@@ -1009,6 +1023,9 @@ export default function TLDashboard() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{activeItem.item.title}</h3>
+                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
@@ -1045,7 +1062,6 @@ export default function TLDashboard() {
 
                         <div className="detail-grid">
                             <div className="detail-info">
-
                                 <div style={{ display: 'flex', gap: '24px' }}>
                                     <div>
                                         <label className="detail-label">{isCompanyMode ? 'Calendar Date' : 'Scheduled Date'}</label>

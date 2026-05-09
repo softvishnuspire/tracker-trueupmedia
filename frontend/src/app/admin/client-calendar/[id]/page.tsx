@@ -325,7 +325,23 @@ export default function ClientCalendarPage() {
                             <ArrowLeft size={18} />
                         </button>
                         <div className="header-info">
-                            <h1 className="page-title">{client?.company_name} Calendar</h1>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <h1 className="page-title">{client?.company_name} Calendar</h1>
+                                {client?.team_lead?.name && (
+                                    <div className="tl-badge" style={{ 
+                                        background: 'rgba(99, 102, 241, 0.1)', 
+                                        color: 'var(--accent)', 
+                                        padding: '4px 12px', 
+                                        borderRadius: '20px', 
+                                        fontSize: '13px', 
+                                        fontWeight: 800,
+                                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                                        marginTop: '4px'
+                                    }}>
+                                        Team Lead: {client.team_lead.name}
+                                    </div>
+                                )}
+                            </div>
                             <p className="page-subtitle">Manage scheduling and content for this client</p>
                         </div>
                     </div>
@@ -581,6 +597,9 @@ export default function ClientCalendarPage() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{selectedItem.item.title || selectedItem.item.content_type}</h3>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (

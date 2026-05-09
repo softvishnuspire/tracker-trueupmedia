@@ -514,9 +514,26 @@ export default function ProductionHeadDashboard() {
                 <header className="page-header">
                     <div className="header-content">
                         <div className="header-info">
-                            <h1 className="page-title">
+                            <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {view === 'dashboard' && "Production Dashboard"}
-                                {view === 'client' && 'Client Production'}
+                                {view === 'client' && (
+                                    <>
+                                        <span>Client Production</span>
+                                        {selectedClient && selectedClient !== 'all' && (
+                                            <span style={{ 
+                                                fontSize: '14px', 
+                                                background: 'rgba(99, 102, 241, 0.1)', 
+                                                color: 'var(--accent)', 
+                                                padding: '4px 12px', 
+                                                borderRadius: '20px', 
+                                                fontWeight: 700,
+                                                border: '1px solid rgba(99, 102, 241, 0.2)'
+                                            }}>
+                                                Team Lead: {clients.find(c => c.id === selectedClient)?.team_lead?.name || 'Not Assigned'}
+                                            </span>
+                                        )}
+                                    </>
+                                )}
                                 {view === 'master' && 'Master Production Schedule'}
                                 {view === 'company' && 'Company Calendar'}
                             </h1>
@@ -1000,6 +1017,9 @@ export default function ProductionHeadDashboard() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{activeItem.item.title}</h3>
+                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (

@@ -44,6 +44,7 @@ import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
+import { getClientAbbreviation } from '@/lib/utils';
 import '../posting.css';
 
 interface ContentItem {
@@ -518,9 +519,26 @@ export default function PostingDashboard() {
                 <header className="page-header">
                     <div className="header-content">
                         <div className="header-info">
-                            <h1 className="page-title">
+                            <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {view === 'dashboard' && "Pending Important Tasks"}
-                                {view === 'client' && 'Client Calendar'}
+                                {view === 'client' && (
+                                    <>
+                                        <span>Client Calendar</span>
+                                        {selectedClient && selectedClient !== 'all' && (
+                                            <span style={{ 
+                                                fontSize: '14px', 
+                                                background: 'rgba(99, 102, 241, 0.1)', 
+                                                color: 'var(--accent)', 
+                                                padding: '4px 12px', 
+                                                borderRadius: '20px', 
+                                                fontWeight: 700,
+                                                border: '1px solid rgba(99, 102, 241, 0.2)'
+                                            }}>
+                                                Team Lead: {clients.find(c => c.id === selectedClient)?.team_lead?.name || 'Not Assigned'}
+                                            </span>
+                                        )}
+                                    </>
+                                )}
                                 {view === 'master' && 'Master Calendar'}
                                 {view === 'company' && 'Company Calendar'}
                             </h1>
@@ -812,7 +830,7 @@ export default function PostingDashboard() {
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate">
-                                                                {(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
+                                                                {(view === 'master' || view === 'company') ? `[${getClientAbbreviation(item.clients?.company_name)}] ` : ''}
                                                                 {item.title}
                                                             </span>
                                                             {item.status === 'POSTED' ? (
@@ -847,7 +865,12 @@ export default function PostingDashboard() {
                     <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 <h3 className="modal-title">{activeItem.item.title}</h3>
+                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)' }}>
+                                    Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
+                            </div>
                                 {dayTasks.length > 1 && (
                                     <span className="task-counter" style={{ color: 'var(--accent)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: '20px', border: '1px solid var(--border)' }}>
                                         Task {dayTasks.findIndex(t => t.id === activeItem.item.id) + 1} of {dayTasks.length}
