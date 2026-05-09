@@ -37,7 +37,8 @@ import {
     AlertTriangle,
     Menu,
     CalendarClock,
-    Undo2
+    Undo2,
+    Filter
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { tlApi, gmApi, emergencyApi, dashboardApi, ContentItem, PocNote, StatusHistoryItem, settingsApi } from '@/lib/api';
@@ -65,7 +66,7 @@ export default function TLDashboard() {
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<any>(null);
     const [clients, setClients] = useState<any[]>([]);
-    const [selectedClient, setSelectedClient] = useState<string>('');
+    const [selectedClient, setSelectedClient] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -124,7 +125,7 @@ export default function TLDashboard() {
         try {
             const res = await tlApi.getClients(tlId);
             setClients(res.data);
-            if (res.data.length > 0 && !selectedClient) {
+            if (res.data.length > 0 && selectedClient === 'all' && view === 'client') {
                 setSelectedClient(res.data[0].id);
             }
             if (res.data.length > 0 && !selectedPocClient) {
@@ -157,11 +158,12 @@ export default function TLDashboard() {
         if (!user) return;
         setLoading(true);
         try {
+            const clientId = selectedClient === 'all' ? undefined : selectedClient;
             if (view === 'company') {
                 const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
                 const responses = await Promise.all(
                     monthWindows.map((monthDate) =>
-                        tlApi.getMasterCalendar(format(monthDate, 'yyyy-MM'), user.id)
+                        tlApi.getMasterCalendar(format(monthDate, 'yyyy-MM'), user.id, clientId)
                     )
                 );
                 const merged = responses.flatMap((response) => response.data || []);
@@ -169,7 +171,7 @@ export default function TLDashboard() {
                 setCalendarData(deduped);
             } else {
                 const currentMonthStr = format(currentMonth, 'yyyy-MM');
-                const res = await tlApi.getMasterCalendar(currentMonthStr, user.id);
+                const res = await tlApi.getMasterCalendar(currentMonthStr, user.id, clientId);
                 setCalendarData(res.data || []);
             }
             
@@ -654,8 +656,30 @@ export default function TLDashboard() {
                         </p>
                     </div>
 
-                    <div className="header-controls">
-                        <div className="month-nav">
+                        <div className="header-controls">
+                            {(view === 'master' || view === 'company') && (
+                                <div className="master-filters-container" style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-elevated)', borderRadius: '12px', padding: '4px 12px', border: '1px solid var(--border)', marginRight: '12px' }}>
+                                    <div className="filter-icon-box" style={{ marginRight: '8px', color: 'var(--text-muted)' }}><Filter size={14} /></div>
+                                    <div className="client-dropdown-wrapper" style={{ position: 'relative' }}>
+                                        <select 
+                                            className="client-dropdown" 
+                                            value={selectedClient} 
+                                            onChange={(e) => setSelectedClient(e.target.value)}
+                                            style={{ 
+                                                appearance: 'none', background: 'transparent', border: 'none', 
+                                                color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600, 
+                                                paddingRight: '20px', cursor: 'pointer' 
+                                            }}
+                                        >
+                                            <option value="all">All Clients</option>
+                                            <option value="freelancer">Freelancer Clients</option>
+                                            {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                                        </select>
+                                        <ChevronDown size={14} className="dropdown-chevron" style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', opacity: 0.5 }} />
+                                    </div>
+                                </div>
+                            )}
+                            <div className="month-nav">
                             <button onClick={handlePrev} className="month-btn"><ChevronLeft size={18}/></button>
                             <span className="month-label">
                                 {getPeriodLabel()}
@@ -970,7 +994,11 @@ export default function TLDashboard() {
                                                                 ) : (
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                                         <span className="truncate" style={{ fontSize: '9px', flex: 1 }}>
-                                                                            {isMasterMode ? `[${getClientAbbreviation((item as ContentItem).clients?.company_name)}] ` : ''}
+                                                                            {isMasterMode ? (
+                                                                                (item as ContentItem).client_id ? 
+                                                                                    `[${getClientAbbreviation((item as ContentItem).clients?.company_name)}] ` : 
+                                                                                    `[${((item as ContentItem).freelancer_name || 'FR').substring(0, 2).toUpperCase()}] `
+                                                                            ) : ''}
                                                                             {(item as ContentItem).content_type}
                                                                         </span>
                                                                         {(item as ContentItem).status === 'POSTED' ? (
@@ -1029,6 +1057,25 @@ export default function TLDashboard() {
                                 <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '2px' }}>
                                     Assigned To: {activeItem.item.assigned_employee ? `${activeItem.item.assigned_employee.name} ${activeItem.item.assigned_employee.role_identifier ? `(${activeItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
                                 </p>
+                                {!activeItem.item.client_id && (
+                                    <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                                        <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Freelancer Contact Information</p>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                            <div>
+                                                <p style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Name</p>
+                                                <p style={{ fontSize: '13px', fontWeight: 700 }}>{activeItem.item.freelancer_name}</p>
+                                            </div>
+                                            <div>
+                                                <p style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Phone</p>
+                                                <p style={{ fontSize: '13px', fontWeight: 700 }}>{activeItem.item.freelancer_phone || 'N/A'}</p>
+                                            </div>
+                                            <div style={{ gridColumn: 'span 2' }}>
+                                                <p style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Email</p>
+                                                <p style={{ fontSize: '13px', fontWeight: 700 }}>{activeItem.item.freelancer_email || 'N/A'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (

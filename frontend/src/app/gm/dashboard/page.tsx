@@ -49,7 +49,10 @@ import {
     AlertTriangle,
     ShieldAlert,
     Activity,
-    Search
+    Search,
+    User as UserIcon,
+    Phone,
+    Mail
 } from 'lucide-react';
 import {
     gmApi,
@@ -72,6 +75,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import SkeletonCard from '@/components/SkeletonCard';
 import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
+import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import './gm.css';
 
 interface TeamLead extends TeamMember {
@@ -117,6 +121,8 @@ export default function GMDashboard() {
     const [user, setUser] = useState<User | null>(null);
     const [isRescheduling, setIsRescheduling] = useState(false);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
+    const [isFreelancerModalOpen, setIsFreelancerModalOpen] = useState(false);
+    const [userRole, setUserRole] = useState<string | null>(null);
 
     const isMasterMode = view === 'master' || view === 'company';
     const isCompanyMode = view === 'company';
@@ -457,7 +463,18 @@ export default function GMDashboard() {
         fetchClients();
         const fetchUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (user) setUser(user);
+            if (user) {
+                setUser(user);
+                // Fetch profile to get role
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('role, role_identifier')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                const role = profile?.role_identifier || profile?.role || user.user_metadata?.role;
+                setUserRole(role?.toUpperCase());
+            }
         };
         fetchUser();
     }, []);
@@ -995,6 +1012,7 @@ export default function GMDashboard() {
                                             onChange={(e) => setSelectedClient(e.target.value)}
                                         >
                                             <option value="all">All Clients</option>
+                                            <option value="freelancer">Freelancer Clients</option>
                                             {clients.map(c => (
                                                 <option key={c.id} value={c.id}>{c.company_name}</option>
                                             ))}
@@ -1067,6 +1085,23 @@ export default function GMDashboard() {
                                         <button onClick={handleNext} className="month-btn"><ChevronRight size={20} /></button>
                                     </div>
 
+                                    {(userRole === 'ADMIN' || userRole === 'GM' || userRole === 'GENERAL MANAGER' || userRole === 'PRODUCTION HEAD' || userRole === 'PH') && (
+                                        <button 
+                                            onClick={() => setIsFreelancerModalOpen(true)}
+                                            className="month-btn"
+                                            style={{ 
+                                                background: 'linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%)', 
+                                                color: 'white',
+                                                border: 'none',
+                                                marginLeft: '8px',
+                                                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                                            }}
+                                            title="Create Freelancer Task"
+                                        >
+                                            <Plus size={20} />
+                                        </button>
+                                    )}
+
                                     <ScheduleExport
                                         data={view === 'poc' ? [] : calendarData}
                                         clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find(c => c.id === selectedClient)?.company_name || 'Client'}
@@ -1078,6 +1113,13 @@ export default function GMDashboard() {
                         </div>
                     </div>
                 </header>
+
+                <FreelancerTaskModal 
+                    isOpen={isFreelancerModalOpen}
+                    onClose={() => setIsFreelancerModalOpen(false)}
+                    onSuccess={() => fetchMasterCalendar().then(setCalendarData)}
+                />
+
 
                 {(view === 'master' || view === 'company' || (view === 'client' && selectedClient)) && (
                     <div className="status-summary-row">
@@ -1736,7 +1778,7 @@ export default function GMDashboard() {
                                                                 <span className="truncate" style={{ flex: 1 }}>
                                                                     {isPocView
                                                                         ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
-                                                                        : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' ? `[${getClientAbbreviation(item.clients?.company_name)}] ` : ''}${item.content_type}`}
+                                                                        : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${item.content_type}`}
                                                                 </span>
                                                                 {!isPocView && (
                                                                     item.status === 'POSTED' ? (
@@ -1893,7 +1935,7 @@ export default function GMDashboard() {
                                         {activeItem.item.content_type}
                                     </span>
                                     <span className="meta-dot">•</span>
-                                    <span className="meta-client">{activeItem.item.clients?.company_name}</span>
+                                    <span className="meta-client">{activeItem.item.freelancer_name || activeItem.item.clients?.company_name}</span>
                                     {dayTasks.length > 1 && (
                                         <>
                                             <span className="meta-dot">•</span>
@@ -1907,6 +1949,25 @@ export default function GMDashboard() {
                                 <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px' }}>
                                     Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
                                 </p>
+                                {activeItem.item.freelancer_name && (
+                                    <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                                        <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '8px' }}>Freelancer Details</p>
+                                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <UserIcon size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_name}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <Phone size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_phone}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <Mail size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_email}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 {dayTasks.length > 1 && (

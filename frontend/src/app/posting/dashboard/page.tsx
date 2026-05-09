@@ -580,6 +580,7 @@ export default function PostingDashboard() {
                                             onChange={(e) => setSelectedClient(e.target.value)}
                                         >
                                             <option value="all">All Clients</option>
+                                            <option value="freelancer">Freelancer Clients</option>
                                             {clients.map(c => (
                                                 <option key={c.id} value={c.id}>{c.company_name}</option>
                                             ))}

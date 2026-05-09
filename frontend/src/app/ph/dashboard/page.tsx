@@ -36,7 +36,10 @@ import {
     CalendarClock,
     Undo2,
     Layers,
-    Film
+    Film,
+    User as UserIcon,
+    Phone,
+    Mail
 } from 'lucide-react';
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -44,9 +47,11 @@ import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
+import FreelancerTaskModal from '@/components/FreelancerTaskModal';
+import { Plus } from 'lucide-react';
 import './ph.css';
 
-// Removed local ContentItem interface to use imported one
+// Using imported ContentItem from @/lib/api
 
 export default function ProductionHeadDashboard() {
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company'>('dashboard');
@@ -81,6 +86,8 @@ export default function ProductionHeadDashboard() {
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
     const [employees, setEmployees] = useState<any[]>([]);
+    const [isFreelancerModalOpen, setIsFreelancerModalOpen] = useState(false);
+    const [userRole, setUserRole] = useState<string | null>(null);
 
     const router = useRouter();
     const supabase = createClient();
@@ -92,10 +99,21 @@ export default function ProductionHeadDashboard() {
                 router.push('/login');
                 return;
             }
-            if (session?.user) {
-                setUser(session.user);
-                fetchEmployees();
-            }
+            console.log('PH Dashboard Session User:', session.user);
+            setUser(session.user);
+            
+            // Fetch profile to get role
+            const { data: profile } = await supabase
+                .from('users')
+                .select('role, role_identifier')
+                .eq('user_id', session.user.id)
+                .single();
+            
+            const role = profile?.role_identifier || profile?.role || session.user.user_metadata?.role;
+            setUserRole(role?.toUpperCase());
+            
+            // Fetch employees for assignment
+            fetchEmployees();
         };
         checkUser();
     }, []);
@@ -567,6 +585,7 @@ export default function ProductionHeadDashboard() {
                                     <div className="client-dropdown-wrapper">
                                         <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
                                             <option value="all">All Clients</option>
+                                            <option value="freelancer">Freelancer Clients</option>
                                             {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
                                         </select>
                                         <ChevronDown size={14} className="dropdown-chevron" />
@@ -581,9 +600,32 @@ export default function ProductionHeadDashboard() {
                                     <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn"><ChevronRight size={20} /></button>
                                 </div>
                             )}
+
+                            {(view === 'master' || view === 'company') && (userRole === 'ADMIN' || userRole === 'GM' || userRole === 'GENERAL MANAGER' || userRole === 'PRODUCTION HEAD' || userRole === 'PH') && (
+                                <button 
+                                    onClick={() => setIsFreelancerModalOpen(true)}
+                                    className="month-btn"
+                                    style={{ 
+                                        background: 'linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%)', 
+                                        color: 'white',
+                                        border: 'none',
+                                        marginLeft: '8px',
+                                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                                    }}
+                                    title="Create Freelancer Task"
+                                >
+                                    <Plus size={20} />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </header>
+
+                <FreelancerTaskModal 
+                    isOpen={isFreelancerModalOpen}
+                    onClose={() => setIsFreelancerModalOpen(false)}
+                    onSuccess={() => fetchMasterCalendar()}
+                />
 
                 {view === 'dashboard' && (
                     <div className="daily-stats-banner" style={{ width: '100%' }}>
@@ -952,7 +994,7 @@ export default function ProductionHeadDashboard() {
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                {(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
+                                                                {(view === 'master' || view === 'company') ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : item.clients?.company_name?.substring(0, 3)}] ` : ''}
                                                                 {item.content_type}
                                                                 {item.assigned_to ? (
                                                                     <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ transform: 'scale(0.8)', padding: '2px 6px' }}>
@@ -1011,6 +1053,25 @@ export default function ProductionHeadDashboard() {
                                         Assigned To: {activeItem.item.assigned_employee ? `${activeItem.item.assigned_employee.name} ${activeItem.item.assigned_employee.role_identifier ? `(${activeItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
                                     </p>
                                 </div>
+                                {activeItem.item.freelancer_name && (
+                                    <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                                        <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '8px' }}>Freelancer Details</p>
+                                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <UserIcon size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_name}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <Phone size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_phone}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                                                <Mail size={14} className="text-muted" />
+                                                <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_email}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
