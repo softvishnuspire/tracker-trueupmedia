@@ -536,15 +536,20 @@ app.get('/api/gm/content/:id', async (req, res) => {
     const { id } = req.params;
     const { asOfDate } = req.query;
     try {
-        const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name)`).eq('id', id).single(),
-            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
-        ]);
+        const { data: itemData, error: itemError } = await fetchContentOrFreelancerItem(id);
+        
+        if (itemError || !itemData) {
+            return res.status(500).json({ error: itemError?.message || 'Item not found' });
+        }
 
-        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        const { data: logsData } = await supabase
+            .from('status_logs')
+            .select(`*, users:changed_by (name, role_identifier)`)
+            .eq('item_id', id)
+            .order('changed_at', { ascending: false });
 
-        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
-        res.json({ item: transformedItem, history: logsRes.data || [] });
+        const transformedItem = await applyHistoricalStatus(itemData, asOfDate);
+        res.json({ item: transformedItem, history: logsData || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1245,6 +1250,46 @@ async function fetchCombinedCalendarData(startDate, endDate, client_id, content_
     return combined;
 }
 
+// ─── Helper: Fetch Single Item (Content or Freelancer) ───
+async function fetchContentOrFreelancerItem(id) {
+    // 1. Try content_items first
+    const { data: item, error } = await supabase
+        .from('content_items')
+        .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+        .eq('id', id)
+        .single();
+        
+    if (item && !error) {
+        return { data: item, error: null, table: 'content_items' };
+    }
+
+    console.log(`[fetchContentOrFreelancerItem] Not in content_items (id: ${id}), trying freelancer_tasks...`);
+
+    // 2. Try freelancer_tasks — use simple select (no FK join) for maximum compatibility
+    const { data: fItem, error: fError } = await supabase
+        .from('freelancer_tasks')
+        .select(`*`)
+        .eq('id', id)
+        .single();
+        
+    if (fItem && !fError) {
+        return { 
+            data: { 
+                ...fItem, 
+                clients: null, 
+                client_id: null, 
+                is_freelancer_table: true,
+                assigned_employee: null 
+            }, 
+            error: null, 
+            table: 'freelancer_tasks' 
+        };
+    }
+
+    console.error(`[fetchContentOrFreelancerItem] Not found in either table (id: ${id}). content_items error:`, error?.message, '| freelancer_tasks error:', fError?.message);
+    return { data: null, error: fError || error, table: null };
+}
+
 // ─── Admin: Master Calendar ───
 app.get('/api/admin/master-calendar', async (req, res) => {
     const { month, client_id, content_type, asOfDate } = req.query;
@@ -1268,15 +1313,21 @@ app.get('/api/admin/content/:id', async (req, res) => {
     const { id } = req.params;
     const { asOfDate } = req.query;
     try {
-        const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name)`).eq('id', id).single(),
-            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
-        ]);
+        const { data: itemData, error: itemError } = await fetchContentOrFreelancerItem(id);
+        
+        if (itemError || !itemData) {
+            return res.status(500).json({ error: itemError?.message || 'Item not found' });
+        }
 
-        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        // status_logs might fail if it's a freelancer task and item_id is missing, but it returns empty array safely
+        const { data: logsData } = await supabase
+            .from('status_logs')
+            .select(`*, users:changed_by (name, role_identifier)`)
+            .eq('item_id', id)
+            .order('changed_at', { ascending: false });
 
-        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
-        res.json({ item: transformedItem, history: logsRes.data || [] });
+        const transformedItem = await applyHistoricalStatus(itemData, asOfDate);
+        res.json({ item: transformedItem, history: logsData || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1348,35 +1399,19 @@ app.get('/api/coo/master-calendar', requireRoles(COO_ROLES), async (req, res) =>
     }
 });
 
-app.get('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
-    const { id } = req.params;
-    const { asOfDate } = req.query;
-    try {
-        const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`).eq('id', id).single(),
-            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
-        ]);
-
-        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
-
-        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
-        res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 app.patch('/api/admin/content/:id/status', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     const { new_status, note, changed_by } = req.body;
     try {
-        const { data: item, error: fetchError } = await supabase.from('content_items').select('status, content_type').eq('id', id).single();
-        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
+        const { data: itemData, error: itemError, table } = await fetchContentOrFreelancerItem(id);
+        if (itemError || !itemData) return res.status(404).json({ error: 'Item not found' });
 
-        const { error: updateError } = await supabase.from('content_items').update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
+        const { error: updateError } = await supabase.from(table).update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
         if (updateError) return res.status(500).json({ error: 'Failed to update status' });
 
-        await supabase.from('status_logs').insert([{ item_id: id, old_status: item.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
+        const { error: logError } = await supabase.from('status_logs').insert([{ item_id: id, old_status: itemData.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
+        if (logError) console.warn('[Admin] Failed to log status:', logError.message);
         res.json({ message: 'Status updated successfully' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1384,10 +1419,13 @@ app.patch('/api/admin/content/:id/status', requireRoles(ADMIN_ROLES), async (req
 app.post('/api/admin/content/:id/undo-status', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
+        const { data: itemData, error: itemError, table } = await fetchContentOrFreelancerItem(id);
+        if (itemError || !itemData) return res.status(404).json({ error: 'Item not found' });
+
         const { data: latestLog, error: logFetchError } = await supabase.from('status_logs').select('*').eq('item_id', id).order('changed_at', { ascending: false }).limit(1).single();
         if (logFetchError || !latestLog) return res.status(404).json({ error: 'No history found' });
 
-        const { error: revertError } = await supabase.from('content_items').update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id);
+        const { error: revertError } = await supabase.from(table).update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id);
         if (revertError) return res.status(500).json({ error: 'Failed to revert' });
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
@@ -1399,15 +1437,20 @@ app.get('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
     const { id } = req.params;
     const { asOfDate } = req.query;
     try {
-        const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`).eq('id', id).single(),
-            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
-        ]);
+        const { data: itemData, error: itemError } = await fetchContentOrFreelancerItem(id);
+        
+        if (itemError || !itemData) {
+            return res.status(500).json({ error: itemError?.message || 'Item not found' });
+        }
 
-        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        const { data: logsData } = await supabase
+            .from('status_logs')
+            .select(`*, users:changed_by (name, role_identifier)`)
+            .eq('item_id', id)
+            .order('changed_at', { ascending: false });
 
-        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
-        res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
+        const transformedItem = await applyHistoricalStatus(itemData, asOfDate);
+        res.json({ item: transformedItem, currentItem: itemData, history: logsData || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1417,13 +1460,14 @@ app.patch('/api/coo/content/:id/status', requireRoles(COO_ROLES), async (req, re
     const { id } = req.params;
     const { new_status, note, changed_by } = req.body;
     try {
-        const { data: item, error: fetchError } = await supabase.from('content_items').select('status, content_type').eq('id', id).single();
-        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
+        const { data: itemData, error: itemError, table } = await fetchContentOrFreelancerItem(id);
+        if (itemError || !itemData) return res.status(404).json({ error: 'Item not found' });
 
-        const { error: updateError } = await supabase.from('content_items').update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
+        const { error: updateError } = await supabase.from(table).update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
         if (updateError) return res.status(500).json({ error: 'Failed to update status' });
 
-        await supabase.from('status_logs').insert([{ item_id: id, old_status: item.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
+        const { error: logError } = await supabase.from('status_logs').insert([{ item_id: id, old_status: itemData.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
+        if (logError) console.warn('[COO] Failed to log status:', logError.message);
         res.json({ message: 'Status updated successfully' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1431,10 +1475,13 @@ app.patch('/api/coo/content/:id/status', requireRoles(COO_ROLES), async (req, re
 app.post('/api/coo/content/:id/undo', requireRoles(COO_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
+        const { data: itemData, error: itemError, table } = await fetchContentOrFreelancerItem(id);
+        if (itemError || !itemData) return res.status(404).json({ error: 'Item not found' });
+
         const { data: latestLog, error: logFetchError } = await supabase.from('status_logs').select('*').eq('item_id', id).order('changed_at', { ascending: false }).limit(1).single();
         if (logFetchError || !latestLog) return res.status(404).json({ error: 'No history found' });
 
-        const { error: revertError } = await supabase.from('content_items').update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id);
+        const { error: revertError } = await supabase.from(table).update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id);
         if (revertError) return res.status(500).json({ error: 'Failed to revert' });
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
@@ -1693,20 +1740,25 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
     const { id } = req.params;
     const { asOfDate } = req.query;
     try {
-        const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`).eq('id', id).single(),
-            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
-        ]);
-
-        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        const { data: itemData, error: itemError } = await fetchContentOrFreelancerItem(id);
+        
+        if (itemError || !itemData) {
+            return res.status(500).json({ error: itemError?.message || 'Item not found' });
+        }
 
         const productionStatuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
-        if (!productionStatuses.includes(itemRes.data.status)) {
+        if (!productionStatuses.includes(itemData.status)) {
             return res.status(403).json({ error: 'Access denied: Content is not yet in production phase.' });
         }
 
-        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
-        res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
+        const { data: logsData } = await supabase
+            .from('status_logs')
+            .select(`*, users:changed_by (name, role_identifier)`)
+            .eq('item_id', id)
+            .order('changed_at', { ascending: false });
+
+        const transformedItem = await applyHistoricalStatus(itemData, asOfDate);
+        res.json({ item: transformedItem, currentItem: itemData, history: logsData || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -2348,15 +2400,20 @@ app.get('/api/posting/content/:id', requireRoles(POSTING_ROLES), async (req, res
     const { id } = req.params;
     const { asOfDate } = req.query;
     try {
-        const [itemRes, logsRes] = await Promise.all([
-            supabase.from('content_items').select(`*, clients (company_name, team_lead:team_lead_id (name))`).eq('id', id).single(),
-            supabase.from('status_logs').select(`*, users:changed_by (name, role_identifier)`).eq('item_id', id).order('changed_at', { ascending: false })
-        ]);
+        const { data: itemData, error: itemError } = await fetchContentOrFreelancerItem(id);
+        
+        if (itemError || !itemData) {
+            return res.status(500).json({ error: itemError?.message || 'Item not found' });
+        }
 
-        if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+        const { data: logsData } = await supabase
+            .from('status_logs')
+            .select(`*, users:changed_by (name, role_identifier)`)
+            .eq('item_id', id)
+            .order('changed_at', { ascending: false });
 
-        const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
-        res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
+        const transformedItem = await applyHistoricalStatus(itemData, asOfDate);
+        res.json({ item: transformedItem, currentItem: itemData, history: logsData || [] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
