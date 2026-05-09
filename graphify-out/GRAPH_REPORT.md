@@ -1340,22 +1340,24 @@ Integrated a new "Freelancer Task" system allowing for the creation of one-time 
 - **Backend API (`backend/index.js`)**: Updated content creation and filtering for `client_id: null` support.
 - **Freelancer Modal (`frontend/src/components/FreelancerTaskModal.tsx`)**: Core component for lightweight task entry.
 
-## Recent Changes: Freelancer Task Creation Bug Fix (May 2026)
+## Recent Changes: Freelancer Task Creation Bug Fix & Database Migration (May 2026)
 ### Implementation Overview
-Resolved a bug where freelancer task creation appeared to silently fail ("Nothing happens") for Production Heads and Admins, despite the backend successfully creating the tasks. The issue was traced to silent browser-level HTML5 form validation failures and missing UI feedback mechanisms.
+Resolved a bug where freelancer task creation was causing data integrity issues due to sharing the `content_items` table. Transitioned the architecture to use a dedicated `freelancer_tasks` table and refactored all backend calendar endpoints to seamlessly merge data from both sources.
 
 ### Key Technical Decisions
-1. **Manual Validation & UI Feedback**:
-   - Refactored `FreelancerTaskModal.tsx` to handle validation manually rather than relying on native HTML5 `required` attributes, which were failing silently or being hidden by modal overlays.
-   - Replaced generic browser alerts with inline UI messages (`errorMsg` and `successMsg`) for immediate, context-aware feedback without pop-ups.
-   - Ensured the modal displays a clear "Success" state and waits 1.5 seconds before automatically closing and resetting.
+1. **Dedicated Database Table Migration**:
+   - Designed a new `freelancer_tasks` table specifically for one-off tasks, removing the need for nullable `client_id` constraints in the main pipeline.
+   - Updated the `POST /api/ph/freelancer-content` endpoint to route creations to the new schema.
 
-2. **Timezone Data Integrity**:
-   - Updated the initial state of the `scheduled_datetime` field. Replaced `new Date().toISOString()` (which sets the input to UTC) with a custom `getLocalISOString()` helper that accurately populates the `datetime-local` input in the user's local timezone.
+2. **Unified Calendar Fetching**:
+   - Created a backend helper `fetchCombinedCalendarData` to fetch, merge, and sort data from both `content_items` and `freelancer_tasks`.
+   - Refactored Master Calendar endpoints across all roles (Admin, GM, PH, COO, TL, Posting) to use this unified approach.
 
-3. **Backend Notification Resiliency**:
-   - Fixed a case-sensitivity bug in the backend notification query (`backend/index.js`). Changed the filter to match `role_identifier` instead of `role` (e.g., matching `"ADMIN"` instead of `"Admin"`), ensuring internal "New Freelancer Task" notifications are correctly delivered to administrators.
+3. **Manual Validation & UI Feedback**:
+   - Refactored `FreelancerTaskModal.tsx` to handle validation manually rather than relying on native HTML5 `required` attributes, which were failing silently.
+   - Replaced generic browser alerts with inline UI messages (`errorMsg` and `successMsg`).
 
 ### Affected Components
+- **Backend Migrations**: `create_freelancer_tasks.sql`
+- **Backend API (`backend/index.js`)**: Master Calendar endpoints (Admin, GM, PH, COO, TL, Posting), unified fetch helper.
 - **Freelancer Modal (`frontend/src/components/FreelancerTaskModal.tsx`)**: Form validation, timezone correction, and inline feedback UI.
-- **Backend API (`backend/index.js`)**: Corrected notification recipient query logic.

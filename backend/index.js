@@ -459,7 +459,7 @@ app.post('/api/ph/freelancer-content', requireRoles(PH_ROLES), async (req, res) 
 
     try {
         const { data, error } = await supabase
-            .from('content_items')
+            .from('freelancer_tasks')
             .insert([{ 
                 freelancer_name, 
                 freelancer_phone, 
@@ -1195,6 +1195,55 @@ app.get('/api/admin/stats', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// ─── Helper: Combined Calendar Fetch ───
+async function fetchCombinedCalendarData(startDate, endDate, client_id, content_type, extraClientIds = null, statuses = null) {
+    let contentItemsData = [];
+    let freelancerTasksData = [];
+
+    // 1. Fetch from content_items
+    if (client_id !== 'freelancer') {
+        let q1 = supabase
+            .from('content_items')
+            .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+            .gte('scheduled_datetime', startDate)
+            .lte('scheduled_datetime', endDate);
+
+        if (client_id && client_id !== 'all') q1 = q1.eq('client_id', client_id);
+        if (extraClientIds) q1 = q1.in('client_id', extraClientIds);
+        if (content_type) q1 = q1.eq('content_type', content_type);
+        if (statuses) q1 = q1.in('status', statuses);
+
+        const { data: d1, error: e1 } = await q1;
+        if (e1) throw e1;
+        contentItemsData = d1 || [];
+    }
+
+    // 2. Fetch from freelancer_tasks
+    if ((!client_id || client_id === 'all' || client_id === 'freelancer') && (!extraClientIds || client_id === 'freelancer')) {
+        let q2 = supabase
+            .from('freelancer_tasks')
+            .select(`*, assigned_employee:assigned_to (name, role_identifier)`)
+            .gte('scheduled_datetime', startDate)
+            .lte('scheduled_datetime', endDate);
+
+        if (content_type) q2 = q2.eq('content_type', content_type);
+        if (statuses) q2 = q2.in('status', statuses);
+
+        const { data: d2, error: e2 } = await q2;
+        if (e2) throw e2;
+        
+        freelancerTasksData = (d2 || []).map(task => ({
+            ...task,
+            clients: null, 
+            client_id: null,
+            is_freelancer_table: true
+        }));
+    }
+
+    const combined = [...contentItemsData, ...freelancerTasksData];
+    combined.sort((a, b) => new Date(a.scheduled_datetime) - new Date(b.scheduled_datetime));
+    return combined;
+}
 
 // ─── Admin: Master Calendar ───
 app.get('/api/admin/master-calendar', async (req, res) => {
@@ -1206,25 +1255,13 @@ app.get('/api/admin/master-calendar', async (req, res) => {
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-    let query = supabase
-        .from('content_items')
-        .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
-        .gte('scheduled_datetime', startDate)
-        .lte('scheduled_datetime', endDate);
-
-    if (client_id === 'freelancer') {
-        query = query.is('client_id', null);
-    } else if (client_id) {
-        query = query.eq('client_id', client_id);
+    try {
+        const data = await fetchCombinedCalendarData(startDate, endDate, client_id, content_type);
+        const transformedData = await applyHistoricalStatus(data, asOfDate);
+        res.json(transformedData);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    if (content_type) query = query.eq('content_type', content_type);
-
-    const { data, error } = await query.order('scheduled_datetime');
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    const transformedData = await applyHistoricalStatus(data, asOfDate);
-    res.json(transformedData);
 });
 
 app.get('/api/admin/content/:id', async (req, res) => {
@@ -1302,24 +1339,13 @@ app.get('/api/coo/master-calendar', requireRoles(COO_ROLES), async (req, res) =>
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-    let query = supabase
-        .from('content_items')
-        .select(`*, clients (company_name)`)
-        .gte('scheduled_datetime', startDate)
-        .lte('scheduled_datetime', endDate);
-
-    if (client_id === 'freelancer') {
-        query = query.is('client_id', null);
-    } else if (client_id) {
-        query = query.eq('client_id', client_id);
+    try {
+        const data = await fetchCombinedCalendarData(startDate, endDate, client_id, content_type);
+        const transformedData = await applyHistoricalStatus(data, asOfDate);
+        res.json(transformedData);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    if (content_type) query = query.eq('content_type', content_type);
-
-    const { data, error } = await query.order('scheduled_datetime');
-    if (error) return res.status(500).json({ error: error.message });
-
-    const transformedData = await applyHistoricalStatus(data, asOfDate);
-    res.json(transformedData);
 });
 
 app.get('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
@@ -1576,23 +1602,8 @@ app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
         const startDate = `${year}-${mon}-01T00:00:00`;
         const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-        let query = supabase
-            .from('content_items')
-            .select('*, clients(company_name, team_lead:team_lead_id (name))')
-            .gte('scheduled_datetime', startDate)
-            .lte('scheduled_datetime', endDate);
-
-        if (client_id === 'freelancer') {
-            query = query.is('client_id', null);
-        } else if (client_id) {
-            query = query.eq('client_id', client_id);
-        }
-        if (content_type) query = query.eq('content_type', content_type);
-
-        const { data, error } = await query
-            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'])
-            .order('scheduled_datetime');
-        if (error) return res.status(500).json({ error: error.message });
+        const statuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
+        const data = await fetchCombinedCalendarData(startDate, endDate, client_id, content_type, null, statuses);
 
         const transformedData = await applyHistoricalStatus(data, asOfDate);
         res.json(transformedData);
@@ -2034,29 +2045,13 @@ app.get('/api/tl/master-calendar', requireRoles(TL_ROLES), async (req, res) => {
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-    let query = supabase
-        .from('content_items')
-        .select(`*, clients (company_name)`)
-        .gte('scheduled_datetime', startDate)
-        .lte('scheduled_datetime', endDate);
-
-    if (client_id === 'freelancer') {
-        query = query.is('client_id', null);
-    } else if (client_id) {
-        query = query.eq('client_id', client_id);
-    } else {
-        if (clientIds.length === 0) return res.json([]);
-        query = query.in('client_id', clientIds);
+    try {
+        const data = await fetchCombinedCalendarData(startDate, endDate, client_id, content_type, clientIds);
+        const transformedData = await applyHistoricalStatus(data, asOfDate);
+        res.json(transformedData);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    if (content_type) query = query.eq('content_type', content_type);
-
-    const { data, error } = await query.order('scheduled_datetime');
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    const transformedData = await applyHistoricalStatus(data, asOfDate);
-    res.json(transformedData);
 });
 
 // ─── POC Communication (Team Lead + GM) ───
@@ -2317,33 +2312,22 @@ app.get('/api/posting/master-calendar', requireRoles(POSTING_ROLES), async (req,
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-    let query = supabase
-        .from('content_items')
-        .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
-        .gte('scheduled_datetime', startDate)
-        .lte('scheduled_datetime', endDate);
+    try {
+        let statuses = null;
+        if (all === 'true') {
+            statuses = null; // No status filter
+        } else if (status) {
+            statuses = [status];
+        } else {
+            statuses = ['WAITING FOR POSTING'];
+        }
 
-    if (client_id === 'freelancer') {
-        query = query.is('client_id', null);
-    } else if (client_id) {
-        query = query.eq('client_id', client_id);
+        const data = await fetchCombinedCalendarData(startDate, endDate, client_id, null, null, statuses);
+        const transformedData = await applyHistoricalStatus(data, asOfDate);
+        res.json(transformedData);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    // Strictly filter by status unless 'all' is explicitly requested (for stats)
-    if (all === 'true') {
-        // No status filter
-    } else if (status) {
-        query = query.eq('status', status);
-    } else {
-        query = query.eq('status', 'WAITING FOR POSTING');
-    }
-
-    const { data, error } = await query.order('scheduled_datetime');
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    const transformedData = await applyHistoricalStatus(data, asOfDate);
-    res.json(transformedData);
 });
 
 // Posting Team: Clients list (for calendar dropdown)
