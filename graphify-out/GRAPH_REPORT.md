@@ -1315,3 +1315,27 @@ Introduced a "Create Freelancer Task" feature within the Master Calendar to acco
 - **Frontend API (`frontend/src/lib/api.ts`)**: Updated `ContentItem` type, added `addFreelancerContent` method, and updated `tlApi.getMasterCalendar` to support client filtering.
 - **Components**: Updated `FreelancerTaskModal.tsx` with WhatsApp notification support.
 - **Dashboards**: Updated `Admin`, `GM`, `PH`, `COO`, `TL`, and `Posting Dashboard` (filter logic, rendering, and modals).
+## Recent Changes: Freelancer Task Integration & Git Conflict Resolution (May 2026)
+### Implementation Overview
+Integrated a new "Freelancer Task" system allowing for the creation of one-time content tasks without full client registration. Simultaneously resolved significant Git merge conflicts arising from concurrent repository updates.
+
+### Key Technical Decisions
+1. **Lightweight Task Creation**:
+   - Implemented `FreelancerTaskModal` allowing Admin, GM, and PH roles to create tasks by providing only Name, Phone, and Email.
+   - **Data Schema**: Utilized `client_id: null` as the flag for freelancer-linked tasks in the `content_items` table.
+   - **UI Indicators**: Added `[FR]` (Freelancer) vs `[CLI]` (Client) abbreviations in calendar views to differentiate task types.
+
+2. **Cross-Dashboard Conflict Resolution**:
+   - **Unified Interface**: Removed redundant local `ContentItem` definitions in favor of the centralized interface in `frontend/src/lib/api.ts`.
+   - **Merged Assignment UI**: Reconciled conflicts in Admin, PH, and TL dashboards where new "Assigned To" employee data competed with Freelancer details in the modal headers.
+   - **Role-Based Loading**: Merged session handling logic in the PH dashboard to correctly load both user roles and employee assignment lists.
+
+3. **Master Calendar Filtering**:
+   - Added a "Freelancer Clients" option to the Master Calendar filters (Admin, PH, TL) to isolate one-time tasks.
+
+### Affected Components
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Resolved extensive conflicts, unified types, and merged assignment UI.
+- **Admin Master Calendar (`frontend/src/app/admin/master-calendar/page.tsx`)**: Integrated freelancer creation and filtering logic.
+- **TL Dashboard (`frontend/src/app/tl/dashboard/page.tsx`)**: Reconciled freelancer contact info with employee assignment tracking.
+- **Backend API (`backend/index.js`)**: Updated content creation and filtering for `client_id: null` support.
+- **Freelancer Modal (`frontend/src/components/FreelancerTaskModal.tsx`)**: Core component for lightweight task entry.
