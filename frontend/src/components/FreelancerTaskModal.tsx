@@ -12,7 +12,6 @@ interface FreelancerTaskModalProps {
 
 export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: FreelancerTaskModalProps) {
     const [loading, setLoading] = useState(false);
-    const [notifyWhatsApp, setNotifyWhatsApp] = useState(true);
     const [formData, setFormData] = useState({
         freelancer_name: '',
         freelancer_phone: '',
@@ -31,12 +30,6 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
         try {
             await phApi.addFreelancerContent(formData);
             
-            if (notifyWhatsApp && formData.freelancer_phone) {
-                const message = `*TrueUp Media - Task Assignment*\n\nHello *${formData.freelancer_name}*,\n\nA new *${formData.content_type}* task has been scheduled for you.\n\n📅 *Date:* ${new Date(formData.scheduled_datetime).toLocaleDateString()}\n📝 *Title:* ${formData.title || 'Freelancer Production'}\n\nPlease reach out if you have any questions.`;
-                const whatsappUrl = `https://wa.me/${formData.freelancer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-                window.open(whatsappUrl, '_blank');
-            }
-
             onSuccess();
             onClose();
             // Reset form
@@ -261,38 +254,6 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
                                 }}
                             />
                         </div>
-
-                        {/* WhatsApp Notification Checkbox */}
-                        <div 
-                            style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '10px', 
-                                padding: '12px', 
-                                background: 'rgba(37, 211, 102, 0.05)', 
-                                borderRadius: '12px',
-                                border: '1px solid rgba(37, 211, 102, 0.2)',
-                                cursor: 'pointer'
-                            }}
-                            onClick={() => setNotifyWhatsApp(!notifyWhatsApp)}
-                        >
-                            <div style={{
-                                width: '20px',
-                                height: '20px',
-                                borderRadius: '6px',
-                                border: `2px solid ${notifyWhatsApp ? '#25D366' : 'var(--border)'}`,
-                                background: notifyWhatsApp ? '#25D366' : 'transparent',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.2s'
-                            }}>
-                                {notifyWhatsApp && <Check size={14} color="white" />}
-                            </div>
-                            <span style={{ fontSize: '14px', fontWeight: 600, color: notifyWhatsApp ? '#25D366' : 'var(--text-secondary)' }}>
-                                Notify Freelancer via WhatsApp
-                            </span>
-                        </div>
                     </div>
 
                     <button 
@@ -300,7 +261,7 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
                         disabled={loading}
                         style={{ 
                             width: '100%', 
-                            marginTop: '32px',
+                            marginTop: '24px',
                             padding: '14px', 
                             background: 'linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%)',
                             color: 'white', 
@@ -318,7 +279,7 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
                         }}
                     >
                         {loading ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
-                        {loading ? 'Creating Task...' : 'Create Freelancer Task'}
+                        {loading ? 'Creating Task...' : 'Create Task'}
                     </button>
                 </form>
             </div>
