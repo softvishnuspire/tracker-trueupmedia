@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getClientAbbreviation(name: string | undefined | null) {
   if (!name) return '???';
-  let cleanName = name.trim();
+  const cleanName = name.trim();
   
   // Check for Dr prefix (case insensitive)
   if (cleanName.toLowerCase().startsWith('dr')) {

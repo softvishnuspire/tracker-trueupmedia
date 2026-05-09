@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     format,
     startOfMonth,
@@ -8,35 +8,15 @@ import {
     startOfWeek,
     endOfWeek,
     eachDayOfInterval,
-    isSameMonth,
     isSameDay,
     addMonths,
     subMonths,
     parseISO
 } from 'date-fns';
-import {
-    ChevronLeft,
-    ChevronRight,
-    ChevronDown,
-    LayoutDashboard,
-    Globe,
-    Calendar as CalendarIcon,
-    FileText,
-    Video,
-    CheckCircle2,
-    X,
-    LogOut,
-    Filter,
-    Menu,
-    Send,
-    Clock,
-    UserCircle,
-    ShieldAlert,
-    Check,
-    AlertTriangle,
-    ArrowRight,
-    CalendarClock,
-    Undo2
+import { 
+    ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Globe, Calendar as CalendarIcon, 
+    FileText, Video, CheckCircle2, X, LogOut, Filter, Menu, Clock, ShieldAlert, Check, 
+    AlertTriangle, ArrowRight, CalendarClock, Undo2 
 } from 'lucide-react';
 import { postingApi, emergencyApi, dashboardApi, settingsApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -67,7 +47,6 @@ export default function PostingDashboard() {
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [loading, setLoading] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [postingId, setPostingId] = useState<string | null>(null);
@@ -100,17 +79,25 @@ export default function PostingDashboard() {
         return date >= start && date <= end;
     };
 
-    // Fetch stats for the meter
-    const fetchTodayStats = async () => {
+    const fetchClients = useCallback(async () => {
         try {
-            // For today's stats, we usually just care about the current calendar month's overview 
-            // but for consistency let's use the same logic if a client is selected
+            const res = await postingApi.getClients();
+            setClients(res.data);
+        } catch (err) { console.error('Error fetching clients:', err); }
+    }, []);
+
+    // Fetch stats for the meter
+    const fetchTodayStats = useCallback(async () => {
+        setLoading(true);
+        try {
+            // Calculate today's progress stats
             const res = await postingApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), undefined, undefined, true);
             const data = res.data as ContentItem[];
             const today = new Date();
             const todayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
             const completedToday = todayItems.filter(item => item.status === 'POSTED').length;
+            
             setTodayStats({
                 total: totalToday,
                 completed: completedToday,
@@ -118,68 +105,23 @@ export default function PostingDashboard() {
                 percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
             });
 
-            // Fetch all dashboard lists
-            const [emergencyRes, pendingRes] = await Promise.all([
-                emergencyApi.getAll(),
-                dashboardApi.getPendingImportant()
+            // Fetch dashboard lists
+            const [pendingRes, emergencyRes] = await Promise.all([
+                dashboardApi.getPendingImportant(),
+                emergencyApi.getAll()
             ]);
             
             // For Posting Team, only show tasks that are WAITING FOR POSTING
-            const filteredEmergency = (emergencyRes.data || []).filter((item: any) => item.status === 'WAITING FOR POSTING');
-            const filteredPending = (pendingRes.data || []).filter((item: any) => item.status === 'WAITING FOR POSTING');
-
-            setEmergencyTasks(filteredEmergency);
-            setPendingTasks(filteredPending);
-        } catch (err) { console.error('Error fetching dashboard lists:', err); }
-    };
-
-    useEffect(() => {
-        const fetchUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) setUser(user);
-        };
-        const fetchSettings = async () => {
-            try {
-                const res = await settingsApi.getSettings();
-                const calendarSetting = res.data.find(s => s.key === 'show_company_calendar');
-                if (calendarSetting) {
-                    setShowCompanyCalendar(calendarSetting.value === true || calendarSetting.value === 'true');
-                }
-            } catch (err) {
-                console.error('Error fetching settings:', err);
-            }
-        };
-        fetchUser();
-        fetchClients();
-        fetchTodayStats();
-        fetchSettings();
+            setPendingTasks((pendingRes.data || []).filter((item: any) => item.status === 'WAITING FOR POSTING'));
+            setEmergencyTasks((emergencyRes.data || []).filter((item: any) => item.status === 'WAITING FOR POSTING'));
+        } catch (err) {
+            console.error('Error fetching today stats:', err);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    useEffect(() => {
-        if (view === 'dashboard') {
-            fetchTodayStats();
-        } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
-            fetchClientCalendar();
-        } else if (view === 'master' || view === 'company') {
-            fetchMasterCalendar();
-        }
-    }, [view, selectedClient, currentMonth]);
-
-    const fetchClients = async () => {
-        try {
-            const res = await postingApi.getClients();
-            setClients(res.data);
-            if (res.data.length > 0 && selectedClient === 'all') {
-                // Keep 'all' for master, but maybe select first for client view if needed
-            }
-        } catch (err) { console.error('Error fetching clients:', err); }
-    };
-
-    const fetchTodayQueue = async () => {
-        // Obsolete - fetching integrated into fetchTodayStats
-    };
-
-    const fetchClientCalendar = async () => {
+    const fetchClientCalendar = useCallback(async () => {
         if (selectedClient === 'all') return;
         setLoading(true);
         try {
@@ -188,9 +130,9 @@ export default function PostingDashboard() {
             setCalendarData(res.data || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
-    };
+    }, [selectedClient, currentMonth]);
 
-    const fetchMasterCalendar = async () => {
+    const fetchMasterCalendar = useCallback(async () => {
         setLoading(true);
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
@@ -208,8 +150,60 @@ export default function PostingDashboard() {
                 asOfDate
             );
             setCalendarData(res.data || []);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
+        } catch (err) {
+            console.error('Error fetching master calendar:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [view, selectedClient, currentMonth]);
+
+    useEffect(() => {
+        const fetchUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                setUser(user);
+                setPostingId(user.id);
+            }
+        };
+        const fetchSettings = async () => {
+            try {
+                const res = await settingsApi.getSettings();
+                const calendarSetting = res.data.find(s => s.key === 'show_company_calendar');
+                if (calendarSetting) {
+                    setShowCompanyCalendar(calendarSetting.value === true || calendarSetting.value === 'true');
+                }
+            } catch (err) {
+                console.error('Error fetching settings:', err);
+            }
+        };
+        fetchUser();
+        fetchClients();
+        fetchTodayStats();
+        fetchSettings();
+    }, [fetchClients, fetchTodayStats, supabase.auth]);
+
+    useEffect(() => {
+        if (view === 'dashboard') {
+            fetchTodayStats();
+        } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
+            fetchClientCalendar();
+        } else if (view === 'master' || view === 'company') {
+            fetchMasterCalendar();
+        }
+    }, [view, selectedClient, currentMonth, fetchTodayStats, fetchClientCalendar, fetchMasterCalendar]);
+
+    const handleStatusUpdate = async (newStatus: string) => {
+        if (!activeItem) return;
+        try {
+            await postingApi.updateStatus(activeItem.item.id, newStatus, statusNote.trim() || undefined);
+            const res = await postingApi.getContentDetails(activeItem.item.id);
+            setActiveItem(res.data);
+            setStatusNote('');
+            fetchMasterCalendar();
+        } catch (err) {
+            console.error(err);
+            alert('Failed to update status');
+        }
     };
 
     const handleMarkPosted = async (id: string) => {
@@ -285,7 +279,7 @@ export default function PostingDashboard() {
             const day = parseISO(item.scheduled_datetime);
             
             // Try to find tasks in calendarData first, fallback to queue if in dashboard view
-            let sourceList = calendarData.length > 0 ? calendarData : pendingTasks;
+            const sourceList = calendarData.length > 0 ? calendarData : pendingTasks;
             
             // If the item itself isn't in the source list (e.g. from emergency tasks), add it
             const tasksOnDay = sourceList.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
@@ -980,16 +974,7 @@ export default function PostingDashboard() {
                                                 <button 
                                                     className="btn-mark-posted"
                                                     style={{ width: '100%', padding: '12px', background: 'var(--accent)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                                                    onClick={async () => {
-                                                        try {
-                                                            await postingApi.updateStatus(activeItem.item.id, nextStatus, statusNote.trim() || undefined);
-                                                            const d = new Date(); d.setDate(d.getDate() - 7);
-                                                            const res = await postingApi.getContentDetails(activeItem.item.id, d.toISOString());
-                                                            setActiveItem(res.data);
-                                                            setStatusNote('');
-                                                            fetchMasterCalendar();
-                                                        } catch (err) { alert('Failed to update status'); }
-                                                    }}
+                                                    onClick={() => handleStatusUpdate(nextStatus)}
                                                 >
                                                     Advance to {nextStatus}
                                                     <ChevronRight size={18} />

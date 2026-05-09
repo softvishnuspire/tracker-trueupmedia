@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
-  Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, 
+  Users, Calendar, ShieldAlert, FileText, Video, ArrowRight, 
   X, Clock, Undo2, Check, Edit2, Trash2, ChevronDown, Filter, ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistoryItem } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, isSameMonth, subMonths, addMonths } from 'date-fns';
+import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
 
 interface Stats {
@@ -59,23 +59,23 @@ export default function AdminDashboard() {
   const supabase = createClient();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  const getClientBatchType = (clientId: string) => {
+  const getClientBatchType = useCallback((clientId: string) => {
     if (clientId === 'all') return '1-1';
     const client = clients.find(c => c.id === clientId);
     return client?.batch_type || '1-1';
-  };
+  }, [clients]);
 
   const getPeriodLabel = () => {
     return `Current Month (${format(startOfMonth(currentMonth), 'MMM d')} - ${format(endOfMonth(currentMonth), 'MMM d')})`;
   };
 
-  const isDayInPeriod = (date: Date) => {
+  const isDayInPeriod = useCallback((date: Date) => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
     return date >= start && date <= end;
-  };
+  }, [currentMonth]);
 
-  const fetchDashboardLists = async () => {
+  const fetchDashboardLists = useCallback(async () => {
     try {
       const [emergencyRes, pendingRes] = await Promise.all([
         emergencyApi.getAll(),
@@ -86,9 +86,9 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error('Failed to load dashboard lists:', err);
     }
-  };
+  }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch clients if not already loaded
@@ -231,11 +231,11 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedClient, currentMonth, clients, getClientBatchType, isDayInPeriod, fetchDashboardLists]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [selectedClient, currentMonth]);
+  }, [fetchDashboardData]);
 
   const handleTaskClick = async (taskId: string) => {
     try {

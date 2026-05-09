@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { cooApi, emergencyApi } from '@/lib/api';
-import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2, Check, AlertTriangle, User as UserIcon, Phone, Mail, Plus } from 'lucide-react';
+import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2, Check, AlertTriangle, User as UserIcon, Phone, Mail } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, isSameMonth } from 'date-fns';
+import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from 'date-fns';
 
 interface Stats {
     totalClients: number;
@@ -25,12 +25,9 @@ export default function CooDashboard() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [dayTasks, setDayTasks] = useState<any[]>([]);
 
-    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [currentMonth] = useState(new Date());
 
-    const getClientBatchType = (clientId: string) => {
-        const client = clients.find(c => c.id === clientId);
-        return client?.batch_type || '1-1';
-    };
+
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -47,7 +44,7 @@ export default function CooDashboard() {
                 currentMonthStr,
                 selectedClient === 'all' ? undefined : selectedClient
             );
-            let data = calendarRes.data;
+            const data = calendarRes.data;
             
             setCalendarData(data);
 

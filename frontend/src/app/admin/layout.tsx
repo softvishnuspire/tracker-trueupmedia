@@ -21,6 +21,7 @@ import {
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
 import { adminApi, settingsApi } from '@/lib/api';
+import Image from 'next/image';
 import './admin.css';
 
 export default function AdminLayout({
@@ -68,7 +69,7 @@ export default function AdminLayout({
       setLoading(false);
     };
     checkUser();
-  }, []);
+  }, [router, supabase.auth]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -103,7 +104,7 @@ export default function AdminLayout({
         <div className="menu-toggle" onClick={() => setSidebarOpen(true)}>
           <Menu size={24} />
         </div>
-        <img src="/logo.png" alt="TrueUp Media" className="logo-img" style={{ height: '24px', width: 'auto' }} />
+        <Image src="/logo.png" alt="TrueUp Media" width={100} height={24} className="logo-img" style={{ height: '24px', width: 'auto' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <NotificationBell />
         </div>
@@ -118,7 +119,7 @@ export default function AdminLayout({
 
       <aside className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
         <div className="logo-container" style={{ padding: '24px 20px', marginBottom: '10px' }}>
-          <img src="/logo.png" alt="TrueUp Media" className="logo-img" style={{ height: '28px', width: 'auto', objectFit: 'contain' }} />
+          <Image src="/logo.png" alt="TrueUp Media" width={100} height={28} className="logo-img" style={{ height: '28px', width: 'auto', objectFit: 'contain' }} />
           <button 
             className="sidebar-close" 
             onClick={() => setSidebarOpen(false)}

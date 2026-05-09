@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     format, 
     startOfMonth, 
@@ -121,7 +121,7 @@ export default function TLDashboard() {
 
 
 
-    const fetchClients = async (tlId: string) => {
+    const fetchClients = useCallback(async (tlId: string) => {
         try {
             const res = await tlApi.getClients(tlId);
             setClients(res.data);
@@ -132,14 +132,14 @@ export default function TLDashboard() {
                 setSelectedPocClient(res.data[0].id);
             }
         } catch (err) { console.error('Error fetching clients:', err); }
-    };
+    }, [selectedClient, selectedPocClient, view]);
 
     const getClientBatchType = (clientId: string) => {
         const client = clients.find(c => c.id === clientId);
         return client?.batch_type || '1-1';
     };
 
-    const fetchClientCalendar = async () => {
+    const fetchClientCalendar = useCallback(async () => {
         if (!user || !selectedClient) return;
         setLoading(true);
         try {
@@ -151,10 +151,10 @@ export default function TLDashboard() {
         } finally { 
             setLoading(false); 
         }
-    };
+    }, [user, selectedClient, currentMonth]);
 
 
-    const fetchMasterCalendar = async () => {
+    const fetchMasterCalendar = useCallback(async () => {
         if (!user) return;
         setLoading(true);
         try {
@@ -184,9 +184,9 @@ export default function TLDashboard() {
             setEmergencyTasks(emergencyRes.data || []);
             setPendingTasks(pendingRes.data || []);
         } catch (err) { console.error(err); } finally { setLoading(false); }
-    };
+    }, [user, selectedClient, currentMonth, view]);
 
-    const fetchPocNotes = async () => {
+    const fetchPocNotes = useCallback(async () => {
         if (!user) return;
         setLoading(true);
         try {
@@ -198,7 +198,7 @@ export default function TLDashboard() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user, currentMonth]);
 
     useEffect(() => {
         if (user) {
@@ -210,7 +210,7 @@ export default function TLDashboard() {
                 fetchClientCalendar();
             }
         }
-    }, [selectedClient, currentMonth, view, user, clients]);
+    }, [selectedClient, currentMonth, view, user, fetchMasterCalendar, fetchPocNotes, fetchClientCalendar]);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -262,7 +262,7 @@ export default function TLDashboard() {
             }
         };
         init();
-    }, []);
+    }, [fetchClients, supabase]);
 
     const handlePocDayClick = (date: Date) => {
         setSelectedPocDate(date);
@@ -379,7 +379,6 @@ export default function TLDashboard() {
         router.push('/');
     };
 
-    const isBiMonthly = false;
 
     const periodStart = startOfMonth(currentMonth);
     const periodEnd = endOfMonth(currentMonth);

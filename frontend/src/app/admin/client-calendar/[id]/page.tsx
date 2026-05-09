@@ -14,11 +14,8 @@ import {
     addMonths, 
     subMonths,
     parseISO,
-    isPast,
     isBefore,
-    startOfDay,
-    getDate,
-    lastDayOfMonth
+    getDate
 } from 'date-fns';
 import { 
     ChevronLeft, 
@@ -26,7 +23,6 @@ import {
     FileText,
     Video,
     X,
-    Clock,
     Calendar as CalendarIcon,
     Plus,
     ArrowLeft,
@@ -35,10 +31,10 @@ import {
     Check,
     CalendarClock,
     Undo2,
-    AlertTriangle
+    AlertTriangle,
+    ShieldAlert
 } from 'lucide-react';
-import { gmApi, adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
-import { ShieldAlert } from 'lucide-react';
+import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import ScheduleExport from '@/components/ScheduleExport';
 
 export default function ClientCalendarPage() {

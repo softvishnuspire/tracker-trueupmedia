@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     format,
     startOfMonth,
@@ -92,41 +92,21 @@ export default function ProductionHeadDashboard() {
     const router = useRouter();
     const supabase = createClient();
 
-    useEffect(() => {
-        const checkUser = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                router.push('/login');
-                return;
-            }
-            console.log('PH Dashboard Session User:', session.user);
-            setUser(session.user);
-            
-            // Fetch profile to get role
-            const { data: profile } = await supabase
-                .from('users')
-                .select('role, role_identifier')
-                .eq('user_id', session.user.id)
-                .single();
-            
-            const role = profile?.role_identifier || profile?.role || session.user.user_metadata?.role;
-            setUserRole(role?.toUpperCase());
-            
-            // Fetch employees for assignment
-            fetchEmployees();
-        };
-        checkUser();
+    const fetchClients = useCallback(async () => {
+        try {
+            const res = await phApi.getClients();
+            setClients(res.data);
+        } catch (err) { console.error(err); }
     }, []);
 
-    const getPeriodLabel = () => {
-        return format(currentMonth, 'MMMM yyyy');
-    };
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const res = await phApi.getEmployees();
+            setEmployees(res.data);
+        } catch (err) { console.error('Error fetching employees:', err); }
+    }, []);
 
-    const isDayInPeriod = (date: Date) => {
-        return isSameMonth(date, currentMonth);
-    };
-
-    const fetchTodayStats = async () => {
+    const fetchTodayStats = useCallback(async () => {
         try {
             const res = await phApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), undefined, undefined);
             const data = res.data as ContentItem[];
@@ -193,7 +173,70 @@ export default function ProductionHeadDashboard() {
                 pendingShoots: pShoots
             }));
         } catch (err) { console.error('Error fetching dashboard lists:', err); }
-    };
+    }, []);
+
+    const getPeriodLabel = useCallback(() => {
+        return format(currentMonth, 'MMMM yyyy');
+    }, [currentMonth]);
+
+    const isDayInPeriod = useCallback((date: Date) => {
+        return isSameMonth(date, currentMonth);
+    }, [currentMonth]);
+
+    const fetchClientCalendar = useCallback(async () => {
+        if (selectedClient === 'all') return;
+        setLoading(true);
+        try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            const res = await phApi.getCalendar(selectedClient, currentMonthStr, undefined, true);
+            setCalendarData(res.data || []);
+        } catch (err) { console.error(err); }
+        finally { setLoading(false); }
+    }, [selectedClient, currentMonth]);
+
+    const fetchMasterCalendar = useCallback(async () => {
+        setLoading(true);
+        try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            let asOfDate;
+            if (view === 'company') {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                asOfDate = d.toISOString();
+            }
+            const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient, undefined, asOfDate);
+            setCalendarData(res.data || []);
+        } catch (err) { console.error(err); }
+        finally { setLoading(false); }
+    }, [view, selectedClient, currentMonth]);
+
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (!session) {
+                router.push('/');
+                return;
+            }
+            console.log('PH Dashboard Session User:', session.user);
+            setUser(session.user);
+            
+            // Fetch profile to get role
+            const { data: profile } = await supabase
+                .from('users')
+                .select('role, role_identifier')
+                .eq('user_id', session.user.id)
+                .single();
+            
+            const role = profile?.role_identifier || profile?.role || session.user.user_metadata?.role;
+            setUserRole(role?.toUpperCase());
+            
+            // Fetch employees for assignment
+            fetchEmployees();
+        };
+        checkUser();
+    }, [router, supabase, fetchEmployees]);
+
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -217,7 +260,7 @@ export default function ProductionHeadDashboard() {
             }
         };
         fetchSettings();
-    }, []);
+    }, [supabase.auth, fetchClients, fetchTodayStats]);
 
 
     useEffect(() => {
@@ -228,21 +271,7 @@ export default function ProductionHeadDashboard() {
         } else if (view === 'master' || view === 'company') {
             fetchMasterCalendar();
         }
-    }, [view, selectedClient, currentMonth]);
-
-    const fetchClients = async () => {
-        try {
-            const res = await phApi.getClients();
-            setClients(res.data);
-        } catch (err) { console.error(err); }
-    };
-
-    const fetchEmployees = async () => {
-        try {
-            const res = await phApi.getEmployees();
-            setEmployees(res.data);
-        } catch (err) { console.error('Error fetching employees:', err); }
-    };
+    }, [view, selectedClient, currentMonth, fetchTodayStats, fetchClientCalendar, fetchMasterCalendar]);
 
     const getEmployeeName = (id: string) => {
         if (!id) return 'Unassigned';
@@ -278,32 +307,6 @@ export default function ProductionHeadDashboard() {
         // Obsolete - fetching integrated into fetchTodayStats
     };
 
-    const fetchClientCalendar = async () => {
-        if (selectedClient === 'all') return;
-        setLoading(true);
-        try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await phApi.getCalendar(selectedClient, currentMonthStr, undefined, true);
-            setCalendarData(res.data || []);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    };
-
-    const fetchMasterCalendar = async () => {
-        setLoading(true);
-        try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            let asOfDate;
-            if (view === 'company') {
-                const d = new Date();
-                d.setDate(d.getDate() - 7);
-                asOfDate = d.toISOString();
-            }
-            const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient, undefined, asOfDate);
-            setCalendarData(res.data || []);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    };
 
     const handleUpdateStatus = async (id: string, nextStatus: string) => {
         setActionId(id);
@@ -355,7 +358,7 @@ export default function ProductionHeadDashboard() {
     const handleItemClick = async (item: ContentItem) => {
         try {
             const day = parseISO(item.scheduled_datetime);
-            let sourceList = calendarData.length > 0 ? calendarData : [];
+            const sourceList = calendarData.length > 0 ? calendarData : [];
             const tasksOnDay = sourceList.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
             
             if (!tasksOnDay.some(t => t.id === item.id)) {

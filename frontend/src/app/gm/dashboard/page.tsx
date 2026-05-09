@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     format,
     startOfMonth,
@@ -8,19 +8,16 @@ import {
     startOfWeek,
     endOfWeek,
     eachDayOfInterval,
-    isSameMonth,
     isSameDay,
     addMonths,
     subMonths,
     subDays,
     parseISO,
-    isPast,
     isBefore,
     startOfDay,
     addDays,
     endOfDay,
-    getDate,
-    lastDayOfMonth
+    getDate
 } from 'date-fns';
 import {
     ChevronLeft,
@@ -30,7 +27,6 @@ import {
     LayoutDashboard,
     Globe,
     Users,
-    UserCircle,
     Clock,
     FileText,
     Video,
@@ -48,7 +44,6 @@ import {
     Undo2,
     AlertTriangle,
     ShieldAlert,
-    Activity,
     Search,
     User as UserIcon,
     Phone,
@@ -72,10 +67,10 @@ import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
-import SkeletonCard from '@/components/SkeletonCard';
 import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
+import Image from 'next/image';
 import './gm.css';
 
 interface TeamLead extends TeamMember {
@@ -161,11 +156,9 @@ export default function GMDashboard() {
         return day >= periodStart && day <= periodEnd;
     };
 
-    const getPeriodLabel = () => {
-        return "This Month";
-    };
 
-    const fetchClientCalendar = async (clientId: string) => {
+
+    const fetchClientCalendar = useCallback(async (clientId: string) => {
         if (!clientId) return [];
         try {
             const monthStr = format(currentMonth, 'yyyy-MM');
@@ -175,9 +168,9 @@ export default function GMDashboard() {
             console.error('Error fetching client calendar:', error);
             return [];
         }
-    };
+    }, [currentMonth]);
 
-    const fetchMasterCalendar = async () => {
+    const fetchMasterCalendar = useCallback(async () => {
         try {
             if (view === 'company') {
                 const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
@@ -205,7 +198,7 @@ export default function GMDashboard() {
             console.error('Error fetching master calendar:', error);
             return [];
         }
-    };
+    }, [currentMonth, view, selectedClient, selectedType]);
 
     useEffect(() => {
         if (view === 'master' || view === 'company') {
@@ -236,7 +229,7 @@ export default function GMDashboard() {
         fetchSettings();
     }, []);
 
-    const fetchPocNotes = async () => {
+    const fetchPocNotes = useCallback(async () => {
         setLoading(true);
         try {
             const clientId = selectedPocClient === 'all' ? undefined : selectedPocClient;
@@ -247,9 +240,9 @@ export default function GMDashboard() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentMonth, selectedPocClient]);
 
-    const fetchTeamLeads = async () => {
+    const fetchTeamLeads = useCallback(async () => {
         setLoading(true);
         try {
             const res = await gmApi.getTeamLeads();
@@ -260,14 +253,14 @@ export default function GMDashboard() {
             }));
             setTeamLeads(leadsWithClients);
         } catch (err) { console.error(err); } finally { setLoading(false); }
-    };
+    }, []);
 
     const isItemCompleted = (status: string) => {
         const s = (status || '').toUpperCase();
         return s === 'WAITING FOR POSTING' || s === 'POSTED';
     };
 
-    const fetchClients = async () => {
+    const fetchClients = useCallback(async () => {
         try {
             const res = await gmApi.getClients();
             console.log('Clients loaded:', res.data);
@@ -278,7 +271,7 @@ export default function GMDashboard() {
                 setSelectedClient(res.data[0].id);
             }
         } catch (err) { console.error('Error fetching clients:', err); }
-    };
+    }, [selectedClient, view]);
 
 
     const [stats, setStats] = useState({
@@ -301,13 +294,13 @@ export default function GMDashboard() {
 
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
     const [masterWeekStats, setMasterWeekStats] = useState({ total: 0, completed: 0, percentage: 0 });
-    const [companyStats, setCompanyStats] = useState({
+    const [companyStats] = useState({
         today: { total: 0, completed: 0, percentage: 0 },
         week: { total: 0, completed: 0, percentage: 0 },
         month: { total: 0, completed: 0, percentage: 0 }
     });
 
-    const fetchDashboardStats = async () => {
+    const fetchDashboardStats = useCallback(async () => {
         setLoading(true);
         try {
             let calendarData = [];
@@ -352,60 +345,6 @@ export default function GMDashboard() {
                 completed: completedWeek,
                 percentage: totalWeek > 0 ? Math.round((completedWeek / totalWeek) * 100) : 0
             });
-
-            /* 
-            // Calculate Company Stats (Date Shifted - 7 Days Offset)
-            // The Company Calendar shows items 7 days before their scheduled date.
-            const monthStr = format(currentMonth, 'yyyy-MM');
-            const nextMonthDate = addMonths(currentMonth, 1);
-            const nextMonthStr = format(nextMonthDate, 'yyyy-MM');
-            
-            const clientId = selectedClient && selectedClient !== 'all' ? selectedClient : undefined;
-            const [currRes, nextRes] = await Promise.all([
-                gmApi.getMasterCalendar(monthStr, clientId),
-                gmApi.getMasterCalendar(nextMonthStr, clientId)
-            ]);
-            
-            const combinedData = [...(currRes.data || []), ...(nextRes.data || [])];
-            
-            const getCompanyDate = (item: ContentItem) => subDays(parseISO(item.scheduled_datetime), 7);
-
-            // Company Today
-            const companyTodayItems = combinedData.filter((item: ContentItem) => isSameDay(getCompanyDate(item), today));
-            const companyTotalToday = companyTodayItems.length;
-            const companyCompletedToday = companyTodayItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
-
-            // Company Week
-            const companyWeekItems = combinedData.filter((item: ContentItem) => {
-                const cDate = getCompanyDate(item);
-                return cDate >= weekStart && cDate <= weekEnd;
-            });
-            const companyTotalWeek = companyWeekItems.length;
-            const companyCompletedWeek = companyWeekItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
-
-            // Company Month
-            const companyMonthItems = combinedData.filter((item: ContentItem) => isDayInPeriod(getCompanyDate(item)));
-            const companyTotalMonth = companyMonthItems.length;
-            const companyCompletedMonth = companyMonthItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
-
-            setCompanyStats({
-                today: { 
-                    total: companyTotalToday, 
-                    completed: companyCompletedToday, 
-                    percentage: companyTotalToday > 0 ? Math.round((companyCompletedToday / companyTotalToday) * 100) : 0 
-                },
-                week: { 
-                    total: companyTotalWeek, 
-                    completed: companyCompletedWeek, 
-                    percentage: companyTotalWeek > 0 ? Math.round((companyCompletedWeek / companyTotalWeek) * 100) : 0 
-                },
-                month: { 
-                    total: companyTotalMonth, 
-                    completed: companyCompletedMonth, 
-                    percentage: companyTotalMonth > 0 ? Math.round((companyCompletedMonth / companyTotalMonth) * 100) : 0 
-                }
-            });
-            */
 
             const completedItems = periodData.filter((item: ContentItem) => isItemCompleted(item.status));
             const pendingItems = periodData.filter((item: ContentItem) => !isItemCompleted(item.status));
@@ -457,11 +396,11 @@ export default function GMDashboard() {
             setEmergencyTasks(emergencyRes.data || []);
             setPendingTasks(pendingRes.data || []);
         } catch (err) { console.error(err); } finally { setLoading(false); }
-    };
+    }, [clients.length, teamLeads.length, selectedClient, fetchClientCalendar, fetchMasterCalendar, isDayInPeriod]);
 
     useEffect(() => {
         fetchClients();
-        const fetchUser = async () => {
+        const fetchUserEffect = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 setUser(user);
@@ -476,8 +415,8 @@ export default function GMDashboard() {
                 setUserRole(role?.toUpperCase());
             }
         };
-        fetchUser();
-    }, []);
+        fetchUserEffect();
+    }, [fetchClients, supabase]);
 
     const days = viewMode === 'month'
         ? eachDayOfInterval({
@@ -802,7 +741,7 @@ export default function GMDashboard() {
 
     const monthTotal = stats.monthlyContent;
     const monthCompleted = stats.statusBreakdown['POSTED'] || 0;
-    const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
+    // const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
     const weekItems = calendarData.filter((item) => {
@@ -811,7 +750,7 @@ export default function GMDashboard() {
     });
     const weekTotal = weekItems.length;
     const weekCompleted = weekItems.filter((item) => (item.status || '').toUpperCase() === 'POSTED').length;
-    const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
+    // const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
 
     return (
         <div className="dashboard-container">
@@ -827,7 +766,7 @@ export default function GMDashboard() {
             <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
                 <div className="logo-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '0 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <img src="/logo.png" alt="TrueUp Media" className="logo-img" style={{ height: '28px', width: 'auto' }} />
+                        <Image src="/logo.png" alt="TrueUp Media" width={100} height={28} className="logo-img" style={{ height: '28px', width: 'auto' }} />
                         <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>GM</span>
                     </div>
                     <button onClick={() => setIsSidebarOpen(false)} className="sidebar-close" style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -918,7 +857,7 @@ export default function GMDashboard() {
                     <div className="menu-toggle" onClick={() => setIsSidebarOpen(true)}>
                         <Menu size={24} />
                     </div>
-                    <img src="/logo.png" alt="TrueUp Media" className="logo-img" style={{ height: '24px', width: 'auto' }} />
+                    <Image src="/logo.png" alt="TrueUp Media" width={100} height={24} className="logo-img" style={{ height: '24px', width: 'auto' }} />
                     <div style={{ width: '40px' }}></div> {/* Spacer */}
                 </div>
 

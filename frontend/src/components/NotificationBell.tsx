@@ -1,5 +1,4 @@
 'use client';
-/* eslint-disable react-hooks/set-state-in-effect */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bell, Send, X } from 'lucide-react';
@@ -77,8 +76,8 @@ export default function NotificationBell() {
             ]);
             setNotifications(list || []);
             setUnreadCount(unread?.count || 0);
-        } catch (error) {
-            // console.error('Failed to load notifications', error);
+        } catch (_error) {
+            // console.error('Failed to load notifications', _error);
         }
     }, []);
 
