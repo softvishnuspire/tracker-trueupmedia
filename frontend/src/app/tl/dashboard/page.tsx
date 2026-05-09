@@ -1023,8 +1023,11 @@ export default function TLDashboard() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{activeItem.item.title}</h3>
-                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px' }}>
+                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px', marginBottom: '2px' }}>
                                     Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
+                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '2px' }}>
+                                    Assigned To: {activeItem.item.assigned_employee ? `${activeItem.item.assigned_employee.name} ${activeItem.item.assigned_employee.role_identifier ? `(${activeItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
                                 </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
