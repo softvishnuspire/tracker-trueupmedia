@@ -151,7 +151,7 @@ export default function AdminDashboard() {
       // Reels where shoot is not yet done
       const shootPendingReels = periodData.filter(item => 
         (item.content_type === 'Reel' || item.content_type === 'YouTube') && 
-        ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED'].includes(item.status.toUpperCase())
+        ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED'].includes(item.status.toUpperCase())
       ).length;
 
       // Calculate today's stats
@@ -581,7 +581,7 @@ export default function AdminDashboard() {
                     const summary = stats?.statusSummary || {};
                     const normalized: Record<string, number> = {};
                     Object.entries(summary).forEach(([status, count]) => {
-                        const s = status === 'CONTENT READY' ? 'CONTENT APPROVED' : status;
+                        const s = (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') ? 'CONTENT APPROVED' : status;
                         normalized[s] = (normalized[s] || 0) + (count as number);
                     });
                     
@@ -863,9 +863,9 @@ export default function AdminDashboard() {
 
                     {(() => {
                       const flows: Record<string, string[]> = {
-                        'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
-                        'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
-                        'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                        'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                        'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                        'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
                       };
                       const flow = flows[activeItem.item.content_type] || [];
                       const currentIndex = flow.indexOf(activeItem.item.status);
@@ -953,16 +953,16 @@ export default function AdminDashboard() {
                   {(() => {
                     const flows: Record<string, string[]> = {
                       'Reel': [
-                        'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
-                        'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                        'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                        'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                       ],
                       'YouTube': [
-                        'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
-                        'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                        'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                        'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                       ],
                       'Post': [
-                        'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
-                        'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                        'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                        'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                       ]
                     };
                     const flow = flows[activeItem.item.content_type] || [];

@@ -916,3 +916,23 @@
     transform: translateX(3px);
     color: #ef4444;
 }
+
+/* ─── Assignment Indicator Badge ─── */
+.assigned-indicator-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    color: white;
+    border-radius: 4px;
+    box-shadow: 0 0 8px var(--accent-glow);
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.assigned-indicator-badge:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 12px var(--accent);
+}

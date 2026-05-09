@@ -461,6 +461,10 @@
     border-color: rgba(16, 185, 129, 0.32);
 }
 
+.status-pill-shoot-done {
+    border-color: rgba(99, 102, 241, 0.32);
+}
+
 /* ─── Cards & Grids ─── */
 .stats-grid {
     display: grid;

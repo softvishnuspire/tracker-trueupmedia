@@ -171,14 +171,29 @@ export default function MasterCalendar() {
     const monthStatusCounts = calendarData.reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
-            if (normalizedStatus.includes('CONTENT')) acc.content += 1;
-            if (normalizedStatus.includes('DESIGN')) acc.design += 1;
-            if (normalizedStatus === 'POSTED') acc.posted += 1;
-            if (item.content_type === 'Reel') acc.reels += 1;
-            if (item.content_type === 'Post') acc.posts += 1;
+            const normalizedType = (item.content_type || '').toUpperCase();
+            
+            const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
+            const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+
+            if (contentApprovedStatuses.includes(normalizedStatus)) {
+                acc.contentApproved += 1;
+            }
+
+            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
+                if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
+            } else if (normalizedType === 'POST') {
+                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
+                    acc.shootDone += 1;
+                }
+            }
+
+            if (normalizedType === 'REEL') acc.reels += 1;
+            if (normalizedType === 'POST') acc.posts += 1;
+
             return acc;
         },
-        { content: 0, design: 0, posted: 0, reels: 0, posts: 0 }
+        { shootDone: 0, contentApproved: 0, reels: 0, posts: 0 }
     );
 
     return (
@@ -261,18 +276,6 @@ export default function MasterCalendar() {
             </header>
 
             <div className="status-summary-row">
-                <div className="status-pill status-pill-content">
-                    <span className="status-pill-label">Content</span>
-                    <span className="status-pill-count">{monthStatusCounts.content}</span>
-                </div>
-                <div className="status-pill status-pill-design">
-                    <span className="status-pill-label">Design</span>
-                    <span className="status-pill-count">{monthStatusCounts.design}</span>
-                </div>
-                <div className="status-pill status-pill-posted">
-                    <span className="status-pill-label">Posted</span>
-                    <span className="status-pill-count">{monthStatusCounts.posted}</span>
-                </div>
                 <div className="status-pill status-pill-reels">
                     <span className="status-pill-label">Reels</span>
                     <span className="status-pill-count">{monthStatusCounts.reels}</span>
@@ -280,6 +283,14 @@ export default function MasterCalendar() {
                 <div className="status-pill status-pill-posts">
                     <span className="status-pill-label">Posts</span>
                     <span className="status-pill-count">{monthStatusCounts.posts}</span>
+                </div>
+                <div className="status-pill status-pill-content-approved">
+                    <span className="status-pill-label">Content Approved</span>
+                    <span className="status-pill-count">{monthStatusCounts.contentApproved}</span>
+                </div>
+                <div className="status-pill status-pill-shoot-done">
+                    <span className="status-pill-label">Shoot Done</span>
+                    <span className="status-pill-count">{monthStatusCounts.shootDone}</span>
                 </div>
             </div>
 
@@ -570,16 +581,16 @@ export default function MasterCalendar() {
                                     {(() => {
                                         const flows: any = {
                                             'Reel': [
-                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
-                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
                                             'YouTube': [
-                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
-                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
                                             'Post': [
-                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
-                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ]
                                         };
                                         const flow = flows[selectedItem.item.content_type] || [];

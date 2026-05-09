@@ -398,7 +398,10 @@ export default function CooDashboard() {
                     const summary = stats?.statusSummary || {};
                     const normalized: Record<string, number> = {};
                     Object.entries(summary).forEach(([status, count]) => {
-                        const s = status === 'CONTENT READY' ? 'CONTENT APPROVED' : status;
+                        let s = status;
+                        if (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') {
+                            s = 'CONTENT APPROVED';
+                        }
                         normalized[s] = (normalized[s] || 0) + (count as number);
                     });
                     

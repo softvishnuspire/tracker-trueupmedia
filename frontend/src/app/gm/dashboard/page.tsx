@@ -471,15 +471,50 @@ export default function GMDashboard() {
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
         });
 
+    const shootDoneStatuses = [
+        'SHOOT DONE',
+        'EDITING IN PROGRESS',
+        'EDITED',
+        'WAITING FOR APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED'
+    ];
+
+    const contentApprovedStatuses = [
+        'CONTENT READY',
+        'WAITING FOR APPROVAL',
+        'CONTENT APPROVED',
+        'SHOOT DONE',
+        'EDITING IN PROGRESS',
+        'EDITED',
+        'WAITING FOR FINAL APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED',
+        'DESIGNING IN PROGRESS',
+        'DESIGNING COMPLETED'
+    ];
+
     const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
             const isCompleted = isItemCompleted(item.status);
             
-            if (normalizedStatus.includes('CONTENT')) acc.content += 1;
-            if (normalizedStatus.includes('DESIGN')) acc.design += 1;
-            if (normalizedStatus === 'POSTED') acc.posted += 1;
+            if (contentApprovedStatuses.includes(normalizedStatus)) {
+                acc.contentApproved += 1;
+            }
+
+            // Cumulative Shoot Done Logic (Reels & YouTube)
+            if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(normalizedStatus)) {
+                acc.shootDone += 1;
+            }
+
+            // For Posts, we treat "DESIGNING COMPLETED" and later as "Production Done" equivalent for the summary
+            if (type === 'POST' && (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus))) {
+                acc.shootDone += 1;
+            }
             
             if (type === 'REEL') {
                 acc.reels += 1;
@@ -492,7 +527,7 @@ export default function GMDashboard() {
             
             return acc;
         },
-        { content: 0, design: 0, posted: 0, reels: 0, posts: 0, completedReels: 0, completedPosts: 0 }
+        { shootDone: 0, reels: 0, posts: 0, completedReels: 0, completedPosts: 0, contentApproved: 0 }
     );
 
     // Calculate assigned totals from clients
@@ -1028,17 +1063,13 @@ export default function GMDashboard() {
 
                 {(view === 'master' || view === 'company' || (view === 'client' && selectedClient)) && (
                     <div className="status-summary-row">
-                        <div className="status-pill status-pill-content">
-                            <span className="status-pill-label">Content</span>
-                            <span className="status-pill-count">{monthStatusCounts.content}</span>
+                        <div className="status-pill status-pill-content-approved">
+                            <span className="status-pill-label">Content Approved</span>
+                            <span className="status-pill-count">{monthStatusCounts.contentApproved}</span>
                         </div>
-                        <div className="status-pill status-pill-design">
-                            <span className="status-pill-label">Design</span>
-                            <span className="status-pill-count">{monthStatusCounts.design}</span>
-                        </div>
-                        <div className="status-pill status-pill-posted">
-                            <span className="status-pill-label">Posted</span>
-                            <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                        <div className="status-pill status-pill-shoot-done">
+                            <span className="status-pill-label">Shoot Done</span>
+                            <span className="status-pill-count">{monthStatusCounts.shootDone}</span>
                         </div>
                         <div className="status-pill status-pill-reels">
                             <span className="status-pill-label">Reels</span>
@@ -1352,7 +1383,7 @@ export default function GMDashboard() {
                                         const breakdown = stats.statusBreakdown || {};
                                         const normalized: Record<string, number> = {};
                                         Object.entries(breakdown).forEach(([status, count]) => {
-                                            const s = status === 'CONTENT READY' ? 'CONTENT APPROVED' : status;
+                                            const s = (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') ? 'CONTENT APPROVED' : status;
                                             normalized[s] = (normalized[s] || 0) + (count as number);
                                         });
                                         
@@ -2003,16 +2034,16 @@ export default function GMDashboard() {
                                     {(() => {
                                         const flows: any = {
                                             'Reel': [
-                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
-                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
                                             'YouTube': [
-                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
-                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ],
                                             'Post': [
-                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
-                                                'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ]
                                         };
                                         const flow = flows[activeItem.item.content_type];
@@ -2111,16 +2142,16 @@ export default function GMDashboard() {
                                 {(() => {
                                     const flows: any = {
                                         'Reel': [
-                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
-                                            'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                            'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ],
                                         'YouTube': [
-                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
-                                            'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                            'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ],
                                         'Post': [
-                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
-                                            'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                            'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ]
                                     };
                                     const flow = flows[activeItem.item.content_type] || [];

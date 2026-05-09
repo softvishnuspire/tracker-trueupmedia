@@ -35,26 +35,6 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// One-time migration: Rename CONTENT READY to CONTENT APPROVED
-(async () => {
-    try {
-        const { data, error, count } = await supabase
-            .from('content_items')
-            .update({ status: 'CONTENT APPROVED' })
-            .eq('status', 'CONTENT READY')
-            .select('*', { count: 'exact' });
-
-        if (error) {
-            console.error('❌ Migration Error (CONTENT READY -> CONTENT APPROVED):', error.message);
-        } else if (count > 0) {
-            console.log(`✅ Migration Success: Renamed ${count} items from "CONTENT READY" to "CONTENT APPROVED"`);
-        }
-    } catch (err) {
-        console.error('❌ Migration Exception:', err);
-    }
-})();
-
-
 const NodeCache = require("node-cache");
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
@@ -261,11 +241,13 @@ const STATUS_FLOWS = {
     'Reel': [
         'PENDING',
         'CONTENT NOT STARTED',
+        'CONTENT READY',
+        'WAITING FOR APPROVAL',
         'CONTENT APPROVED',
         'SHOOT DONE',
         'EDITING IN PROGRESS',
         'EDITED',
-        'WAITING FOR APPROVAL',
+        'WAITING FOR FINAL APPROVAL',
         'APPROVED',
         'WAITING FOR POSTING',
         'POSTED'
@@ -273,11 +255,13 @@ const STATUS_FLOWS = {
     'YouTube': [
         'PENDING',
         'CONTENT NOT STARTED',
+        'CONTENT READY',
+        'WAITING FOR APPROVAL',
         'CONTENT APPROVED',
         'SHOOT DONE',
         'EDITING IN PROGRESS',
         'EDITED',
-        'WAITING FOR APPROVAL',
+        'WAITING FOR FINAL APPROVAL',
         'APPROVED',
         'WAITING FOR POSTING',
         'POSTED'
@@ -285,10 +269,12 @@ const STATUS_FLOWS = {
     'Post': [
         'PENDING',
         'CONTENT NOT STARTED',
+        'CONTENT READY',
+        'WAITING FOR APPROVAL',
         'CONTENT APPROVED',
         'DESIGNING IN PROGRESS',
         'DESIGNING COMPLETED',
-        'WAITING FOR APPROVAL',
+        'WAITING FOR FINAL APPROVAL',
         'APPROVED',
         'WAITING FOR POSTING',
         'POSTED'

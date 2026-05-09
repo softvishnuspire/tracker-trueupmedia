@@ -128,16 +128,9 @@ export default function ProductionHeadDashboard() {
             );
             const totalToday = todayItems.length;
             const completedToday = todayItems.filter(item => 
-                ['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
+                ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
             ).length;
             
-            setTodayStats({
-                total: totalToday,
-                completed: completedToday,
-                remaining: totalToday - completedToday,
-                percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
-            });
-
             setCalendarData(data);
 
             // Calculate Weekly Stats
@@ -149,7 +142,7 @@ export default function ProductionHeadDashboard() {
             });
             const totalWeek = weekItems.length;
             const completedWeek = weekItems.filter(item => 
-                ['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
+                ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
             ).length;
             setWeekStats({
                 total: totalWeek,
@@ -401,10 +394,36 @@ export default function ProductionHeadDashboard() {
         end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
     });
 
+    const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
+    const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+
+    const monthStatusCounts = calendarData.reduce(
+        (acc, item) => {
+            const normalizedStatus = (item.status || '').toUpperCase();
+            const normalizedType = (item.content_type || '').toUpperCase();
+
+            if (contentApprovedStatuses.includes(normalizedStatus)) acc.contentApproved += 1;
+            
+            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
+                if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
+            } else if (normalizedType === 'POST') {
+                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
+                    acc.shootDone += 1;
+                }
+            }
+
+            if (normalizedStatus === 'POSTED') acc.posted += 1;
+
+            if (normalizedType === 'REEL') acc.reels += 1;
+            if (normalizedType === 'POST') acc.posts += 1;
+
+            return acc;
+        },
+        { contentApproved: 0, shootDone: 0, posted: 0, reels: 0, posts: 0 }
+    );
+
     const monthTotal = calendarData.length;
-    const monthCompleted = calendarData.filter(item => 
-        ['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
-    ).length;
+    const monthCompleted = monthStatusCounts.posted;
     const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
 
     return (
@@ -726,7 +745,14 @@ export default function ProductionHeadDashboard() {
                                             {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
                                         </div>
                                         <div className="emergency-card-info">
-                                            <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                                {task.assigned_to && (
+                                                    <div className="assigned-indicator-badge" title="Employee Assigned">
+                                                        <Check size={10} strokeWidth={4} />
+                                                    </div>
+                                                )}
+                                            </div>
                                             <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
                                         </div>
                                         <ArrowRight size={18} color="var(--text-muted)" />
@@ -758,7 +784,14 @@ export default function ProductionHeadDashboard() {
                                             {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
                                         </div>
                                         <div className="emergency-card-info">
-                                            <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                                {task.assigned_to && (
+                                                    <div className="assigned-indicator-badge" title="Employee Assigned">
+                                                        <Check size={10} strokeWidth={4} />
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
                                                 <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
@@ -809,6 +842,11 @@ export default function ProductionHeadDashboard() {
                                                     <div className="queue-item-info">
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <span className="queue-item-client">{item.clients?.company_name}</span>
+                                                            {item.assigned_to && (
+                                                                <div className="assigned-indicator-badge" title="Employee Assigned">
+                                                                    <Check size={10} strokeWidth={4} />
+                                                                </div>
+                                                            )}
                                                             {(item.status === 'SHOOT DONE' || item.status === 'POSTED') && <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />}
                                                         </div>
                                                         <span className="queue-item-title">{item.title}</span>
@@ -825,9 +863,9 @@ export default function ProductionHeadDashboard() {
                                                         <div style={{ display: 'flex', gap: '8px' }}>
                                                             {(() => {
                                                                 const flows: any = {
-                                                                    'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
-                                                                    'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
-                                                                    'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                                                    'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                                                    'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                                                    'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
                                                                 };
                                                                 const flow = flows[item.content_type] || [];
                                                                 const currentIdx = flow.indexOf(item.status);
@@ -865,6 +903,31 @@ export default function ProductionHeadDashboard() {
                 )}
 
                 {(view === 'client' || view === 'master' || view === 'company') && (
+                    <div className="status-summary-row">
+                        <div className="status-pill status-pill-reels">
+                            <span className="status-pill-label">Reels</span>
+                            <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                        </div>
+                        <div className="status-pill status-pill-posts">
+                            <span className="status-pill-label">Posts</span>
+                            <span className="status-pill-count">{monthStatusCounts.posts}</span>
+                        </div>
+                        <div className="status-pill status-pill-content-approved">
+                            <span className="status-pill-label">Content Approved</span>
+                            <span className="status-pill-count">{monthStatusCounts.contentApproved}</span>
+                        </div>
+                        <div className="status-pill status-pill-shoot-done">
+                            <span className="status-pill-label">Shoot Done</span>
+                            <span className="status-pill-count">{monthStatusCounts.shootDone}</span>
+                        </div>
+                        <div className="status-pill status-pill-posted">
+                            <span className="status-pill-label">Posted</span>
+                            <span className="status-pill-count">{monthStatusCounts.posted}</span>
+                        </div>
+                    </div>
+                )}
+
+                {(view === 'client' || view === 'master' || view === 'company') && (
                     <div className="calendar-card">
                         <div className="calendar-grid">
                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -891,8 +954,16 @@ export default function ProductionHeadDashboard() {
                                                     <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                            <span className="truncate" style={{ flex: 1 }}>{(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}{item.content_type}</span>
-                                                            {['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status) ? (
+                                                            <span className="truncate" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                {(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
+                                                                {item.content_type}
+                                                                {item.assigned_to && (
+                                                                    <span className="assigned-indicator-badge" title="Employee Assigned" style={{ transform: 'scale(0.8)' }}>
+                                                                        <Check size={10} strokeWidth={4} />
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                            {['CONTENT READY', 'WAITING FOR APPROVAL', 'SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status) ? (
                                                                 <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
                                                             ) : (
                                                                 <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
@@ -1015,9 +1086,9 @@ export default function ProductionHeadDashboard() {
                                     
                                     {(() => {
                                         const flows: any = {
-                                            'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
-                                            'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
-                                            'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                            'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
                                         };
                                         const flow = flows[activeItem.item.content_type] || [];
                                         const currentIdx = flow.indexOf(activeItem.item.status);
