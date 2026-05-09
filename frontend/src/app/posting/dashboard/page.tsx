@@ -56,7 +56,8 @@ interface ContentItem {
     status: string;
     client_id: string;
     is_emergency?: boolean;
-    clients?: { company_name: string };
+    clients?: { company_name: string; team_lead?: { name: string } };
+    assigned_to?: string;
 }
 
 export default function PostingDashboard() {
@@ -868,8 +869,11 @@ export default function PostingDashboard() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 <h3 className="modal-title">{activeItem.item.title}</h3>
-                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)' }}>
+                                <p style={{ fontSize: '14px', fontWeight: 800, color: 'var(--accent)' }}>
                                     Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
+                                <p style={{ fontSize: '14px', fontWeight: 800, color: 'var(--accent)' }}>
+                                    Assigned To: {activeItem.item.assigned_employee ? `${activeItem.item.assigned_employee.name} ${activeItem.item.assigned_employee.role_identifier ? `(${activeItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
                                 </p>
                             </div>
                                 {dayTasks.length > 1 && (

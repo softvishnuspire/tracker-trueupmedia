@@ -41,7 +41,7 @@ import {
     Phone,
     Mail
 } from 'lucide-react';
-import { phApi, emergencyApi, dashboardApi, settingsApi } from '@/lib/api';
+import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,22 +51,7 @@ import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import { Plus } from 'lucide-react';
 import './ph.css';
 
-interface ContentItem {
-    id: string;
-    title: string;
-    description: string;
-    content_type: 'Post' | 'Reel' | 'YouTube';
-    scheduled_datetime: string;
-    status: string;
-    client_id: string;
-    is_emergency?: boolean;
-    clients?: { company_name: string; team_lead?: { name: string } };
-    assigned_to?: string;
-    employee_task_status?: 'PENDING' | 'COMPLETED';
-    freelancer_name?: string;
-    freelancer_phone?: string;
-    freelancer_email?: string;
-}
+// Using imported ContentItem from @/lib/api
 
 export default function ProductionHeadDashboard() {
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company'>('dashboard');
@@ -116,6 +101,7 @@ export default function ProductionHeadDashboard() {
             }
             console.log('PH Dashboard Session User:', session.user);
             setUser(session.user);
+            
             // Fetch profile to get role
             const { data: profile } = await supabase
                 .from('users')
@@ -125,6 +111,9 @@ export default function ProductionHeadDashboard() {
             
             const role = profile?.role_identifier || profile?.role || session.user.user_metadata?.role;
             setUserRole(role?.toUpperCase());
+            
+            // Fetch employees for assignment
+            fetchEmployees();
         };
         checkUser();
     }, []);
@@ -230,17 +219,6 @@ export default function ProductionHeadDashboard() {
         fetchSettings();
     }, []);
 
-    useEffect(() => {
-        const fetchEmployees = async () => {
-            try {
-                const res = await phApi.getEmployees();
-                setEmployees(res.data);
-            } catch (err) {
-                console.error('Error fetching employees:', err);
-            }
-        };
-        fetchEmployees();
-    }, []);
 
     useEffect(() => {
         if (view === 'dashboard') {
@@ -257,6 +235,43 @@ export default function ProductionHeadDashboard() {
             const res = await phApi.getClients();
             setClients(res.data);
         } catch (err) { console.error(err); }
+    };
+
+    const fetchEmployees = async () => {
+        try {
+            const res = await phApi.getEmployees();
+            setEmployees(res.data);
+        } catch (err) { console.error('Error fetching employees:', err); }
+    };
+
+    const getEmployeeName = (id: string) => {
+        if (!id) return 'Unassigned';
+        const emp = employees.find(e => e.user_id === id);
+        return emp ? emp.name : 'Unknown';
+    };
+
+    const handleAssignEmployee = async (userId: string) => {
+        if (!activeItem) return;
+        try {
+            await phApi.assignEmployee(activeItem.item.id, userId);
+            setToast('Assignment updated successfully');
+            
+            // Update local state
+            const updatedItem = { ...activeItem.item, assigned_to: userId || null };
+            if (userId) {
+                const emp = employees.find(e => e.user_id === userId);
+                updatedItem.assigned_employee = emp ? { name: emp.name } : undefined;
+            } else {
+                updatedItem.assigned_employee = undefined;
+            }
+            
+            setActiveItem({ ...activeItem, item: updatedItem });
+            setCalendarData(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+            setPendingTasks(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+        } catch (err: any) {
+            console.error('Assignment error:', err);
+            setToast(err.response?.data?.error || 'Failed to update assignment');
+        }
     };
 
     const fetchTodayQueue = async () => {
@@ -336,23 +351,6 @@ export default function ProductionHeadDashboard() {
         } finally { setActionId(null); }
     };
 
-    const handleAssignEmployee = async (employeeId: string) => {
-        if (!activeItem) return;
-        try {
-            await phApi.assignEmployee(activeItem.item.id, employeeId || null as any);
-            const res = await phApi.getContentDetails(activeItem.item.id);
-            setActiveItem(res.data);
-            setToast('Employee assignment updated');
-            setTimeout(() => setToast(null), 3000);
-            
-            if (view === 'master' || view === 'company') fetchMasterCalendar();
-            else if (view === 'client') fetchClientCalendar();
-            
-        } catch (err) {
-            console.error(err);
-            alert('Failed to assign employee');
-        }
-    };
 
     const handleItemClick = async (item: ContentItem) => {
         try {
@@ -805,14 +803,7 @@ export default function ProductionHeadDashboard() {
                                             {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
                                         </div>
                                         <div className="emergency-card-info">
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                                {task.assigned_to && (
-                                                    <div className="assigned-indicator-badge" title="Employee Assigned">
-                                                        <Check size={10} strokeWidth={4} />
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <p className="emergency-card-client">{task.clients?.company_name}</p>
                                             <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
                                         </div>
                                         <ArrowRight size={18} color="var(--text-muted)" />
@@ -844,14 +835,7 @@ export default function ProductionHeadDashboard() {
                                             {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
                                         </div>
                                         <div className="emergency-card-info">
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                                {task.assigned_to && (
-                                                    <div className="assigned-indicator-badge" title="Employee Assigned">
-                                                        <Check size={10} strokeWidth={4} />
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <p className="emergency-card-client">{task.clients?.company_name}</p>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
                                                 <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
@@ -902,11 +886,6 @@ export default function ProductionHeadDashboard() {
                                                     <div className="queue-item-info">
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <span className="queue-item-client">{item.clients?.company_name}</span>
-                                                            {item.assigned_to && (
-                                                                <div className="assigned-indicator-badge" title="Employee Assigned">
-                                                                    <Check size={10} strokeWidth={4} />
-                                                                </div>
-                                                            )}
                                                             {(item.status === 'SHOOT DONE' || item.status === 'POSTED') && <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />}
                                                         </div>
                                                         <span className="queue-item-title">{item.title}</span>
@@ -1017,9 +996,15 @@ export default function ProductionHeadDashboard() {
                                                             <span className="truncate" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                                 {(view === 'master' || view === 'company') ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : item.clients?.company_name?.substring(0, 3)}] ` : ''}
                                                                 {item.content_type}
-                                                                {item.assigned_to && (
-                                                                    <span className="assigned-indicator-badge" title="Employee Assigned" style={{ transform: 'scale(0.8)' }}>
-                                                                        <Check size={10} strokeWidth={4} />
+                                                                {item.assigned_to ? (
+                                                                    <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ transform: 'scale(0.8)', padding: '2px 6px' }}>
+                                                                        <span className="assignment-dot"></span>
+                                                                        <span className="assignment-name">{getEmployeeName(item.assigned_to)}</span>
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="assignment-badge unassigned" title="Unassigned" style={{ transform: 'scale(0.8)', padding: '2px 6px' }}>
+                                                                        <span className="assignment-dot"></span>
+                                                                        <span className="assignment-name">Unassigned</span>
                                                                     </span>
                                                                 )}
                                                             </span>
@@ -1060,9 +1045,14 @@ export default function ProductionHeadDashboard() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{activeItem.item.title}</h3>
-                                <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px' }}>
-                                    Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
-                                </p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+                                    <p style={{ fontSize: '14px', fontWeight: 800, color: 'var(--accent)' }}>
+                                        Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                    </p>
+                                    <p style={{ fontSize: '14px', fontWeight: 800, color: 'var(--accent)' }}>
+                                        Assigned To: {activeItem.item.assigned_employee ? `${activeItem.item.assigned_employee.name} ${activeItem.item.assigned_employee.role_identifier ? `(${activeItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
+                                    </p>
+                                </div>
                                 {activeItem.item.freelancer_name && (
                                     <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
                                         <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '8px' }}>Freelancer Details</p>
@@ -1150,7 +1140,7 @@ export default function ProductionHeadDashboard() {
                                                 onChange={(e) => handleAssignEmployee(e.target.value)}
                                             >
                                                 <option value="">Unassigned</option>
-                                                {employees.map(emp => (
+                                                {employees.map((emp: any) => (
                                                     <option key={emp.user_id} value={emp.user_id}>{emp.name}</option>
                                                 ))}
                                             </select>

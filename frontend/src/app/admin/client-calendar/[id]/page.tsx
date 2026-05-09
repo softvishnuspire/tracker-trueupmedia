@@ -600,6 +600,9 @@ export default function ClientCalendarPage() {
                                 <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
                                     Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
                                 </p>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '2px' }}>
+                                    Assigned To: {selectedItem.item.assigned_employee ? `${selectedItem.item.assigned_employee.name} ${selectedItem.item.assigned_employee.role_identifier ? `(${selectedItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
