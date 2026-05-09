@@ -480,7 +480,7 @@ app.post('/api/ph/freelancer-content', requireRoles(PH_ROLES), async (req, res) 
             const { data: recipients } = await supabase
                 .from('users')
                 .select('user_id')
-                .in('role', ['ADMIN', 'GM', 'GENERAL MANAGER']);
+                .in('role_identifier', ['ADMIN', 'GM']);
 
             if (recipients && recipients.length > 0) {
                 const { data: notif, error: notifError } = await supabase

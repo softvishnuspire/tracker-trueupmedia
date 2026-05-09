@@ -1339,3 +1339,23 @@ Integrated a new "Freelancer Task" system allowing for the creation of one-time 
 - **TL Dashboard (`frontend/src/app/tl/dashboard/page.tsx`)**: Reconciled freelancer contact info with employee assignment tracking.
 - **Backend API (`backend/index.js`)**: Updated content creation and filtering for `client_id: null` support.
 - **Freelancer Modal (`frontend/src/components/FreelancerTaskModal.tsx`)**: Core component for lightweight task entry.
+
+## Recent Changes: Freelancer Task Creation Bug Fix (May 2026)
+### Implementation Overview
+Resolved a bug where freelancer task creation appeared to silently fail ("Nothing happens") for Production Heads and Admins, despite the backend successfully creating the tasks. The issue was traced to silent browser-level HTML5 form validation failures and missing UI feedback mechanisms.
+
+### Key Technical Decisions
+1. **Manual Validation & UI Feedback**:
+   - Refactored `FreelancerTaskModal.tsx` to handle validation manually rather than relying on native HTML5 `required` attributes, which were failing silently or being hidden by modal overlays.
+   - Replaced generic browser alerts with inline UI messages (`errorMsg` and `successMsg`) for immediate, context-aware feedback without pop-ups.
+   - Ensured the modal displays a clear "Success" state and waits 1.5 seconds before automatically closing and resetting.
+
+2. **Timezone Data Integrity**:
+   - Updated the initial state of the `scheduled_datetime` field. Replaced `new Date().toISOString()` (which sets the input to UTC) with a custom `getLocalISOString()` helper that accurately populates the `datetime-local` input in the user's local timezone.
+
+3. **Backend Notification Resiliency**:
+   - Fixed a case-sensitivity bug in the backend notification query (`backend/index.js`). Changed the filter to match `role_identifier` instead of `role` (e.g., matching `"ADMIN"` instead of `"Admin"`), ensuring internal "New Freelancer Task" notifications are correctly delivered to administrators.
+
+### Affected Components
+- **Freelancer Modal (`frontend/src/components/FreelancerTaskModal.tsx`)**: Form validation, timezone correction, and inline feedback UI.
+- **Backend API (`backend/index.js`)**: Corrected notification recipient query logic.

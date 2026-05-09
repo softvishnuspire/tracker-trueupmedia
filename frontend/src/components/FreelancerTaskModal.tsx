@@ -11,13 +11,21 @@ interface FreelancerTaskModalProps {
 }
 
 export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: FreelancerTaskModalProps) {
+    const getLocalISOString = () => {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        return now.toISOString().slice(0, 16);
+    };
+
     const [loading, setLoading] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
+    const [successMsg, setSuccessMsg] = useState('');
     const [formData, setFormData] = useState({
         freelancer_name: '',
         freelancer_phone: '',
         freelancer_email: '',
         content_type: 'Post' as 'Post' | 'Reel',
-        scheduled_datetime: new Date().toISOString().slice(0, 16), // Current local time for datetime-local
+        scheduled_datetime: getLocalISOString(),
         title: '',
         description: ''
     });
@@ -26,25 +34,37 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setErrorMsg('');
+        setSuccessMsg('');
+
+        if (!formData.freelancer_name || !formData.freelancer_phone || !formData.freelancer_email || !formData.scheduled_datetime) {
+            setErrorMsg('Please fill in all required fields (Name, Phone, Email, Date).');
+            return;
+        }
+
         setLoading(true);
         try {
             await phApi.addFreelancerContent(formData);
             
+            setSuccessMsg('Freelancer task created successfully!');
             onSuccess();
-            onClose();
-            // Reset form
-            setFormData({
-                freelancer_name: '',
-                freelancer_phone: '',
-                freelancer_email: '',
-                content_type: 'Post',
-                scheduled_datetime: new Date().toISOString().slice(0, 16),
-                title: '',
-                description: ''
-            });
+            
+            setTimeout(() => {
+                onClose();
+                setFormData({
+                    freelancer_name: '',
+                    freelancer_phone: '',
+                    freelancer_email: '',
+                    content_type: 'Post',
+                    scheduled_datetime: getLocalISOString(),
+                    title: '',
+                    description: ''
+                });
+                setSuccessMsg('');
+            }, 1500);
         } catch (err: any) {
             console.error('Error creating freelancer task:', err);
-            alert(err.response?.data?.error || 'Failed to create freelancer task');
+            setErrorMsg(err.response?.data?.error || 'Failed to create freelancer task. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -77,7 +97,19 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
+                <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {errorMsg && (
+                        <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '8px', fontSize: '14px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                            {errorMsg}
+                        </div>
+                    )}
+                    {successMsg && (
+                        <div style={{ padding: '12px', background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', borderRadius: '8px', fontSize: '14px', border: '1px solid rgba(34, 197, 94, 0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Check size={16} />
+                            {successMsg}
+                        </div>
+                    )}
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         {/* Freelancer Name */}
                         <div>
@@ -88,7 +120,6 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
                                 <User size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                 <input 
                                     type="text" 
-                                    required
                                     value={formData.freelancer_name}
                                     onChange={e => setFormData({ ...formData, freelancer_name: e.target.value })}
                                     placeholder="Enter full name"
@@ -115,7 +146,6 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
                                     <Phone size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                     <input 
                                         type="tel" 
-                                        required
                                         value={formData.freelancer_phone}
                                         onChange={e => setFormData({ ...formData, freelancer_phone: e.target.value })}
                                         placeholder="Phone"
@@ -139,7 +169,6 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
                                     <Mail size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                     <input 
                                         type="email" 
-                                        required
                                         value={formData.freelancer_email}
                                         onChange={e => setFormData({ ...formData, freelancer_email: e.target.value })}
                                         placeholder="Email"
@@ -217,7 +246,6 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
                             </label>
                             <input 
                                 type="datetime-local" 
-                                required
                                 value={formData.scheduled_datetime}
                                 onChange={e => setFormData({ ...formData, scheduled_datetime: e.target.value })}
                                 style={{ 
