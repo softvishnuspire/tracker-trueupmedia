@@ -44,6 +44,7 @@ import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
+import { getClientAbbreviation } from '@/lib/utils';
 import '../posting.css';
 
 interface ContentItem {
@@ -818,7 +819,7 @@ export default function PostingDashboard() {
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate">
-                                                                {(view === 'master' || view === 'company') ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}
+                                                                {(view === 'master' || view === 'company') ? `[${getClientAbbreviation(item.clients?.company_name)}] ` : ''}
                                                                 {item.title}
                                                             </span>
                                                             {item.status === 'POSTED' ? (

@@ -45,6 +45,7 @@ import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
+import { getClientAbbreviation } from '@/lib/utils';
 
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
@@ -565,7 +566,7 @@ export default function TLDashboard() {
                                                         fontSize: '10px',
                                                         fontWeight: 800
                                                     }}>
-                                                        {c.company_name?.charAt(0) || '?'}
+                                                        {getClientAbbreviation(c.company_name).charAt(0)}
                                                     </div>
                                                     <span className="truncate">{c.company_name}</span>
                                                 </div>
@@ -958,7 +959,7 @@ export default function TLDashboard() {
                                                                 ) : (
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                                         <span className="truncate" style={{ fontSize: '9px', flex: 1 }}>
-                                                                            {isMasterMode ? `[${(item as ContentItem).clients?.company_name?.substring(0,3)}] ` : ''}
+                                                                            {isMasterMode ? `[${getClientAbbreviation((item as ContentItem).clients?.company_name)}] ` : ''}
                                                                             {(item as ContentItem).content_type}
                                                                         </span>
                                                                         {(item as ContentItem).status === 'POSTED' ? (

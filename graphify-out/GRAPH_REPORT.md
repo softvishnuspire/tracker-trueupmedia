@@ -1226,6 +1226,201 @@ Prominently integrated the assigned Team Lead's name into the content detail mod
 
 3. **UI/UX Consistency**:
    - **Modals**: The Team Lead name appears as a secondary header directly below the task title in all dashboard and calendar modals.
+2. **Premium Visual Overhaul**:
+   - **Glassmorphism**: Implemented `backdrop-filter: blur(20px)` and semi-transparent backgrounds for the sidebar and modals.
+   - **Modern Gradients**: Replaced flat colors with rich, linear gradients for stats cards (`.progress-meter-card`) and action buttons.
+   - **Typography & Spacing**: Upgraded font sizes, weights, and letter-spacing for a high-end feel. Increased padding and margins for better white space.
+   - **Micro-Animations**: Added entrance animations (`fadeInDown`) and smooth hover transitions for all interactive elements.
+
+3. **Responsive Design Fixes**:
+   - Refined the mobile experience by adding a dedicated `mobile-header-top` and a smooth slide-in sidebar.
+   - Implemented a `max-width: 1600px` constraint for the main content area to prevent extreme stretching on ultra-wide monitors.
+
+### Affected Components
+- **ProductionHeadLayout (`frontend/src/app/ph/layout.tsx`)**: Removed redundant shell and sidebar.
+- **ProductionHeadDashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Verified primary layout classes and structure.
+- **Style Sheet (`frontend/src/app/ph/dashboard/ph.css`)**: Comprehensive upgrade of all layout, card, sidebar, and mobile styles.
+
+## Recent Changes: Employee Task System Implementation (May 2026)
+### Implementation Overview
+Implemented a dedicated "Employee" role and task management system to streamline daily execution for content teams. This system allows Production Heads to delegate specific tasks to employees without cluttering the primary content production pipeline.
+
+### Key Technical Decisions
+1. **Independent Task Tracking**:
+   - Added `assigned_to` (linking to employee users) and `employee_task_status` (`PENDING`, `COMPLETED`) fields to content items.
+2. **Production Head Delegation UI**:
+   - Integrated a searchable employee assignment dropdown into the content details modal.
+3. **Dedicated Employee Dashboard**:
+   - Created a new `/employee/dashboard` with a premium card-based layout.
+4. **Auth & Role Integration**:
+   - Expanded the login system to support the `EMPLOYEE` role.
+
+### Affected Components
+- **API Client (`frontend/src/lib/api.ts`)**: Added `employeeApi` and updated `ContentItem` interface.
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Implemented assignment logic.
+- **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Created the primary interface.
+- **Login Page (`frontend/src/app/page.tsx`)**: Integrated role normalization.
+
+## Recent Changes: Employee Dashboard History & Monthly Tracking (May 2026)
+### Implementation Overview
+Completed the integration of the **Employee Task System**, enabling historical tracking and monthly views.
+
+### Key Technical Decisions
+1. **History View**:
+   - Added a dedicated History tab with a month picker (`YYYY-MM`).
+2. **Backend Optimization**:
+   - Modified `/api/employee/tasks` to accept an optional `month` parameter.
+
+### Affected Components
+- **Backend (`backend/index.js`)**: Updated `/api/employee/tasks` endpoint.
+- **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Implemented the dual-view (Today/History) interface.
+
+## Recent Changes: Employee Dashboard Type Safety & CSS Fix (May 2026)
+### Implementation Overview
+Resolved critical TypeScript build errors and CSS compatibility warnings in the Employee Dashboard.
+
+### Key Technical Decisions
+1. **API Data Sanitization**:
+   - Implemented a mapping layer to ensure `employee_task_status` is never `undefined`.
+2. **Strict Type Casting**:
+   - Explicitly typed state updates and used casting for status strings.
+3. **Standardized CSS Truncation**:
+   - Added the standard `line-clamp` property.
+
+### Affected Components
+- **Employee Dashboard (`frontend/src/app/employee/dashboard/page.tsx`)**: Fixed interface mismatches.
+- **Employee Styles (`frontend/src/app/employee/dashboard/employee.css`)**: Added `line-clamp`.
+
+## Recent Changes: Admin Team Management Fixes (May 2026)
+### Implementation Overview
+Resolved a series of critical issues in the Admin Panel that prevented the addition and management of team members.
+
+### Key Technical Decisions
+1. **Backend Environment Stability**:
+   - Restored missing Supabase credentials in the backend `.env`.
+2. **Role Visibility & Filtering**:
+   - Refactored `getTeam` to include leadership roles.
+3. **Employee Role Integration**:
+   - Added "Employee" role to the creation modal and styled badges.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated `getTeam` filtering.
+- **Team Management UI (`frontend/src/app/admin/team/page.tsx`)**: Added "Employee" role.
+- **Environment (`backend/.env`)**: Restored Supabase connection strings.
+
+## Recent Changes: Employee Management and Production Head Assignment Fixes (May 2026)
+### Implementation Overview
+Resolved issues in the PH dashboard related to employee assignment and expanded Admin panel support for the "EMPLOYEE" role.
+
+### Key Technical Decisions
+1. **Frontend Role Expansion**:
+   - Added `EMPLOYEE` to the Admin Team Management page.
+2. **PH Dashboard Bug Fixes**:
+   - Fixed field name mismatch (`emp.id` to `emp.user_id`).
+3. **Backend Logic Refinement**:
+   - Automatically set task status to `PENDING` on assignment.
+
+### Affected Components
+- **Admin Team Management (`frontend/src/app/admin/team/page.tsx`)**: Added `EMPLOYEE` role support.
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Fixed assignment dropdown data mapping.
+- **Backend Entry Point (`backend/index.js`)**: Refactored employee task query.
+
+## Recent Changes: Production Head Authority Expansion (May 2026)
+### Implementation Overview
+Significantly expanded the authority of the **Production Head (PH)** role to allow end-to-end management of the content production pipeline. The PH role is no longer restricted to just marking Reels as "Shoot Done"; they can now manage all content types (including Posts) and advance tasks through multiple production stages up to the **WAITING FOR APPROVAL** status.
+
+### Key Technical Decisions
+1. **Generalized Status Flow Validation**:
+   - Refactored the backend status update logic for the PH role in `backend/index.js`.
+   - The system now uses the central `STATUS_FLOWS` registry to validate that any status change requested by a Production Head is within their authority (up to the `WAITING FOR APPROVAL` index).
+   - Removed legacy restrictions that blocked the PH from modifying `Post` content types.
+
+2. **Cross-Module Visibility Expansion**:
+   - Removed hardcoded filters in the backend PH endpoints (`today`, `calendar`, `master-calendar`) that limited visibility to "Reel" and "YouTube" types.
+   - The PH dashboard now provides a comprehensive view of all production deliverables, including social media posts, reels, and video content.
+
+3. **Unified Frontend Advancement UI**:
+   - Upgraded the `ProductionHeadDashboard` to use a dynamic "Advance to [Next Status]" system instead of a fixed "Mark Shoot Done" button.
+   - Standardized the details modal to show the advancement UI across all dashboard views, ensuring consistency between the live queue and historical calendar views.
+   - Enabled status notes and generalized undo functionality for the PH role.
+
+4. **Stats and Metrics Alignment**:
+   - Updated the PH dashboard statistical calculations to include all content types in the "Today", "Week", and "Month" progress meters.
+   - Refined the "Completed" metric definition for PH to include any status that has passed the production phase (`SHOOT DONE`, `EDITED`, `DESIGNING COMPLETED`, etc.).
+
+### Affected Components
+- **Backend Entry Point (`backend/index.js`)**: Generalised status update validation, removed type-based restrictions, and expanded query visibility for PH endpoints.
+- **Production Head Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Unified the status advancement UI, removed content type filters, and updated metric aggregation logic.
+- **API Library (`frontend/src/lib/api.ts`)**: Updated `phApi.updateStatus` to include the `note` field for audit trailing.
+- **Environment Configuration**: Updated `.env` files across root, `frontend/`, and `backend/` with new Supabase credentials and local API URL.
+## Recent Changes: Production Head Calendar Status Pill Fix (May 2026)
+### Implementation Overview
+Resolved a UI discrepancy in the Production Head (PH) dashboard where Reels and Posts shared the same generic icon and lacked descriptive labels. The calendar view and live shoot queue now correctly differentiate between content types using specific Lucide icons and distinct CSS styling.
+
+### Key Technical Decisions
+1. **Dynamic Icon Mapping**:
+   - Replaced hardcoded `Video` icons with conditional rendering logic in `ProductionHeadDashboard`.
+   - **Post**: Uses the `FileText` icon.
+   - **Reel/YouTube**: Uses the `Video` icon.
+   - This ensures visual consistency with the General Manager (GM) and Admin modules.
+
+2. **Style Differentiation**:
+   - Added missing `.queue-type-badge.post` styles to `ph.css` to provide color-coded identification (Indigo/Lavender) for Posts.
+   - Implemented `.content-item` class styles in `ph.css` to differentiate calendar entries.
+   - Added hover effects and subtle translateX animations to `content-item` for improved interactivity.
+   - Enhanced `.emergency` items with a pulse animation and thicker border for high visibility.
+
+3. **Consistent Labeling**:
+   - Updated the live shoot queue badges to explicitly display the `content_type` alongside the new icons.
+   - Ensured that both the `Master` and `Client` calendar views within the PH module benefit from these visual enhancements.
+
+### Affected Components
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Updated rendering logic for queue items and calendar days.
+- **PH Styles (`frontend/src/app/ph/dashboard/ph.css`)**: Added specific styles for Posts, Reels, and YouTube content items.
+
+## Recent Changes: Role-Based Task Visibility Optimization (May 2026)
+### Implementation Overview
+Optimized task visibility and management across all dashboard panels to reduce clutter and improve operational focus. This update implements a strict segregation between **Emergency** and **Pending Important** tasks while ensuring tasks disappear from a role's view once their specific responsibilities are fulfilled.
+
+### Key Technical Decisions
+1. **Dynamic Backend Filtering**:
+   - **Emergency API**: Tightened `GET /api/emergency/all` to strictly return only tasks where `is_emergency = true`.
+   - **PH Today Queue**: Updated `GET /api/ph/today` to include past-due tasks and expanded status filtering to include intermediate stages (`EDITED`, `DESIGNING COMPLETED`) while maintaining the "WAITING FOR APPROVAL" boundary.
+   - **Status Flow Integrity**: Production Head is now capped at "WAITING FOR APPROVAL", as per the `STATUS_FLOWS` registry.
+
+2. **Frontend Task Classification & Segregation**:
+   - **EMERGENCY Section**: Standardized across all roles to show `is_emergency === true` tasks that have NOT yet reached the role's completion status (e.g., `POSTED` for most roles, `WAITING FOR APPROVAL` for PH).
+   - **PENDING IMPORTANT Section**: Renamed and repurposed the main daily queues to focus on overdue and today's tasks (`scheduled_datetime <= TODAY_END`).
+   - **Role-Completion Filtering**: Implemented client-side filtering logic to remove tasks from active views once a role has finished their part:
+     - **PH**: Excludes tasks at/beyond `WAITING FOR APPROVAL`.
+     - **Posting**: Excludes tasks at/beyond `POSTED`.
+     - **Leadership (Admin/GM/TL/COO)**: Excludes tasks at/beyond `POSTED`.
+
+3. **UI/UX Rebranding**:
+   - Renamed "Live Shoot Queue" and "Today's Posting Queue" to **"Pending Important Tasks"** across the PH and Posting dashboards.
+   - Updated empty state messaging to reflect the completion of "Overdue & Today's tasks".
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated emergency and today queue endpoint logic.
+- **Production Head Dashboard**: `frontend/src/app/ph/dashboard/page.tsx` (Major refactor of queue labels and filtering).
+- **Posting Dashboard**: `frontend/src/app/posting/dashboard/page.tsx` (Renamed queue and added role-completion filtering).
+- **Leadership Dashboards**: `Admin`, `GM`, `TL`, `COO` (Added role-completion filtering to emergency panels).
+- **API Client (`frontend/src/lib/api.ts`)**: No changes required (reused existing endpoints).
+
+## Recent Changes: Team Lead Visibility in Task Details (May 2026)
+### Implementation Overview
+Prominently integrated the assigned Team Lead's name into the content detail modal and the Client Calendar header across all task views. This enhancement ensures maximum visibility and accountability for client management.
+
+### Key Technical Decisions
+1. **Backend Data Exposure**:
+   - Updated content detail API endpoints and the `admin/clients` list endpoint in `backend/index.js` to include a nested join with the `users` table via `clients.team_lead_id`.
+   - Used Supabase join syntax: `.select('*, team_lead:team_lead_id (name)')`.
+
+2. **Frontend Type Safety**:
+   - Extended the `ContentItem` and `Client` interfaces in `frontend/src/lib/api.ts` to include the nested `team_lead?: { name: string }` object.
+
+3. **UI/UX Consistency**:
+   - **Modals**: The Team Lead name appears as a secondary header directly below the task title in all dashboard and calendar modals.
    - **Global Dashboard Headers**: Integrated a styled "Team Lead" badge into the primary page header across all role-based dashboards (Admin, GM, TL, PH, and Posting) when a client is selected.
    - **Client Calendar Header**: Added a styled badge to the dedicated Client Calendar page.
    - Implemented a fallback value ("Not Assigned") for missing data to maintain accountability.
@@ -1237,6 +1432,7 @@ Prominently integrated the assigned Team Lead's name into the content detail mod
 - **Admin Pages**: `dashboard/page.tsx`, `master-calendar/page.tsx`, `client-calendar/[id]/page.tsx` (Header & Modal).
 - **Role Dashboards**: `GM`, `TL`, `PH`, `Posting` (`dashboard/page.tsx` in each) - added header badges.
 - **Task Modals**: Standardized visibility in the header area.
+<<<<<<< Updated upstream
 =======
 ## Recent Changes: Employee Productivity & TL Tracking Module (May 2026)
 ### Implementation Overview
@@ -1262,14 +1458,28 @@ Created a comprehensive productivity tracking system for Administrators to monit
 4. **Navigation Integration**:
    - Added "Employee Tracking" to the Admin sidebar with the `Activity` icon, ensuring seamless accessibility.
 
-### Affected Components
-- **Backend API (`backend/index.js`)**: Added `/api/admin/tracking/productivity` aggregation endpoint.
-- **Admin Layout (`frontend/src/app/admin/layout.tsx`)**: Integrated navigation link and icons.
-- **API Library (`frontend/src/lib/api.ts`)**: Added tracking types and fetcher.
-- **Tracking Dashboard (`frontend/src/app/admin/employee-tracking/page.tsx`)**: New primary view for admin tracking.
+### Admin Integration: Master Production Schedule
+- **New Feature**: Replicated the Production Head's "Master Production Schedule" calendar view in the Admin panel.
+- **Route**: Added `/admin/production-schedule` as a standalone page.
+- **Logic Mirroring**: Implemented the PH-specific completion logic (where `SHOOT DONE` and subsequent statuses show as "completed" with a green checkmark) to provide admins with the same production-focused visibility.
+- **Sidebar Navigation**: Integrated the new "Master Production Schedule" link into the Admin sidebar with a `Globe` icon.
+- **UI Styling**: Extended `admin.css` to include mobile-responsive calendar indicators (`mobile-dot`, `mobile-day-indicators`) for consistency across devices.
+- **Team Lead Visibility**: Ensured the new calendar modal displays the Team Lead name for every task, maintaining the platform-wide accountability standard.
 
-### Refinement (May 8, 2026)
-- **Schema Fix**: Corrected `content_items.current_status` to `status` in the productivity endpoint.
-- **Filtering**: Updated Employee tracking to only list staff with tasks scheduled for today.
-- **Metrics**: Added daily content flow metrics to Team Lead cards, showing total and completed tasks (WAITING FOR POSTING/POSTED) for all their assigned clients.
->>>>>>> Stashed changes
+### Production Visibility Restrictions
+- **New Policy**: The Production Head (PH) role now strictly receives tasks only between the **CONTENT APPROVED** and **WAITING FOR APPROVAL** statuses.
+- **Backend Enforcement**: 
+  - Updated `/api/ph/today`, `/api/ph/calendar`, `/api/ph/master-calendar`, and `/api/ph/stats` to strictly filter tasks within the `CONTENT APPROVED` to `WAITING FOR APPROVAL` range.
+  - Tasks that move to **APPROVED**, **WAITING FOR POSTING**, or **POSTED** are automatically hidden from the PH panel as their responsibility is complete.
+  - Applied the same production-window filter to shared endpoints (`/api/dashboard/pending-important`, `/api/emergency/all`) specifically for the `PRODUCTION HEAD` role.
+  - Maintained security checks in `/api/ph/content/:id` to block access outside this window.
+- **Admin Panel Sync**: The "Master Production Schedule" in the Admin panel mirrors this narrowed focus, providing a clean view of tasks currently in active production.
+- **Role Focus**: This change ensures the Production Head only sees tasks they are actively responsible for advancing.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Updated `gm/clients`, `ph/clients`, `posting/clients`, `tl/clients`, and various calendar/content endpoints to join with `team_lead_id`.
+- **Frontend API (`frontend/src/lib/api.ts`)**: Updated `ContentItem` and `Client` interfaces.
+- **Admin Pages**: `dashboard/page.tsx`, `master-calendar/page.tsx`, `client-calendar/[id]/page.tsx`, `production-schedule/page.tsx`, `layout.tsx`, `employee-tracking/page.tsx`.
+- **Role Dashboards**: `GM`, `TL`, `PH`, `Posting` (`dashboard/page.tsx` in each) - added header badges.
+- **Task Modals**: Standardized visibility in the header area across all views including the new Production Schedule.
+- **Styles**: Updated `admin.css` with mobile-responsive calendar tokens.

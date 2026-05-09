@@ -63,6 +63,7 @@ import {
     ContentDetails,
     settingsApi
 } from '@/lib/api';
+import { getClientAbbreviation } from '@/lib/utils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -139,14 +140,14 @@ export default function GMDashboard() {
     const isBiMonthlyView = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
 
     const periodStart = isBiMonthlyView
-        ? (currentCycle === 0 
-            ? startOfMonth(currentMonth) 
+        ? (currentCycle === 0
+            ? startOfMonth(currentMonth)
             : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 16))
         : startOfMonth(currentMonth);
 
     const periodEnd = isBiMonthlyView
-        ? (currentCycle === 0 
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15, 23, 59, 59) 
+        ? (currentCycle === 0
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15, 23, 59, 59)
             : endOfMonth(currentMonth))
         : endOfMonth(currentMonth);
 
@@ -446,7 +447,7 @@ export default function GMDashboard() {
                 emergencyApi.getAll(),
                 dashboardApi.getPendingImportant()
             ]);
-            
+
             setEmergencyTasks(emergencyRes.data || []);
             setPendingTasks(pendingRes.data || []);
         } catch (err) { console.error(err); } finally { setLoading(false); }
@@ -476,11 +477,11 @@ export default function GMDashboard() {
             const normalizedStatus = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
             const isCompleted = isItemCompleted(item.status);
-            
+
             if (normalizedStatus.includes('CONTENT')) acc.content += 1;
             if (normalizedStatus.includes('DESIGN')) acc.design += 1;
             if (normalizedStatus === 'POSTED') acc.posted += 1;
-            
+
             if (type === 'REEL') {
                 acc.reels += 1;
                 if (isCompleted) acc.completedReels += 1;
@@ -489,7 +490,7 @@ export default function GMDashboard() {
                 acc.posts += 1;
                 if (isCompleted) acc.completedPosts += 1;
             }
-            
+
             return acc;
         },
         { content: 0, design: 0, posted: 0, reels: 0, posts: 0, completedReels: 0, completedPosts: 0 }
@@ -559,10 +560,10 @@ export default function GMDashboard() {
         try {
             // Find all tasks on the same day as the clicked item
             const day = getCalendarItemDate(item);
-            
+
             // Collect tasks from available sources
             const tasksOnDay = calendarData.filter(i => isSameDay(getCalendarItemDate(i), day));
-            
+
             // If the item itself isn't in the list (e.g. from emergency tasks and calendar not loaded), add it
             if (!tasksOnDay.some(t => t.id === item.id)) {
                 tasksOnDay.push(item);
@@ -570,7 +571,7 @@ export default function GMDashboard() {
 
             // Sort them by time
             tasksOnDay.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
-            
+
             setDayTasks(tasksOnDay);
 
             const res = await gmApi.getContentDetails(item.id);
@@ -581,13 +582,13 @@ export default function GMDashboard() {
 
     const navigateToTask = async (direction: 'next' | 'prev') => {
         if (!activeItem || dayTasks.length <= 1) return;
-        
+
         const currentIndex = dayTasks.findIndex(t => t.id === activeItem.item.id);
         let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-        
+
         if (nextIndex < 0) nextIndex = dayTasks.length - 1;
         if (nextIndex >= dayTasks.length) nextIndex = 0;
-        
+
         const nextTask = dayTasks[nextIndex];
         try {
             // Clear current item first to show loading or just keep current while fetching
@@ -736,9 +737,9 @@ export default function GMDashboard() {
             setIsModalOpen(false);
             setIsRescheduling(false);
             if (view === 'master') fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
-        } catch (err: any) { 
+        } catch (err: any) {
             const errorMsg = err.response?.data?.error || 'Error saving item';
-            alert(errorMsg); 
+            alert(errorMsg);
         }
     };
 
@@ -878,12 +879,12 @@ export default function GMDashboard() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                         <span>{selectedClient ? 'Client Calendar' : 'Client Calendars'}</span>
                                         {selectedClient && (
-                                            <span style={{ 
-                                                fontSize: '14px', 
-                                                background: 'rgba(99, 102, 241, 0.1)', 
-                                                color: 'var(--accent)', 
-                                                padding: '4px 12px', 
-                                                borderRadius: '20px', 
+                                            <span style={{
+                                                fontSize: '14px',
+                                                background: 'rgba(99, 102, 241, 0.1)',
+                                                color: 'var(--accent)',
+                                                padding: '4px 12px',
+                                                borderRadius: '20px',
                                                 fontWeight: 700,
                                                 border: '1px solid rgba(99, 102, 241, 0.2)'
                                             }}>
@@ -909,7 +910,7 @@ export default function GMDashboard() {
 
                         <div className="header-controls">
                             {view === 'client' && selectedClient && (
-                                <button 
+                                <button
                                     onClick={() => setSelectedClient('')}
                                     className="btn-back-grid"
                                     style={{
@@ -1020,9 +1021,9 @@ export default function GMDashboard() {
                                         <button onClick={handlePrev} className="month-btn"><ChevronLeft size={20} /></button>
                                         <span className="month-label" style={{ minWidth: '180px', textAlign: 'center' }}>
                                             {viewMode === 'month'
-                                                ? (isBiMonthlyView 
-                                                    ? (currentCycle === 0 
-                                                        ? `1 - 15 ${format(currentMonth, 'MMM yyyy')}` 
+                                                ? (isBiMonthlyView
+                                                    ? (currentCycle === 0
+                                                        ? `1 - 15 ${format(currentMonth, 'MMM yyyy')}`
                                                         : `16 - ${getDate(endOfMonth(currentMonth))} ${format(currentMonth, 'MMM yyyy')}`)
                                                     : format(currentMonth, 'MMMM yyyy'))
                                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
@@ -1087,8 +1088,8 @@ export default function GMDashboard() {
                         </div>
                         <div className="emergency-list">
                             {emergencyTasks.map((task: ContentItem) => (
-                                <div 
-                                    key={task.id} 
+                                <div
+                                    key={task.id}
                                     className="emergency-card"
                                     onClick={() => handleItemClick(task)}
                                 >
@@ -1114,8 +1115,8 @@ export default function GMDashboard() {
                         </div>
                         <div className="emergency-list">
                             {pendingTasks.map((task: ContentItem) => (
-                                <div 
-                                    key={task.id} 
+                                <div
+                                    key={task.id}
                                     className="emergency-card"
                                     onClick={() => handleItemClick(task)}
                                     style={{ borderLeftColor: 'var(--accent)' }}
@@ -1372,14 +1373,14 @@ export default function GMDashboard() {
                                             const s = status === 'CONTENT READY' ? 'CONTENT APPROVED' : status;
                                             normalized[s] = (normalized[s] || 0) + (count as number);
                                         });
-                                        
+
                                         return Object.entries(normalized).map(([status, count]) => {
                                             // Denominator Logic:
                                             // Video: Reel, YouTube
                                             // Graphic: Post
                                             const s = status.toUpperCase();
                                             let denominator = stats.monthlyContent || 0;
-                                            
+
                                             if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
                                                 denominator = stats.videoCount || 0;
                                             } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
@@ -1570,31 +1571,31 @@ export default function GMDashboard() {
                         <div className="search-container-premium">
                             <div className="search-box-premium">
                                 <Search size={20} className="search-icon-premium" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search clients..." 
+                                <input
+                                    type="text"
+                                    placeholder="Search clients..."
                                     value={clientSearchQuery}
                                     onChange={(e) => setClientSearchQuery(e.target.value)}
                                 />
                             </div>
                         </div>
-                        
+
                         <div className="client-selection-grid">
                             {clients
                                 .filter(c => c.company_name?.toLowerCase().includes(clientSearchQuery.toLowerCase()))
                                 .map(client => (
-                                <div key={client.id} className="client-card-premium" onClick={() => setSelectedClient(client.id)}>
-                                    <div className="card-icon-wrapper">
-                                        <CalendarIcon size={22} />
+                                    <div key={client.id} className="client-card-premium" onClick={() => setSelectedClient(client.id)}>
+                                        <div className="card-icon-wrapper">
+                                            <CalendarIcon size={22} />
+                                        </div>
+                                        <div className="card-details-premium">
+                                            <h3 className="card-client-name">{client.company_name}</h3>
+                                            <p className="card-client-email">{client.email || `${client.company_name.toLowerCase().replace(/\s+/g, '')}@trueupmedia.com`}</p>
+                                        </div>
                                     </div>
-                                    <div className="card-details-premium">
-                                        <h3 className="card-client-name">{client.company_name}</h3>
-                                        <p className="card-client-email">{client.email || `${client.company_name.toLowerCase().replace(/\s+/g, '')}@trueupmedia.com`}</p>
-                                    </div>
-                                </div>
-                            ))}
+                                ))}
                         </div>
-                        
+
                         {clients.filter(c => c.company_name?.toLowerCase().includes(clientSearchQuery.toLowerCase())).length === 0 && (
                             <div className="empty-search-state">
                                 <Search size={48} />
@@ -1704,7 +1705,7 @@ export default function GMDashboard() {
                                                                 <span className="truncate" style={{ flex: 1 }}>
                                                                     {isPocView
                                                                         ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
-                                                                        : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' ? `[${item.clients?.company_name?.substring(0, 3)}] ` : ''}${item.content_type}`}
+                                                                        : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' ? `[${getClientAbbreviation(item.clients?.company_name)}] ` : ''}${item.content_type}`}
                                                                 </span>
                                                                 {!isPocView && (
                                                                     item.status === 'POSTED' ? (
@@ -1879,11 +1880,11 @@ export default function GMDashboard() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 {dayTasks.length > 1 && (
                                     <div className="task-nav-buttons" style={{ display: 'flex', gap: '4px', marginRight: '8px', paddingRight: '12px', borderRight: '1px solid var(--border)' }}>
-                                        <button 
+                                        <button
                                             onClick={() => navigateToTask('prev')}
                                             className="nav-btn"
-                                            style={{ 
-                                                width: '32px', height: '32px', borderRadius: '8px', 
+                                            style={{
+                                                width: '32px', height: '32px', borderRadius: '8px',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                                                 color: 'var(--text-primary)', cursor: 'pointer'
@@ -1891,11 +1892,11 @@ export default function GMDashboard() {
                                         >
                                             <ChevronLeft size={18} />
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => navigateToTask('next')}
                                             className="nav-btn"
-                                            style={{ 
-                                                width: '32px', height: '32px', borderRadius: '8px', 
+                                            style={{
+                                                width: '32px', height: '32px', borderRadius: '8px',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                                                 color: 'var(--text-primary)', cursor: 'pointer'
@@ -2065,7 +2066,7 @@ export default function GMDashboard() {
                                                                 <span>Advance to {nextStatus}</span>
                                                                 <ArrowRight size={18} className="advance-arrow" />
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 onClick={handleUndoStatus}
                                                                 className="btn-advance"
                                                                 style={{ width: '48px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: 0, justifyContent: 'center' }}

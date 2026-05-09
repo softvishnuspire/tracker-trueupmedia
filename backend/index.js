@@ -1491,7 +1491,8 @@ app.get('/api/ph/stats', requireRoles(PH_ROLES), async (req, res) => {
             .from('content_items')
             .select('content_type')
             .gte('scheduled_datetime', startDate)
-            .lte('scheduled_datetime', endDate);
+            .lte('scheduled_datetime', endDate)
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
 
         if (error) return res.status(500).json({ error: error.message });
 
@@ -1526,7 +1527,9 @@ app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
         if (client_id) query = query.eq('client_id', client_id);
         if (content_type) query = query.eq('content_type', content_type);
 
-        const { data, error } = await query.order('scheduled_datetime');
+        const { data, error } = await query
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'])
+            .order('scheduled_datetime');
         if (error) return res.status(500).json({ error: error.message });
 
         const transformedData = await applyHistoricalStatus(data, asOfDate);
@@ -1550,7 +1553,7 @@ app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
         const { data, error } = await supabase
             .from('content_items')
             .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
-            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'])
+            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'])
             .lte('scheduled_datetime', endDate)
             .order('scheduled_datetime');
 
@@ -1580,7 +1583,7 @@ app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
             .lte('scheduled_datetime', endDate);
 
         if (all === 'true') {
-            // No status filter
+            query = query.in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
         } else if (status) {
             query = query.eq('status', status);
         } else {
@@ -1623,6 +1626,11 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
         ]);
 
         if (itemRes.error) return res.status(500).json({ error: itemRes.error.message });
+
+        const productionStatuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
+        if (!productionStatuses.includes(itemRes.data.status)) {
+            return res.status(403).json({ error: 'Access denied: Content is not yet in production phase.' });
+        }
 
         const transformedItem = await applyHistoricalStatus(itemRes.data, asOfDate);
         res.json({ item: transformedItem, currentItem: itemRes.data, history: logsRes.data || [] });
@@ -2708,7 +2716,7 @@ app.get('/api/dashboard/pending-important', authenticateUser, async (req, res) =
 
         // Role-completion filtering
         if (resolvedRole === 'PRODUCTION HEAD') {
-            query = query.not('status', 'in', '("WAITING FOR APPROVAL","APPROVED","WAITING FOR POSTING","POSTED")');
+            query = query.in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
         } else {
             query = query.not('status', 'eq', 'POSTED');
         }
@@ -2747,7 +2755,7 @@ app.get('/api/emergency/all', authenticateUser, async (req, res) => {
 
         // Role-completion filtering
         if (resolvedRole === 'PRODUCTION HEAD') {
-            query = query.not('status', 'in', '("WAITING FOR APPROVAL","APPROVED","WAITING FOR POSTING","POSTED")');
+            query = query.in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
         } else {
             query = query.not('status', 'eq', 'POSTED');
         }
