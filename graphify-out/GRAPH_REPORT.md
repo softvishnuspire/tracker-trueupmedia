@@ -1,4 +1,4 @@
-# Graph Report - .  (2026-05-06)
+# Graph Report - .  (2026-05-11)
 
 ## Corpus Check
 - 122 files · ~263,712 words
@@ -791,6 +791,31 @@ Completed the standardization of deliverable metrics across the General Manager 
 ### Affected Components
 - **GMDashboard (`frontend/src/app/gm/dashboard/page.tsx`)**: Updated stats state, aggregation logic, and dashboard grid UI.
 - **TLDashboard (`frontend/src/app/tl/dashboard/page.tsx`)**: Enhanced `monthStatusCounts` reduction logic and updated the overview stats grid to mirror leadership metrics while maintaining assigned client scoping.
+
+## Recent Changes: Fixing Production Head Status Updates (May 2026)
+### Implementation Overview
+Resolved the "Failed to update status" error encountered by the Production Head (PH) when advancing tasks. This fix aligns the backend authority logic with the actual production workflow, enabling the PH to manage tasks from the point of content approval through to final submission.
+
+### Key Technical Decisions
+1. **Expanded Authority Window**:
+   - Shifted the PH's status advancement boundary from `WAITING FOR APPROVAL` (Stage 1) to `WAITING FOR FINAL APPROVAL` (Stage 2).
+   - **Starting Boundary**: PH can now only modify tasks that have reached at least the `CONTENT APPROVED` status.
+   - **Ending Boundary**: PH authority is strictly capped at `WAITING FOR FINAL APPROVAL`. They are prevented from triggering final `APPROVED` or `POSTED` statuses.
+
+2. **Table-Agnostic Status Updates**:
+   - Integrated the `fetchContentOrFreelancerItem` helper into the PH status update and undo routes.
+   - This ensures the PH can advance statuses for both standard `content_items` and tasks in the `freelancer_tasks` table seamlessly.
+
+3. **Strict Transition Enforcement**:
+   - Implemented immediate-next-step validation (`targetIdx === currentIndex + 1`).
+   - This prevents the PH from accidentally skipping critical production steps (e.g., skipping from `SHOOT DONE` to `WAITING FOR FINAL APPROVAL` without editing).
+
+4. **Enhanced Error Feedback**:
+   - Updated the PH Dashboard UI to display specific backend error messages (e.g., "PH authority starts only after CONTENT APPROVED") instead of generic "Failed" alerts.
+
+### Affected Components
+- **Backend API (`backend/index.js`)**: Refactored `PATCH /api/ph/content/:id/status` and `POST /api/ph/content/:id/undo`.
+- **PH Dashboard (`frontend/src/app/ph/dashboard/page.tsx`)**: Improved error handling in the Advance Status button.
 
 ## Recent Changes: Client Password Authentication & Auth Integration (May 2026)
 ### Implementation Overview

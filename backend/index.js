@@ -1775,35 +1775,56 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
     }
 
     try {
-        const { data: item, error: fetchError } = await supabase
-            .from('content_items')
-            .select('status, content_type')
-            .eq('id', id)
-            .single();
+        // Support both standard content and freelancer tasks
+        const { data: item, error: fetchError, table } = await fetchContentOrFreelancerItem(id);
 
-        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
+        if (fetchError || !item) {
+            console.error('[PH StatusUpdate] Fetch error:', fetchError);
+            return res.status(404).json({ error: 'Item not found' });
+        }
 
-        // Validate if the new status is within PH's authority
         const flow = STATUS_FLOWS[item.content_type] || [];
+        const currentIndex = flow.indexOf(item.status);
         const targetIdx = flow.indexOf(finalStatus);
-        const limitIdx = flow.indexOf('WAITING FOR APPROVAL');
+        
+        const startIdx = flow.indexOf('CONTENT APPROVED');
+        const limitIdx = flow.indexOf('WAITING FOR FINAL APPROVAL');
 
+        // 1. Basic transition validation
         if (targetIdx === -1) {
             return res.status(400).json({ error: `Invalid status "${finalStatus}" for content type ${item.content_type}` });
         }
 
-        if (targetIdx > limitIdx && limitIdx !== -1) {
-            return res.status(403).json({ error: 'Production Head authority capped at WAITING FOR APPROVAL' });
+        if (targetIdx !== currentIndex + 1) {
+            return res.status(400).json({ 
+                error: `Invalid transition. PH can only advance one step at a time. Next status should be: ${flow[currentIndex + 1] || 'None'}` 
+            });
         }
 
+        // 2. PH Authority Boundaries
+        // PH job starts only after "CONTENT APPROVED" (Stage 1 Approval)
+        if (currentIndex < startIdx) {
+            return res.status(403).json({ error: 'Production Head authority starts only after CONTENT APPROVED' });
+        }
+
+        // PH job ends at "WAITING FOR FINAL APPROVAL" (Stage 2 Approval)
+        if (targetIdx > limitIdx && limitIdx !== -1) {
+            return res.status(403).json({ error: 'Production Head authority ends at WAITING FOR FINAL APPROVAL' });
+        }
+
+        // 3. Perform update in the correct table
         const { error: updateError } = await supabase
-            .from('content_items')
+            .from(table)
             .update({ status: finalStatus, updated_at: new Date().toISOString() })
             .eq('id', id);
 
-        if (updateError) return res.status(500).json({ error: updateError.message });
+        if (updateError) {
+            console.error('[PH StatusUpdate] Update error:', updateError);
+            return res.status(500).json({ error: 'Failed to update status' });
+        }
 
-        await supabase.from('status_logs').insert([{
+        // 4. Log the change
+        const { error: logError } = await supabase.from('status_logs').insert([{
             item_id: id,
             old_status: item.status,
             new_status: finalStatus,
@@ -1811,8 +1832,11 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
             changed_by: changed_by || req.user.id
         }]);
 
+        if (logError) console.warn('[PH StatusUpdate] Log error:', logError.message);
+
         res.json({ message: 'Success', status: finalStatus });
     } catch (err) {
+        console.error('[PH StatusUpdate] Exception:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -1821,6 +1845,9 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
 app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
+        const { data: item, error: fetchError, table } = await fetchContentOrFreelancerItem(id);
+        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
+
         const { data: latestLog, error: logFetchError } = await supabase
             .from('status_logs')
             .select('*')
@@ -1829,11 +1856,10 @@ app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) =>
             .limit(1)
             .single();
 
-        if (logFetchError || !latestLog) return res.status(404).json({ error: 'No recent history found' });
+        if (logFetchError || !latestLog) return res.status(404).json({ error: 'No history found' });
 
-        // Ensure PH was the one who made the change (optional but safer)
         const { error: revertError } = await supabase
-            .from('content_items')
+            .from(table)
             .update({ status: latestLog.old_status, updated_at: new Date().toISOString() })
             .eq('id', id);
 
@@ -1841,9 +1867,7 @@ app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) =>
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
         res.json({ message: 'Success', status: latestLog.old_status });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 // PH: Get Employees for Assignment

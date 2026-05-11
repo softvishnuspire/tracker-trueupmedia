@@ -1200,9 +1200,9 @@ export default function ProductionHeadDashboard() {
                                                             fetchTodayStats();
                                                             if (view === 'client') fetchClientCalendar();
                                                             else fetchMasterCalendar();
-                                                        } catch (err) { 
+                                                        } catch (err: any) { 
                                                             console.error(err);
-                                                            alert('Failed to update status'); 
+                                                            alert(err.response?.data?.error || 'Failed to update status'); 
                                                         }
                                                     }}
                                                 >
