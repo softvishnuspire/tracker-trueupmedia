@@ -140,7 +140,7 @@ export default function TLDashboard() {
     };
 
     const fetchClientCalendar = useCallback(async () => {
-        if (!user || !selectedClient) return;
+        if (!user || !selectedClient || selectedClient === 'all') return;
         setLoading(true);
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
@@ -206,7 +206,7 @@ export default function TLDashboard() {
                 fetchMasterCalendar();
             } else if (view === 'poc') {
                 fetchPocNotes();
-            } else if (view === 'client' && selectedClient) {
+            } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
                 fetchClientCalendar();
             }
         }

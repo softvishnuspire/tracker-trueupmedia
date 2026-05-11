@@ -2022,19 +2022,34 @@ app.get('/api/tl/clients', requireRoles(TL_ROLES), async (req, res) => {
 
 app.get('/api/tl/calendar', requireRoles(TL_ROLES), async (req, res) => {
     const { client_id, month, tlId } = req.query;
-    console.log(`Fetching calendar for client ${client_id}, month ${month}, TL ${tlId}`);
+    const requesterRole = req.resolvedRole;
 
-    if (!client_id || !month || !tlId) return res.status(400).json({ error: 'Missing client_id, month, or tlId' });
+    console.log(`[TL Calendar] Fetching for client ${client_id}, month ${month}, TL ${tlId} | Requested by: ${req.user.id} (${requesterRole})`);
 
-    // Verify TL manages this client
-    const { data: client, error: clientError } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('id', client_id)
-        .eq('team_lead_id', tlId)
-        .single();
+    if (!client_id || !month || !tlId) {
+        return res.status(400).json({ error: 'Missing client_id, month, or tlId' });
+    }
 
-    if (clientError || !client) return res.status(403).json({ error: 'Access denied' });
+    if (client_id === 'all') {
+        return res.json([]);
+    }
+
+    // Verify TL manages this client (bypass for Admin, GM, COO)
+    const isAdminOrManagement = ['ADMIN', 'GM', 'GENERAL MANAGER', 'COO'].includes(requesterRole);
+    
+    if (!isAdminOrManagement) {
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('id', client_id)
+            .eq('team_lead_id', tlId)
+            .single();
+
+        if (clientError || !client) {
+            console.warn(`[TL Calendar] Access denied for TL ${tlId} on client ${client_id}`);
+            return res.status(403).json({ error: 'Access denied: You do not manage this client' });
+        }
+    }
 
     const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;
@@ -2049,7 +2064,10 @@ app.get('/api/tl/calendar', requireRoles(TL_ROLES), async (req, res) => {
         .lte('scheduled_datetime', endDate)
         .order('scheduled_datetime');
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+        console.error('[TL Calendar] DB Error:', error.message);
+        return res.status(500).json({ error: error.message });
+    }
     res.json(data);
 });
 
@@ -2070,17 +2088,27 @@ app.get('/api/tl/clients-duplicate', requireRoles(TL_ROLES), async (req, res) =>
 
 app.get('/api/tl/calendar-duplicate', requireRoles(TL_ROLES), async (req, res) => {
     const { client_id, month, tlId } = req.query;
+    const requesterRole = req.resolvedRole;
+
     if (!client_id || !month || !tlId) return res.status(400).json({ error: 'Missing parameters' });
 
-    // Verify client belongs to this TL
-    const { data: client, error: clientError } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('id', client_id)
-        .eq('team_lead_id', tlId)
-        .single();
+    if (client_id === 'all') return res.json([]);
 
-    if (clientError || !client) return res.status(403).json({ error: 'Unauthorized or client not found' });
+    const isAdminOrManagement = ['ADMIN', 'GM', 'GENERAL MANAGER', 'COO'].includes(requesterRole);
+
+    if (!isAdminOrManagement) {
+        // Verify client belongs to this TL
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('id', client_id)
+            .eq('team_lead_id', tlId)
+            .single();
+
+        if (clientError || !client) {
+            return res.status(403).json({ error: 'Unauthorized or client not found' });
+        }
+    }
 
     const [year, mon] = String(month).split('-');
     const startDate = `${year}-${mon}-01T00:00:00`;

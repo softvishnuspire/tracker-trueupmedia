@@ -390,7 +390,7 @@ export const emergencyApi = {
 };
 
 const handleAuthError = (error: any) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    if (error.response && error.response.status === 401) {
         if (typeof window !== 'undefined' && window.location.pathname !== '/') {
             window.location.href = '/';
         }
