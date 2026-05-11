@@ -575,7 +575,7 @@ export default function ProductionHeadDashboard() {
                             {view === 'client' && (
                                 <div className="client-dropdown-wrapper">
                                     <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
-                                        <option value="all" disabled={selectedClient !== 'all'}>Select a client</option>
+                                        <option value="all">Select a client</option>
                                         {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
                                     </select>
                                     <ChevronDown size={16} className="dropdown-chevron" />

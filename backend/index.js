@@ -1649,7 +1649,7 @@ app.get('/api/ph/master-calendar', requireRoles(PH_ROLES), async (req, res) => {
         const startDate = `${year}-${mon}-01T00:00:00`;
         const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-        const statuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
+        const statuses = ['WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
         const data = await fetchCombinedCalendarData(startDate, endDate, client_id, content_type, null, statuses);
 
         const transformedData = await applyHistoricalStatus(data, asOfDate);
@@ -1673,7 +1673,7 @@ app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
         const { data, error } = await supabase
             .from('content_items')
             .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
-            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'])
+            .in('status', ['WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'])
             .lte('scheduled_datetime', endDate)
             .order('scheduled_datetime');
 
@@ -1703,7 +1703,7 @@ app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
             .lte('scheduled_datetime', endDate);
 
         if (all === 'true') {
-            query = query.in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
+            query = query.in('status', ['WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']);
         } else if (status) {
             query = query.eq('status', status);
         } else {
@@ -1746,7 +1746,7 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
             return res.status(500).json({ error: itemError?.message || 'Item not found' });
         }
 
-        const productionStatuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
+        const productionStatuses = ['WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
         if (!productionStatuses.includes(itemData.status)) {
             return res.status(403).json({ error: 'Access denied: Content is not yet in production phase.' });
         }
