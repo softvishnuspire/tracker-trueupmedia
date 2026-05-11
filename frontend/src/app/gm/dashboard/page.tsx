@@ -85,7 +85,6 @@ export default function GMDashboard() {
     const [selectedType, setSelectedType] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
-    const [currentCycle, setCurrentCycle] = useState<0 | 1>(0); // 0: 1-15, 1: 16-end
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc'>('dashboard');
@@ -141,15 +140,11 @@ export default function GMDashboard() {
     const isBiMonthlyView = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
 
     const periodStart = isBiMonthlyView
-        ? (currentCycle === 0
-            ? startOfMonth(currentMonth)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 16))
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
         : startOfMonth(currentMonth);
 
     const periodEnd = isBiMonthlyView
-        ? (currentCycle === 0
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15, 23, 59, 59)
-            : endOfMonth(currentMonth))
+        ? new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 15, 23, 59, 59)
         : endOfMonth(currentMonth);
 
     const isDayInPeriod = (day: Date): boolean => {
@@ -161,6 +156,16 @@ export default function GMDashboard() {
     const fetchClientCalendar = useCallback(async (clientId: string) => {
         if (!clientId) return [];
         try {
+            if (isBiMonthlyView) {
+                // Fetch current and next month to cover the spanning period (15th to 15th)
+                const months = [currentMonth, addMonths(currentMonth, 1)];
+                const responses = await Promise.all(
+                    months.map(m => gmApi.getCalendar(clientId, format(m, 'yyyy-MM')))
+                );
+                const merged = responses.flatMap(res => res.data || []);
+                return Array.from(new Map(merged.map(item => [item.id, item])).values());
+            }
+
             const monthStr = format(currentMonth, 'yyyy-MM');
             const res = await gmApi.getCalendar(clientId, monthStr);
             return res.data;
@@ -506,16 +511,7 @@ export default function GMDashboard() {
 
     const handlePrev = () => {
         if (viewMode === 'month') {
-            if (isBiMonthlyView) {
-                if (currentCycle === 1) {
-                    setCurrentCycle(0);
-                } else {
-                    setCurrentMonth(subMonths(currentMonth, 1));
-                    setCurrentCycle(1);
-                }
-            } else {
-                setCurrentMonth(subMonths(currentMonth, 1));
-            }
+            setCurrentMonth(subMonths(currentMonth, 1));
         } else {
             setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() - 7)));
         }
@@ -523,16 +519,7 @@ export default function GMDashboard() {
 
     const handleNext = () => {
         if (viewMode === 'month') {
-            if (isBiMonthlyView) {
-                if (currentCycle === 0) {
-                    setCurrentCycle(1);
-                } else {
-                    setCurrentMonth(addMonths(currentMonth, 1));
-                    setCurrentCycle(0);
-                }
-            } else {
-                setCurrentMonth(addMonths(currentMonth, 1));
-            }
+            setCurrentMonth(addMonths(currentMonth, 1));
         } else {
             setCurrentMonth(prev => new Date(prev.setDate(prev.getDate() + 7)));
         }
@@ -1014,9 +1001,7 @@ export default function GMDashboard() {
                                         <span className="month-label" style={{ minWidth: '180px', textAlign: 'center' }}>
                                             {viewMode === 'month'
                                                 ? (isBiMonthlyView
-                                                    ? (currentCycle === 0
-                                                        ? `1 - 15 ${format(currentMonth, 'MMM yyyy')}`
-                                                        : `16 - ${getDate(endOfMonth(currentMonth))} ${format(currentMonth, 'MMM yyyy')}`)
+                                                    ? `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`
                                                     : format(currentMonth, 'MMMM yyyy'))
                                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                             }
@@ -1062,6 +1047,14 @@ export default function GMDashboard() {
 
                 {(view === 'master' || view === 'company' || (view === 'client' && selectedClient)) && (
                     <div className="status-summary-row">
+                        <div className="status-pill status-pill-reels">
+                            <span className="status-pill-label">Reels</span>
+                            <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                        </div>
+                        <div className="status-pill status-pill-posts">
+                            <span className="status-pill-label">Posts</span>
+                            <span className="status-pill-count">{monthStatusCounts.posts}</span>
+                        </div>
                         <div className="status-pill status-pill-content-approved">
                             <span className="status-pill-label">Content Approved</span>
                             <span className="status-pill-count">{monthStatusCounts.contentApproved}</span>
@@ -1069,24 +1062,6 @@ export default function GMDashboard() {
                         <div className="status-pill status-pill-shoot-done">
                             <span className="status-pill-label">Shoot Done</span>
                             <span className="status-pill-count">{monthStatusCounts.shootDone}</span>
-                        </div>
-                        <div className="status-pill status-pill-reels">
-                            <span className="status-pill-label">Reels</span>
-                            <span className="status-pill-count">
-                                {monthStatusCounts.reels} / {assignedTotals.reels}
-                                <span style={{ fontSize: '0.8em', opacity: 0.7, marginLeft: '6px', fontWeight: 400 }}>
-                                    ({monthStatusCounts.completedReels} Done)
-                                </span>
-                            </span>
-                        </div>
-                        <div className="status-pill status-pill-posts">
-                            <span className="status-pill-label">Posts</span>
-                            <span className="status-pill-count">
-                                {monthStatusCounts.posts} / {assignedTotals.posts}
-                                <span style={{ fontSize: '0.8em', opacity: 0.7, marginLeft: '6px', fontWeight: 400 }}>
-                                    ({monthStatusCounts.completedPosts} Done)
-                                </span>
-                            </span>
                         </div>
                     </div>
                 )}

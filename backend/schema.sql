@@ -37,10 +37,39 @@ CREATE TABLE public.content_items (
   is_emergency boolean DEFAULT false,
   emergency_marked_by uuid,
   emergency_marked_at timestamp with time zone,
+  assigned_to uuid,
+  employee_task_status USER-DEFINED DEFAULT 'PENDING'::employee_task_status,
+  assigned_at timestamp with time zone DEFAULT now(),
   CONSTRAINT content_items_pkey PRIMARY KEY (id),
   CONSTRAINT content_items_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
   CONSTRAINT content_items_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id),
-  CONSTRAINT content_items_emergency_marked_by_fkey FOREIGN KEY (emergency_marked_by) REFERENCES auth.users(id)
+  CONSTRAINT content_items_emergency_marked_by_fkey FOREIGN KEY (emergency_marked_by) REFERENCES auth.users(id),
+  CONSTRAINT content_items_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.freelancer_tasks (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  freelancer_name character varying NOT NULL,
+  freelancer_phone character varying,
+  freelancer_email character varying,
+  content_type character varying NOT NULL,
+  scheduled_datetime timestamp with time zone NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  status character varying DEFAULT 'PENDING'::character varying,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  is_rescheduled boolean DEFAULT false,
+  is_emergency boolean DEFAULT false,
+  emergency_marked_by uuid,
+  emergency_marked_at timestamp with time zone,
+  assigned_to uuid,
+  employee_task_status character varying DEFAULT 'PENDING'::character varying,
+  assigned_at timestamp with time zone,
+  CONSTRAINT freelancer_tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT freelancer_tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id),
+  CONSTRAINT freelancer_tasks_emergency_marked_by_fkey FOREIGN KEY (emergency_marked_by) REFERENCES public.users(user_id),
+  CONSTRAINT freelancer_tasks_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(user_id)
 );
 CREATE TABLE public.notification_recipients (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -93,6 +122,12 @@ CREATE TABLE public.status_logs (
   CONSTRAINT status_logs_pkey PRIMARY KEY (log_id),
   CONSTRAINT status_logs_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.content_items(id),
   CONSTRAINT status_logs_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.system_settings (
+  key text NOT NULL,
+  value jsonb NOT NULL,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT system_settings_pkey PRIMARY KEY (key)
 );
 CREATE TABLE public.users (
   user_id uuid NOT NULL DEFAULT gen_random_uuid(),

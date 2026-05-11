@@ -1034,7 +1034,7 @@
 }
 
 .status-summary-row {
-    margin: -12px 0 18px;
+    margin: 8px 0 18px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -1072,7 +1072,7 @@
     color: var(--text-primary);
 }
 
-.status-pill-content {
+.status-pill-content-approved {
     border-color: rgba(37, 99, 235, 0.28);
 }
 
@@ -1090,6 +1090,10 @@
 
 .status-pill-posts {
     border-color: rgba(16, 185, 129, 0.32);
+}
+
+.status-pill-shoot-done {
+    border-color: rgba(99, 102, 241, 0.32);
 }
 
 /* ─── Loading ─── */
