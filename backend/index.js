@@ -1068,7 +1068,7 @@ app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (re
         if (userError) throw userError;
 
         const teamLeads = users.filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role || u.role_identifier));
-        const employees = users.filter(u => ['EMPLOYEE', 'POSTING TEAM'].includes(u.role || u.role_identifier));
+        const employees = users.filter(u => ['EMPLOYEE', 'POSTING TEAM', 'POSTING_TEAM'].includes(u.role || u.role_identifier));
 
         // 2. Fetch Client Assignments for TLs
         const { data: clients, error: clientError } = await supabase
@@ -1135,28 +1135,24 @@ app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (re
             };
         });
 
-        // --- Aggregate Employee Stats (Only those with tasks today) ---
-        const activeEmpIds = new Set(todayTasks.map(t => t.assigned_to).filter(Boolean));
-        
-        const empStats = employees
-            .filter(emp => activeEmpIds.has(emp.user_id)) // Only show employees with today's tasks
-            .map(emp => {
-                const empTasks = todayTasks.filter(t => t.assigned_to === emp.user_id);
-                const total = empTasks.length;
-                const completedTasks = empTasks.filter(t => 
-                    ['COMPLETED', 'POSTED', 'APPROVED'].includes(t.employee_task_status || '')
-                ).length;
+        // --- Aggregate Employee Stats (Show ALL employees) ---
+        const empStats = employees.map(emp => {
+            const empTasks = todayTasks.filter(t => t.assigned_to === emp.user_id);
+            const total = empTasks.length;
+            const completedTasks = empTasks.filter(t => 
+                ['COMPLETED', 'POSTED', 'APPROVED'].includes(t.employee_task_status || '')
+            ).length;
 
-                return {
-                    id: emp.user_id,
-                    name: emp.name,
-                    email: emp.email,
-                    role: emp.role_identifier || emp.role,
-                    assignedTasks: total,
-                    completedTasks: completedTasks,
-                    completionRate: total > 0 ? (completedTasks / total) : 0
-                };
-            });
+            return {
+                id: emp.user_id,
+                name: emp.name,
+                email: emp.email,
+                role: emp.role_identifier || emp.role,
+                assignedTasks: total,
+                completedTasks: completedTasks,
+                completionRate: total > 0 ? (completedTasks / total) : 0
+            };
+        });
 
         res.json({
             date: today,

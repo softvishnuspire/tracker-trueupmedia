@@ -66,7 +66,7 @@ const RadialProgress = ({ progress, size = 60, strokeWidth = 6, color = "var(--a
 export default function EmployeeTrackingPage() {
     const [stats, setStats] = useState<{ teamLeads: TlTrackingStats[], employees: EmployeeTrackingStats[], date: string } | null>(null);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'tl' | 'employee'>('tl');
+    const [activeTab, setActiveTab] = useState<'tl' | 'employee'>('employee');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 

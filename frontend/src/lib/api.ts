@@ -156,6 +156,14 @@ export interface EmployeeTrackingStats {
     assignedTasks: number;
     completedTasks: number;
     completionRate: number;
+    tasks?: {
+        id: string;
+        title: string;
+        clientName: string;
+        status: string;
+        employeeStatus?: string;
+        scheduledDate: string;
+    }[];
 }
 
 export interface TrackingProductivityResponse {
@@ -234,11 +242,11 @@ export const phApi = {
     getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
         phBase.get<ContentItem[]>(`/api/ph/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
     getContentDetails: (id: string, asOfDate?: string) => phBase.get<ContentDetails>(`/api/ph/content/${id}${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
-    updateStatus: (id: string, newStatus: string, note?: string, changedBy?: string) => 
+    updateStatus: (id: string, newStatus: string, note?: string, changedBy?: string) =>
         phBase.patch(`/api/ph/content/${id}/status`, { new_status: newStatus, note, changed_by: changedBy }),
     undoStatus: (id: string) => phBase.post(`/api/ph/content/${id}/undo`),
     getEmployees: () => phBase.get<TeamMember[]>('/api/ph/employees'),
-    assignEmployee: (id: string, employeeId: string | null) => 
+    assignEmployee: (id: string, employeeId: string | null) =>
         phBase.patch(`/api/ph/content/${id}/assign`, { assigned_to: employeeId }),
     addFreelancerContent: (data: any) => phBase.post('/api/ph/freelancer-content', data),
 };
@@ -257,7 +265,7 @@ employeeBase.interceptors.request.use(async (config) => {
 
 export const employeeApi = {
     getTasks: (month?: string) => employeeBase.get<ContentItem[]>(`/api/employee/tasks${month ? `?month=${month}` : ''}`),
-    updateTaskStatus: (id: string, status: 'PENDING' | 'COMPLETED') => 
+    updateTaskStatus: (id: string, status: 'PENDING' | 'COMPLETED') =>
         employeeBase.patch(`/api/employee/tasks/${id}/status`, { status }),
 };
 
@@ -414,7 +422,7 @@ export const dashboardApi = {
 };
 
 export const publicApi = {
-    submitOnboarding: (data: { full_name: string; email: string; phone_number?: string }) => 
+    submitOnboarding: (data: { full_name: string; email: string; phone_number?: string }) =>
         axios.post(`${API_BASE_URL}/api/onboarding/submit`, data),
 };
 
