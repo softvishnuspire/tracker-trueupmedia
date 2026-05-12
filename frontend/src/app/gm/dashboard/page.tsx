@@ -315,6 +315,8 @@ export default function GMDashboard() {
         postsCount: 0,
         youtubeCount: 0,
         videoCount: 0,
+        shootDoneCount: 0,
+        contentApprovedCount: 0,
         weeksPending: 0
     });
 
@@ -389,6 +391,19 @@ export default function GMDashboard() {
             const youtubeCount = periodData.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'YOUTUBE').length;
             const videoCount = reelsCount + youtubeCount;
 
+            // Unified Production Logic
+            const shootDoneCount = periodData.filter(item => {
+                const s = (item.status || '').toUpperCase();
+                const type = (item.content_type || '').toUpperCase();
+                if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(s)) return true;
+                if (type === 'POST' && (s === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(s))) return true;
+                return false;
+            }).length;
+
+            const contentApprovedCount = periodData.filter(item => 
+                contentApprovedStatuses.includes((item.status || '').toUpperCase())
+            ).length;
+
             setStats({
                 totalClients: clients.length,
                 totalTeams: teamLeads.length,
@@ -404,6 +419,8 @@ export default function GMDashboard() {
                 postsCount,
                 youtubeCount,
                 videoCount,
+                shootDoneCount,
+                contentApprovedCount,
                 weeksPending: calendarData.filter((item: ContentItem) => {
                     const itemDate = parseISO(item.scheduled_datetime);
                     const now = new Date();
@@ -1149,282 +1166,19 @@ export default function GMDashboard() {
                 {/* Removed global loading bar in favor of inline skeletons */}
 
                 {view === 'dashboard' && (
-                    <div className="dashboard-view">
-                        <div className="stats-grid">
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)' }}>
-                                    <Users size={28} />
+                    <div className="unified-dashboard">
+                        {/* Unified Header with Integrated Filter */}
+                        <div className="dashboard-card unified-main-card">
+                            <div className="unified-card-header">
+                                <div className="header-text">
+                                    <h2 className="card-title">Operational Command Center</h2>
+                                    <p className="card-subtitle">Real-time health and production flow monitoring</p>
                                 </div>
-                                <div className="stat-info">
-                                    <h3>Total Clients</h3>
-                                    <p className="stat-value">{stats.totalClients}</p>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
-                                    <CalendarIcon size={28} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>Scheduled</h3>
-                                    <p className="stat-value">{stats.monthlyContent}</p>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
-                                    <Video size={28} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>Reels Progress</h3>
-                                    <p className="stat-value">
-                                        {monthStatusCounts.completedReels} <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>/ {monthStatusCounts.reels}</span>
-                                    </p>
-                                    <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
-                                        {assignedTotals.reels} Assigned Quota
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--accent-secondary)' }}>
-                                    <FileText size={28} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3>Posts Progress</h3>
-                                    <p className="stat-value">
-                                        {monthStatusCounts.completedPosts} <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>/ {monthStatusCounts.posts}</span>
-                                    </p>
-                                    <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
-                                        {assignedTotals.posts} Assigned Quota
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
-                                    <Clock size={28} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        Pending
-                                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
-                                    </h3>
-                                    <p className="stat-value">{stats.pendingCount}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats.monthlyContent}</span></p>
-                                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                        <span style={{ color: 'var(--warning)' }}>{stats.pendingReels} R</span>
-                                        <span style={{ color: 'var(--accent-secondary)' }}>{stats.pendingPosts} P</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
-                                    <Check size={28} />
-                                </div>
-                                <div className="stat-info">
-                                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        Completed
-                                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
-                                    </h3>
-                                    <p className="stat-value">{stats.completedCount}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats.monthlyContent}</span></p>
-                                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                        <span style={{ color: 'var(--warning)' }}>{stats.completedReels} R</span>
-                                        <span style={{ color: 'var(--accent-secondary)' }}>{stats.completedPosts} P</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="dashboard-section-header" style={{ marginTop: '32px', marginBottom: '16px' }}>
-                            <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: '4px', height: '18px', background: 'var(--accent)', borderRadius: '2px' }}></div>
-                                Master Calendar Progress
-                            </h2>
-                        </div>
-                        <div className="daily-stats-banner" style={{ marginTop: '0px' }}>
-                            <div className="progress-meter-card">
-                                <div className="progress-top-row">
-                                    <div className="progress-main-info">
-                                        <h3 className="stat-label">Today&apos;s Progress</h3>
-                                    </div>
-                                    <div className="progress-values">
-                                        <span className="current">{todayStats.completed}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{todayStats.total}</span>
-                                        <span className="unit">Tasks</span>
-                                    </div>
-                                </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{todayStats.percentage}% Done</span>
-                                </div>
-                            </div>
-
-                            <div className="progress-meter-card">
-                                <div className="progress-top-row">
-                                    <div className="progress-main-info">
-                                        <h3 className="stat-label">Week&apos;s Progress</h3>
-                                    </div>
-                                    <div className="progress-values">
-                                        <span className="current">{masterWeekStats.completed}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{masterWeekStats.total}</span>
-                                        <span className="unit">Tasks</span>
-                                    </div>
-                                </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{masterWeekStats.percentage}% Done</span>
-                                </div>
-                            </div>
-
-                            <div className="progress-meter-card">
-                                <div className="progress-top-row">
-                                    <div className="progress-main-info">
-                                        <h3 className="stat-label">Month&apos;s Progress</h3>
-                                    </div>
-                                    <div className="progress-values">
-                                        <span className="current">{stats.completedCount}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{stats.monthlyContent}</span>
-                                        <span className="unit">Tasks</span>
-                                    </div>
-                                </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{stats.monthlyContent > 0 ? Math.round((stats.completedCount / stats.monthlyContent) * 100) : 0}% Done</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 
-                        <div className="dashboard-section-header" style={{ marginTop: '32px', marginBottom: '16px' }}>
-                            <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: '4px', height: '18px', background: '#a855f7', borderRadius: '2px' }}></div>
-                                Company&apos;s Calendar Progress (7-Day Offset)
-                            </h2>
-                        </div>
-                        <div className="daily-stats-banner" style={{ marginTop: '0px' }}>
-                            <div className="progress-meter-card company-card">
-                                <div className="progress-top-row">
-                                    <div className="progress-main-info">
-                                        <h3 className="stat-label">Today&apos;s Progress</h3>
-                                    </div>
-                                    <div className="progress-values">
-                                        <span className="current">{companyStats.today.completed}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{companyStats.today.total}</span>
-                                        <span className="unit">Tasks</span>
-                                    </div>
-                                </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{companyStats.today.percentage}% Done</span>
-                                </div>
-                            </div>
-
-                            <div className="progress-meter-card company-card">
-                                <div className="progress-top-row">
-                                    <div className="progress-main-info">
-                                        <h3 className="stat-label">Week&apos;s Progress</h3>
-                                    </div>
-                                    <div className="progress-values">
-                                        <span className="current">{companyStats.week.completed}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{companyStats.week.total}</span>
-                                        <span className="unit">Tasks</span>
-                                    </div>
-                                </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{companyStats.week.percentage}% Done</span>
-                                </div>
-                            </div>
-
-                            <div className="progress-meter-card company-card">
-                                <div className="progress-top-row">
-                                    <div className="progress-main-info">
-                                        <h3 className="stat-label">Month&apos;s Progress</h3>
-                                    </div>
-                                    <div className="progress-values">
-                                        <span className="current">{companyStats.month.completed}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{companyStats.month.total}</span>
-                                        <span className="unit">Tasks</span>
-                                    </div>
-                                </div>
-                                <div className="meter-labels">
-                                    <span className="percentage">{companyStats.month.percentage}% Done</span>
-                                </div>
-                            </div>
-                        </div>
-                        */}
-
-                        <div className="responsive-dashboard-grid">
-                            <div className="dashboard-card">
-                                <div className="card-header">
-                                    <h3 className="card-title">Production Pipeline</h3>
-                                    <span className="card-badge">Live Status</span>
-                                </div>
-
-                                <div className="pipeline-summary">
-                                    <div className="summary-item" style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border)' }}>
-                                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Total Tasks</p>
-                                        <p style={{ fontSize: '24px', fontWeight: 800 }}>{stats.monthlyContent}</p>
-                                    </div>
-                                    <div className="summary-item" style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '12px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                                        <p style={{ fontSize: '11px', color: 'var(--success)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Completed</p>
-                                        <p style={{ fontSize: '24px', fontWeight: 800, color: 'var(--success)' }}>{stats.statusBreakdown['POSTED'] || 0}</p>
-                                    </div>
-                                    <div className="summary-item" style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '16px', borderRadius: '12px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                                        <p style={{ fontSize: '11px', color: 'var(--warning)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Pending</p>
-                                        <p style={{ fontSize: '24px', fontWeight: 800, color: 'var(--warning)' }}>{stats.monthlyContent - (stats.statusBreakdown['POSTED'] || 0)}</p>
-                                    </div>
-                                </div>
-
-                                <div className="status-pipeline">
-                                    {(() => {
-                                        const breakdown = stats.statusBreakdown || {};
-                                        const normalized: Record<string, number> = {};
-                                        Object.entries(breakdown).forEach(([status, count]) => {
-                                            const s = (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') ? 'CONTENT APPROVED' : status;
-                                            normalized[s] = (normalized[s] || 0) + (count as number);
-                                        });
-
-                                        return Object.entries(normalized).map(([status, count]) => {
-                                            // Denominator Logic:
-                                            // Video: Reel, YouTube
-                                            // Graphic: Post
-                                            const s = status.toUpperCase();
-                                            let denominator = stats.monthlyContent || 0;
-
-                                            if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
-                                                denominator = stats.videoCount || 0;
-                                            } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
-                                                denominator = stats.postsCount || 0;
-                                            }
-
-                                            return (
-                                                <div key={status} className="pipeline-item">
-                                                    <div className="pipeline-info">
-                                                        <span className="pipeline-label">{status}</span>
-                                                        <span className="pipeline-count" style={{ fontWeight: 800, color: 'var(--text-primary)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '6px' }}>
-                                                            {count} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>/ {denominator}</span>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        });
-                                    })()}
-
-                                    {Object.keys(stats.statusBreakdown).length === 0 && (
-                                        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                                            No content data available for this month.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="dashboard-card">
-                                <div className="card-header">
-                                    <h3 className="card-title">Filter by Client</h3>
-                                </div>
-                                <div style={{ padding: '24px' }}>
-                                    <div className="client-dropdown-wrapper" style={{ width: '100%', marginBottom: '16px' }}>
+                                <div className="header-actions">
+                                    <div className="client-filter-box">
+                                        <Filter size={16} className="filter-icon" />
                                         <select
-                                            className="client-dropdown"
-                                            style={{ width: '100%', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '12px', color: 'var(--text-primary)', appearance: 'none', cursor: 'pointer' }}
+                                            className="client-select-dropdown"
                                             value={selectedClient}
                                             onChange={(e) => setSelectedClient(e.target.value)}
                                         >
@@ -1433,26 +1187,162 @@ export default function GMDashboard() {
                                                 <option key={c.id} value={c.id}>{c.company_name}</option>
                                             ))}
                                         </select>
-                                        <ChevronDown size={16} className="dropdown-chevron" style={{ right: '16px' }} />
+                                        <ChevronDown size={16} className="select-chevron" />
                                     </div>
-                                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-                                        Select a client to filter the production pipeline and performance metrics. This view helps monitor specific client throughput.
-                                    </p>
-                                    <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <button onClick={() => setView('teams')} className="action-item-simple" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '10px', width: '100%', cursor: 'pointer', transition: 'all 0.2s' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <Users size={16} color="var(--accent)" />
-                                                <span style={{ fontSize: '13px', fontWeight: 600 }}>Manage Teams</span>
+                                </div>
+                            </div>
+
+                            {/* Unified Stats Ribbon */}
+                            <div className="unified-stats-ribbon">
+                                <div className="ribbon-item">
+                                    <div className="ribbon-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                                        <Users size={20} />
+                                    </div>
+                                    <div className="ribbon-info">
+                                        <span className="ribbon-label">Clients</span>
+                                        <span className="ribbon-value">{stats.totalClients}</span>
+                                    </div>
+                                </div>
+                                <div className="ribbon-item">
+                                    <div className="ribbon-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
+                                        <CalendarIcon size={20} />
+                                    </div>
+                                    <div className="ribbon-info">
+                                        <span className="ribbon-label">Scheduled</span>
+                                        <span className="ribbon-value">{stats.monthlyContent}</span>
+                                    </div>
+                                </div>
+                                <div className="ribbon-item">
+                                    <div className="ribbon-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
+                                        <Video size={20} />
+                                    </div>
+                                    <div className="ribbon-info">
+                                        <span className="ribbon-label">Reels</span>
+                                        <span className="ribbon-value">{stats.completedReels}<small>/{stats.reelsCount}</small></span>
+                                    </div>
+                                </div>
+                                <div className="ribbon-item">
+                                    <div className="ribbon-icon" style={{ background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-secondary)' }}>
+                                        <FileText size={20} />
+                                    </div>
+                                    <div className="ribbon-info">
+                                        <span className="ribbon-label">Posts</span>
+                                        <span className="ribbon-value">{stats.completedPosts}<small>/{stats.postsCount}</small></span>
+                                    </div>
+                                </div>
+                                <div className="ribbon-item">
+                                    <div className="ribbon-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+                                        <Clock size={20} />
+                                    </div>
+                                    <div className="ribbon-info">
+                                        <span className="ribbon-label">Pending</span>
+                                        <span className="ribbon-value">{stats.pendingCount}</span>
+                                    </div>
+                                </div>
+                                <div className="ribbon-item">
+                                    <div className="ribbon-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
+                                        <Check size={20} />
+                                    </div>
+                                    <div className="ribbon-info">
+                                        <span className="ribbon-label">Completed</span>
+                                        <span className="ribbon-value">{stats.completedCount}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="unified-body-grid">
+                                {/* Left Panel: Progress Gauges */}
+                                <div className="unified-progress-panel">
+                                    <h4 className="panel-title">Production Progress</h4>
+                                    <div className="progress-stack">
+                                        <div className="mini-progress-card">
+                                            <div className="mini-info">
+                                                <span>Today</span>
+                                                <strong>{todayStats.completed}/{todayStats.total}</strong>
                                             </div>
-                                            <ArrowRight size={14} color="var(--text-muted)" />
-                                        </button>
-                                        <button onClick={() => setView('master')} className="action-item-simple" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '10px', width: '100%', cursor: 'pointer', transition: 'all 0.2s' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <Globe size={16} color="var(--accent)" />
-                                                <span style={{ fontSize: '13px', fontWeight: 600 }}>Master Calendar</span>
+                                            <div className="mini-bar-bg">
+                                                <div className="mini-bar-fill" style={{ width: `${todayStats.percentage}%`, background: 'var(--accent)' }}></div>
                                             </div>
-                                            <ArrowRight size={14} color="var(--text-muted)" />
+                                        </div>
+                                        <div className="mini-progress-card">
+                                            <div className="mini-info">
+                                                <span>This Week</span>
+                                                <strong>{masterWeekStats.completed}/{masterWeekStats.total}</strong>
+                                            </div>
+                                            <div className="mini-bar-bg">
+                                                <div className="mini-bar-fill" style={{ width: `${masterWeekStats.percentage}%`, background: 'var(--success)' }}></div>
+                                            </div>
+                                        </div>
+                                        <div className="mini-progress-card">
+                                            <div className="mini-info">
+                                                <span>This Month</span>
+                                                <strong>{stats.completedCount}/{stats.monthlyContent}</strong>
+                                            </div>
+                                            <div className="mini-bar-bg">
+                                                <div className="mini-bar-fill" style={{ width: `${stats.monthlyContent > 0 ? Math.round((stats.completedCount / stats.monthlyContent) * 100) : 0}%`, background: 'var(--warning)' }}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="quick-nav-box">
+                                        <button onClick={() => setView('teams')} className="quick-nav-btn">
+                                            <Users size={16} />
+                                            <span>Manage Teams</span>
                                         </button>
+                                        <button onClick={() => setView('master')} className="quick-nav-btn">
+                                            <Globe size={16} />
+                                            <span>Master Calendar</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Right Panel: Detailed Pipeline */}
+                                <div className="unified-pipeline-panel">
+                                    <div className="pipeline-header">
+                                        <h4 className="panel-title">Production Status Breakdown</h4>
+                                        <span className="live-tag">LIVE</span>
+                                    </div>
+                                    
+                                    <div className="unified-status-list">
+                                        {(() => {
+                                            const breakdown = stats.statusBreakdown || {};
+                                            const normalized: Record<string, number> = {};
+                                            Object.entries(breakdown).forEach(([status, count]) => {
+                                                const s = (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') ? 'CONTENT APPROVED' : status;
+                                                normalized[s] = (normalized[s] || 0) + (count as number);
+                                            });
+
+                                            return Object.entries(normalized).map(([status, count]) => {
+                                                const s = status.toUpperCase();
+                                                let denominator = stats.monthlyContent || 0;
+
+                                                if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
+                                                    denominator = stats.videoCount || 0;
+                                                } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
+                                                    denominator = stats.postsCount || 0;
+                                                }
+
+                                                const percentage = denominator > 0 ? Math.round((count / denominator) * 100) : 0;
+
+                                                return (
+                                                    <div key={status} className="unified-pipeline-item">
+                                                        <div className="item-meta">
+                                                            <span className="status-label">{status}</span>
+                                                            <span className="status-count">{count} / {denominator}</span>
+                                                        </div>
+                                                        <div className="status-bar-bg">
+                                                            <div className="status-bar-fill" style={{ width: `${percentage}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+
+                                        {Object.keys(stats.statusBreakdown).length === 0 && (
+                                            <div className="empty-pipeline">
+                                                No content data available for this period.
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
