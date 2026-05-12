@@ -2,17 +2,16 @@
 
 ## Latest Changes
 - **Date**: 2026-05-12
-- **Goal**: Standardize calendar UI differentiation for out-of-month dates.
+- **Goal**: Standardize and fix visibility of employee assignment names in calendar badges, including removing the status dot for a cleaner look.
 - **Affected Files**:
-    - `frontend/src/app/admin/admin.css`: Updated `.calendar-day.other-month` and added light mode overrides.
-    - `frontend/src/app/gm/dashboard/gm.css`: Updated light mode override for `.calendar-day.other-month`.
-    - `frontend/src/app/tl/dashboard/tl.css`: Updated light mode override for `.calendar-day.other-month`.
-    - `frontend/src/app/coo/dashboard/coo.css`: Added light mode override for `.calendar-day.other-month`.
-    - `frontend/src/app/ph/dashboard/ph.css`: Added `.calendar-day.other-month` styles for both dark and light modes.
-    - `frontend/src/app/posting/posting.css`: Added `.calendar-day.other-month` styles for both dark and light modes.
-    - `frontend/src/app/admin/master-calendar/calendar.module.css`: Updated `.otherMonth` to use the premium striped pattern.
+    - `frontend/src/app/admin/admin.css`: Optimized badge spacing and added `flex-shrink: 0`.
+    - `frontend/src/app/gm/dashboard/gm.css`: Optimized badge spacing and added `flex-shrink: 0`.
+    - `frontend/src/app/admin/master-calendar/page.tsx`: Improved truncation logic and readability.
+    - `frontend/src/app/gm/dashboard/page.tsx`: Improved truncation logic, readability, and fixed missing `adminApi` import.
 
 ## System Impact
-- Improved visual differentiation of calendar dates across all primary dashboards (Admin, GM, TL, COO, PH, Posting).
-- Consistent look and feel in both light and dark themes.
-- Enhanced readability by dimming day numbers in inactive months.
+- Employee names are now clearly visible in the calendar view, even in narrow cells.
+- Balanced text truncation between client names and assignment badges.
+- Improved overall UI/UX for workload monitoring.
+
+

@@ -53,6 +53,7 @@ import {
     gmApi,
     emergencyApi,
     dashboardApi,
+    adminApi,
     ContentItem,
     PocNote,
     StatusHistoryItem,
@@ -117,6 +118,8 @@ export default function GMDashboard() {
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [isFreelancerModalOpen, setIsFreelancerModalOpen] = useState(false);
     const [userRole, setUserRole] = useState<string | null>(null);
+    const [employees, setEmployees] = useState<any[]>([]);
+
 
     const isMasterMode = view === 'master' || view === 'company';
     const isCompanyMode = view === 'company';
@@ -277,6 +280,24 @@ export default function GMDashboard() {
             }
         } catch (err) { console.error('Error fetching clients:', err); }
     }, [selectedClient, view]);
+
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const res = await adminApi.getTeam();
+            setEmployees(res.data);
+        } catch (err) { console.error(err); }
+    }, []);
+
+    useEffect(() => {
+        fetchEmployees();
+    }, [fetchEmployees]);
+
+    const getEmployeeName = (id: string | null | undefined) => {
+        if (!id) return 'Unassigned';
+        const emp = employees.find(e => e.user_id === id);
+        return emp ? emp.name : 'Unassigned';
+    };
+
 
 
     const [stats, setStats] = useState({
@@ -1687,12 +1708,25 @@ export default function GMDashboard() {
                                                             }}
                                                             className={isPocView ? 'content-item post' : `content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                         >
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
                                                                 {isPocView ? <FileText size={10} /> : item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                                <span className="truncate" style={{ flex: 1 }}>
-                                                                    {isPocView
-                                                                        ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
-                                                                        : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${item.content_type}`}
+                                                                <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                                                                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
+                                                                        {isPocView
+                                                                            ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
+                                                                            : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' || view === 'gm' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${item.content_type}`}
+                                                                    </span>
+                                                                    {!isPocView && (
+                                                                        item.assigned_to ? (
+                                                                            <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ padding: '1px 6px', marginTop: 0, lineHeight: '14px' }}>
+                                                                                <span className="assignment-name">{getEmployeeName(item.assigned_to)}</span>
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="assignment-badge unassigned" title="Unassigned" style={{ padding: '1px 6px', marginTop: 0, lineHeight: '14px' }}>
+                                                                                <span className="assignment-name">Unassigned</span>
+                                                                            </span>
+                                                                        )
+                                                                    )}
                                                                 </span>
                                                                 {!isPocView && (
                                                                     item.status === 'POSTED' ? (

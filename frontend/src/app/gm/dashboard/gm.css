@@ -2515,3 +2515,47 @@
     }
 }
 
+/* ─── Assignment Badges ─── */
+.assignment-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.4;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    margin-top: 0;
+    flex-shrink: 0;
+}
+
+.assignment-badge.assigned {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.assignment-badge.unassigned {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.assignment-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+}
+
+.assignment-name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
