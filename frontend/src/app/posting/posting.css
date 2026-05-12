@@ -20,18 +20,48 @@
     opacity: 0;
 }
 
-.queue-item:nth-child(1) { animation-delay: 0.05s; }
-.queue-item:nth-child(2) { animation-delay: 0.1s; }
-.queue-item:nth-child(3) { animation-delay: 0.15s; }
-.queue-item:nth-child(4) { animation-delay: 0.2s; }
-.queue-item:nth-child(5) { animation-delay: 0.25s; }
-.queue-item:nth-child(6) { animation-delay: 0.3s; }
-.queue-item:nth-child(7) { animation-delay: 0.35s; }
-.queue-item:nth-child(8) { animation-delay: 0.4s; }
+.queue-item:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.queue-item:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.queue-item:nth-child(3) {
+    animation-delay: 0.15s;
+}
+
+.queue-item:nth-child(4) {
+    animation-delay: 0.2s;
+}
+
+.queue-item:nth-child(5) {
+    animation-delay: 0.25s;
+}
+
+.queue-item:nth-child(6) {
+    animation-delay: 0.3s;
+}
+
+.queue-item:nth-child(7) {
+    animation-delay: 0.35s;
+}
+
+.queue-item:nth-child(8) {
+    animation-delay: 0.4s;
+}
 
 @keyframes slideInUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .queue-item:hover {
@@ -166,14 +196,16 @@
 .btn-mark-posted .spinner-small {
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(255,255,255,0.3);
+    border: 2px solid rgba(255, 255, 255, 0.3);
     border-top-color: white;
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Empty State */
@@ -261,7 +293,7 @@
     justify-content: center;
     flex-shrink: 0;
     font-size: 24px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .posting-stat-info h4 {
@@ -387,8 +419,13 @@
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .posting-detail-card {
@@ -398,15 +435,22 @@
     padding: 32px;
     width: 100%;
     max-width: 540px;
-    box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     max-height: 85vh;
     overflow-y: auto;
 }
 
 @keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .posting-detail-header {
@@ -470,7 +514,7 @@
     display: flex;
     gap: 12px;
     padding: 10px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .history-item:last-child {
@@ -514,9 +558,19 @@
 }
 
 @keyframes successPulse {
-    0% { transform: scale(0.9); opacity: 0; }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 /* Toast Notification */
@@ -531,7 +585,7 @@
     background: var(--bg-surface);
     border: 1px solid rgba(16, 185, 129, 0.3);
     border-radius: 14px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
     z-index: 3000;
     animation: toastIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     color: var(--success);
@@ -540,8 +594,15 @@
 }
 
 @keyframes toastIn {
-    from { opacity: 0; transform: translateY(20px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 /* Mobile Responsiveness (GM Style) */
@@ -619,7 +680,7 @@
         align-items: flex-start !important;
         padding: 20px !important;
     }
-    
+
     .meter-container {
         width: 100% !important;
     }
@@ -774,7 +835,7 @@
     border-radius: 24px;
     padding: 32px;
     backdrop-filter: blur(20px);
-    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
 }
 
 .progress-info {
@@ -865,8 +926,13 @@
 }
 
 @keyframes shimmer {
-    0% { transform: translateX(-100px); }
-    100% { transform: translateX(500px); }
+    0% {
+        transform: translateX(-100px);
+    }
+
+    100% {
+        transform: translateX(500px);
+    }
 }
 
 /* Emergency Tasks */
@@ -1006,12 +1072,15 @@
 }
 
 /* ─── Mobile Dot Calendar Styles (GM Unified) ─── */
-.mobile-day, .mobile-day-indicators {
+.mobile-day,
+.mobile-day-indicators {
     display: none;
 }
 
 @media (max-width: 768px) {
-    .desktop-day, .desktop-only {
+
+    .desktop-day,
+    .desktop-only {
         display: none !important;
     }
 
@@ -1036,13 +1105,25 @@
         height: 4px;
         border-radius: 2px;
         background: var(--accent);
-        box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
 
-    .mobile-dot.post { background: #3b82f6 !important; }
-    .mobile-dot.reel { background: #a855f7 !important; }
-    .mobile-dot.rescheduled { background: #ef4444 !important; }
-    .mobile-dot.emergency { background: #ef4444 !important; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+    .mobile-dot.post {
+        background: #3b82f6 !important;
+    }
+
+    .mobile-dot.reel {
+        background: #a855f7 !important;
+    }
+
+    .mobile-dot.rescheduled {
+        background: #ef4444 !important;
+    }
+
+    .mobile-dot.emergency {
+        background: #ef4444 !important;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+    }
 
     .calendar-day {
         min-height: 80px !important;
@@ -1058,7 +1139,8 @@
     }
 
     /* Aggressively hide all desktop event blocks on mobile */
-    .day-items.desktop-only, .content-item {
+    .day-items.desktop-only,
+    .content-item {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
@@ -1214,12 +1296,29 @@
     color: var(--text-primary);
 }
 
-.status-pill-content { border-left: 4px solid #3b82f6; }
-.status-pill-design { border-left: 4px solid #8b5cf6; }
-.status-pill-posted { border-left: 4px solid #10b981; }
-.status-pill-reels { border-left: 4px solid #f59e0b; }
-.status-pill-posts { border-left: 4px solid #10b981; }
-.status-pill-shoot-done { border-left: 4px solid #6366f1; }
+.status-pill-content {
+    border-left: 4px solid #3b82f6;
+}
+
+.status-pill-design {
+    border-left: 4px solid #8b5cf6;
+}
+
+.status-pill-posted {
+    border-left: 4px solid #10b981;
+}
+
+.status-pill-reels {
+    border-left: 4px solid #f59e0b;
+}
+
+.status-pill-posts {
+    border-left: 4px solid #10b981;
+}
+
+.status-pill-shoot-done {
+    border-left: 4px solid #6366f1;
+}
 
 
 /* --- Emergency & Pending Task Panels --- */
@@ -1323,13 +1422,11 @@
 
 /* ─── Calendar Enhancements ─── */
 .calendar-day.other-month {
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(0, 0, 0, 0.1),
-        rgba(0, 0, 0, 0.1) 10px,
-        rgba(0, 0, 0, 0.2) 10px,
-        rgba(0, 0, 0, 0.2) 20px
-    ) !important;
+    background: repeating-linear-gradient(45deg,
+            rgba(255, 255, 255, 0.1),
+            rgba(255, 255, 255, 0.1) 10px,
+            rgba(255, 255, 255, 0.2) 10px,
+            rgba(255, 255, 255, 0.2) 20px) !important;
     opacity: 0.4;
 }
 
@@ -1338,12 +1435,10 @@
 }
 
 [data-theme='light'] .calendar-day.other-month {
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(0, 0, 0, 0.02),
-        rgba(0, 0, 0, 0.02) 10px,
-        rgba(0, 0, 0, 0.05) 10px,
-        rgba(0, 0, 0, 0.05) 20px
-    ) !important;
+    background: repeating-linear-gradient(45deg,
+            rgba(0, 0, 0, 0.02),
+            rgba(0, 0, 0, 0.02) 10px,
+            rgba(0, 0, 0, 0.05) 10px,
+            rgba(0, 0, 0, 0.05) 20px) !important;
     opacity: 0.6;
 }

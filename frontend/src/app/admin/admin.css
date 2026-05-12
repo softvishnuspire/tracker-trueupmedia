@@ -347,10 +347,21 @@
     color: white;
 }
 
-.tl-bg { background: linear-gradient(135deg, #6366f1, #818cf8); }
-.emp-bg { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
-.client-bg { background: linear-gradient(135deg, #10b981, #34d399); }
-.task-bg { background: linear-gradient(135deg, #ec4899, #f472b6); }
+.tl-bg {
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+}
+
+.emp-bg {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+}
+
+.client-bg {
+    background: linear-gradient(135deg, #10b981, #34d399);
+}
+
+.task-bg {
+    background: linear-gradient(135deg, #ec4899, #f472b6);
+}
 
 .summary-data {
     display: flex;
@@ -566,7 +577,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 100%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
     pointer-events: none;
 }
 
@@ -654,13 +665,11 @@
 }
 
 .calendar-day.other-month {
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(0, 0, 0, 0.1),
-        rgba(0, 0, 0, 0.1) 10px,
-        rgba(0, 0, 0, 0.2) 10px,
-        rgba(0, 0, 0, 0.2) 20px
-    ) !important;
+    background: repeating-linear-gradient(45deg,
+            rgba(255, 255, 255, 0.1),
+            rgba(255, 255, 255, 0.1) 10px,
+            rgba(255, 255, 255, 0.2) 10px,
+            rgba(255, 255, 255, 0.2) 20px) !important;
     opacity: 0.4;
 }
 
@@ -669,13 +678,11 @@
 }
 
 [data-theme='light'] .calendar-day.other-month {
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(0, 0, 0, 0.02),
-        rgba(0, 0, 0, 0.02) 10px,
-        rgba(0, 0, 0, 0.05) 10px,
-        rgba(0, 0, 0, 0.05) 20px
-    ) !important;
+    background: repeating-linear-gradient(45deg,
+            rgba(0, 0, 0, 0.02),
+            rgba(0, 0, 0, 0.02) 10px,
+            rgba(0, 0, 0, 0.05) 10px,
+            rgba(0, 0, 0, 0.05) 20px) !important;
     opacity: 0.6;
 }
 
@@ -933,7 +940,8 @@
     white-space: nowrap;
 }
 
-.admin-table td:last-child, .admin-table th:last-child {
+.admin-table td:last-child,
+.admin-table th:last-child {
     max-width: none;
     width: 120px;
     text-align: right;
@@ -1109,7 +1117,8 @@
     backdrop-filter: blur(12px);
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* Ensure scrolling starts from top */
+    align-items: flex-start;
+    /* Ensure scrolling starts from top */
     z-index: 2000;
     animation: fadeIn 0.2s ease;
     overflow-y: auto;
@@ -1257,13 +1266,25 @@
 }
 
 @keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 /* ─── Utility ─── */
@@ -1511,13 +1532,25 @@
 }
 
 @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(500%); }
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(500%);
+    }
 }
 
 @media (max-width: 768px) {
@@ -1527,7 +1560,7 @@
         align-items: flex-start;
         padding: 20px;
     }
-    
+
     .meter-container {
         width: 100%;
     }
@@ -1836,12 +1869,15 @@
 }
 
 /* ─── Mobile Dot Calendar Styles (GM Unified) ─── */
-.mobile-day, .mobile-day-indicators {
+.mobile-day,
+.mobile-day-indicators {
     display: none;
 }
 
 @media (max-width: 768px) {
-    .desktop-day, .desktop-only {
+
+    .desktop-day,
+    .desktop-only {
         display: none !important;
     }
 
@@ -1866,13 +1902,25 @@
         height: 4px;
         border-radius: 2px;
         background: var(--accent);
-        box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
 
-    .mobile-dot.post { background: #3b82f6 !important; }
-    .mobile-dot.reel { background: #a855f7 !important; }
-    .mobile-dot.rescheduled { background: #ef4444 !important; }
-    .mobile-dot.emergency { background: #ef4444 !important; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+    .mobile-dot.post {
+        background: #3b82f6 !important;
+    }
+
+    .mobile-dot.reel {
+        background: #a855f7 !important;
+    }
+
+    .mobile-dot.rescheduled {
+        background: #ef4444 !important;
+    }
+
+    .mobile-dot.emergency {
+        background: #ef4444 !important;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+    }
 
     .calendar-day {
         min-height: 80px !important;
@@ -1888,7 +1936,8 @@
     }
 
     /* Aggressively hide all desktop event blocks on mobile */
-    .day-items.desktop-only, .content-item {
+    .day-items.desktop-only,
+    .content-item {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
@@ -2271,20 +2320,20 @@
     .detail-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .detail-body {
         max-height: calc(100vh - 120px);
     }
-    
+
     .stats-grid {
         grid-template-columns: 1fr !important;
     }
-    
+
     .daily-stats-banner {
         flex-direction: column !important;
         gap: 16px !important;
     }
-    
+
     .pipeline-stats-grid {
         grid-template-columns: 1fr !important;
     }
@@ -2323,7 +2372,7 @@
         display: flex !important;
     }
 
-    .form-row > .form-group {
+    .form-row>.form-group {
         width: 100% !important;
     }
 
@@ -2573,7 +2622,7 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
 }
 
 .section-header {
@@ -2782,8 +2831,16 @@
 }
 
 @keyframes pulse-ring {
-    0% { transform: scale(.33); opacity: 1; }
-    80%, 100% { transform: scale(2.5); opacity: 0; }
+    0% {
+        transform: scale(.33);
+        opacity: 1;
+    }
+
+    80%,
+    100% {
+        transform: scale(2.5);
+        opacity: 0;
+    }
 }
 
 .loading-skeleton {
@@ -2794,8 +2851,13 @@
 }
 
 @keyframes skeleton-loading {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
 }
 
 .mobile-day-indicators {
@@ -2814,15 +2876,36 @@
     background: var(--accent);
 }
 
-.mobile-dot.post { background: #3b82f6; }
-.mobile-dot.reel { background: #a855f7; }
-.mobile-dot.youtube { background: #ef4444; }
-.mobile-dot.emergency { background: #ef4444; box-shadow: 0 0 5px #ef4444; }
+.mobile-dot.post {
+    background: #3b82f6;
+}
+
+.mobile-dot.reel {
+    background: #a855f7;
+}
+
+.mobile-dot.youtube {
+    background: #ef4444;
+}
+
+.mobile-dot.emergency {
+    background: #ef4444;
+    box-shadow: 0 0 5px #ef4444;
+}
 
 @media (max-width: 768px) {
-    .desktop-only { display: none !important; }
-    .mobile-day-indicators { display: flex; }
-    .calendar-day { min-height: 60px !important; padding: 4px; }
+    .desktop-only {
+        display: none !important;
+    }
+
+    .mobile-day-indicators {
+        display: flex;
+    }
+
+    .calendar-day {
+        min-height: 60px !important;
+        padding: 4px;
+    }
 }
 
 /* ─── Assignment Badges ─── */
@@ -2867,4 +2950,3 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-

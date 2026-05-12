@@ -678,7 +678,6 @@ export default function GMDashboard() {
 
     const handleUndoStatus = async () => {
         if (!activeItem) return;
-        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
         try {
             await gmApi.undoStatus(activeItem.item.id);
             const res = await gmApi.getContentDetails(activeItem.item.id);
@@ -686,7 +685,6 @@ export default function GMDashboard() {
             if (isMasterMode) fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
         } catch (err) {
             console.error(err);
-            alert('Failed to undo status change. It might be because there is no more history to undo.');
         }
     };
 

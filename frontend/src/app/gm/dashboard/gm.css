@@ -1166,10 +1166,10 @@
 
 .calendar-day.other-month {
     background: repeating-linear-gradient(45deg,
-            rgba(0, 0, 0, 0.1),
-            rgba(0, 0, 0, 0.1) 10px,
-            rgba(0, 0, 0, 0.2) 10px,
-            rgba(0, 0, 0, 0.2) 20px) !important;
+            rgba(255, 255, 255, 0.1),
+            rgba(255, 255, 255, 0.1) 10px,
+            rgba(255, 255, 255, 0.2) 10px,
+            rgba(255, 255, 255, 0.2) 20px) !important;
     opacity: 0.4;
 }
 
