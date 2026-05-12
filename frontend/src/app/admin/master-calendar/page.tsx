@@ -59,6 +59,8 @@ export default function MasterCalendar() {
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
     const [isFreelancerModalOpen, setIsFreelancerModalOpen] = useState(false);
     const [userRole, setUserRole] = useState<string | null>(null);
+    const [employees, setEmployees] = useState<any[]>([]);
+
 
     const supabase = createClient();
 
@@ -83,9 +85,25 @@ export default function MasterCalendar() {
                 setClients(res.data);
             } catch (err) { console.error(err); }
         };
+
+        const fetchTeam = async () => {
+            try {
+                const res = await adminApi.getTeam();
+                setEmployees(res.data);
+            } catch (err) { console.error(err); }
+        };
+
         fetchUserData();
         fetchClients();
+        fetchTeam();
     }, []);
+
+    const getEmployeeName = (id: string | null | undefined) => {
+        if (!id) return 'Unassigned';
+        const emp = employees.find(e => e.user_id === id);
+        return emp ? emp.name : 'Unassigned';
+    };
+
 
     const fetchMasterData = useCallback(async () => {
         setLoading(true);
@@ -402,9 +420,20 @@ export default function MasterCalendar() {
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
                                                         {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
-                                                            {item.is_rescheduled ? '[R] ' : ''}
-                                                            [{item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
+                                                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                                                            <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
+                                                                {item.is_rescheduled ? '[R] ' : ''}
+                                                                [{item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
+                                                            </span>
+                                                            {item.assigned_to ? (
+                                                                <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ padding: '1px 6px', marginTop: 0 }}>
+                                                                    <span className="assignment-name">{getEmployeeName(item.assigned_to)}</span>
+                                                                </span>
+                                                            ) : (
+                                                                <span className="assignment-badge unassigned" title="Unassigned" style={{ padding: '1px 6px', marginTop: 0 }}>
+                                                                    <span className="assignment-name">Unassigned</span>
+                                                                </span>
+                                                            )}
                                                         </span>
                                                         {item.status === 'POSTED' ? (
                                                             <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />

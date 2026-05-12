@@ -619,7 +619,18 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
 app.post('/api/gm/content/:id/undo-status', requireRoles(TL_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
-        // Fetch the latest log
+        // Fetch current item first
+        const { data: currentItem, error: itemError } = await supabase
+            .from('content_items')
+            .select('status, content_type')
+            .eq('id', id)
+            .single();
+
+        if (itemError || !currentItem) {
+            return res.status(404).json({ error: 'Content item not found' });
+        }
+
+        // Try to get the latest log entry
         const { data: latestLog, error: logFetchError } = await supabase
             .from('status_logs')
             .select('*')
@@ -628,24 +639,39 @@ app.post('/api/gm/content/:id/undo-status', requireRoles(TL_ROLES), async (req, 
             .limit(1)
             .single();
 
-        if (logFetchError || !latestLog) {
-            return res.status(404).json({ error: 'No status history found to undo' });
+        let previousStatus;
+        let hasLog = !logFetchError && latestLog;
+
+        if (hasLog) {
+            // Prefer the recorded old_status from history log
+            previousStatus = latestLog.old_status;
+        } else {
+            // Fallback: step back one position in the STATUS_FLOWS array
+            const flow = STATUS_FLOWS[currentItem.content_type];
+            const currentIndex = flow ? flow.indexOf(currentItem.status) : -1;
+
+            if (!flow || currentIndex <= 0) {
+                return res.status(400).json({ error: 'Already at the initial status. Nothing to undo.' });
+            }
+            previousStatus = flow[currentIndex - 1];
         }
 
         // Revert status in content_items
         const { error: revertError } = await supabase
             .from('content_items')
-            .update({ status: latestLog.old_status, updated_at: new Date().toISOString() })
+            .update({ status: previousStatus, updated_at: new Date().toISOString() })
             .eq('id', id);
 
         if (revertError) {
             return res.status(500).json({ error: 'Failed to revert status' });
         }
 
-        // Delete the log entry
-        await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+        // Delete the log entry if one was used
+        if (hasLog) {
+            await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+        }
 
-        res.json({ message: 'Status reverted successfully', previous_status: latestLog.old_status });
+        res.json({ message: 'Status reverted successfully', previous_status: previousStatus });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
