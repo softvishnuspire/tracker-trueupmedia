@@ -122,8 +122,18 @@
 }
 
 .otherMonth {
-  background: #fafafa;
-  color: #d1d5db;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.05),
+    rgba(0, 0, 0, 0.05) 10px,
+    rgba(0, 0, 0, 0.1) 10px,
+    rgba(0, 0, 0, 0.1) 20px
+  ) !important;
+  opacity: 0.5;
+}
+
+.otherMonth .dayNumber {
+  opacity: 0.5;
 }
 
 .today {

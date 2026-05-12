@@ -1152,3 +1152,30 @@
     padding-left: 8px;
 }
 
+/* ─── Calendar Enhancements ─── */
+.calendar-day.other-month {
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 0.1),
+        rgba(0, 0, 0, 0.1) 10px,
+        rgba(0, 0, 0, 0.2) 10px,
+        rgba(0, 0, 0, 0.2) 20px
+    ) !important;
+    opacity: 0.4;
+}
+
+.calendar-day.other-month .day-number {
+    opacity: 0.5;
+}
+
+[data-theme='light'] .calendar-day.other-month {
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 0.02),
+        rgba(0, 0, 0, 0.02) 10px,
+        rgba(0, 0, 0, 0.05) 10px,
+        rgba(0, 0, 0, 0.05) 20px
+    ) !important;
+    opacity: 0.6;
+}
+
