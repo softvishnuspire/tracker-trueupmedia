@@ -75,8 +75,12 @@ export default function EmployeeTrackingPage() {
         try {
             const res = await adminApi.getTrackingStats(date);
             setStats(res.data);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error fetching tracking stats:', err);
+            const detailMsg = err.response?.data?.details || err.response?.data?.error;
+            if (detailMsg) {
+                alert(`API Error: ${detailMsg}`);
+            }
         } finally {
             setLoading(false);
         }
@@ -361,6 +365,46 @@ export default function EmployeeTrackingPage() {
                                         <div className="progress-bar-container">
                                             <div className="progress-bar-fill" style={{ width: `${emp.completionRate * 100}%` }}></div>
                                         </div>
+
+                                        {emp.tasks && emp.tasks.length > 0 && (
+                                            <div className="card-tasks-list" style={{ marginTop: '16px', fontSize: '12px' }}>
+                                                <p className="section-label" style={{ marginBottom: '8px' }}>Task Details</p>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                    {emp.tasks.map(task => {
+                                                        const isDone = task.employeeStatus === 'COMPLETED' || ['POSTED', 'APPROVED', 'WAITING FOR POSTING'].includes(task.status?.toUpperCase());
+                                                        return (
+                                                            <div key={task.id} style={{ 
+                                                                display: 'flex', 
+                                                                justifyContent: 'space-between', 
+                                                                alignItems: 'center',
+                                                                padding: '6px 8px',
+                                                                background: 'rgba(255,255,255,0.03)',
+                                                                borderRadius: '6px',
+                                                                borderLeft: `2px solid ${isDone ? 'var(--success)' : 'var(--accent)'}`
+                                                            }}>
+                                                                <div style={{ flex: 1, marginRight: '8px', overflow: 'hidden' }}>
+                                                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                        {task.title}
+                                                                    </div>
+                                                                    <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{task.clientName}</div>
+                                                                </div>
+                                                                <div style={{ 
+                                                                    fontSize: '9px', 
+                                                                    fontWeight: 800, 
+                                                                    padding: '2px 6px', 
+                                                                    borderRadius: '4px',
+                                                                    background: isDone ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                                                    color: isDone ? 'var(--success)' : 'var(--accent)',
+                                                                    textTransform: 'uppercase'
+                                                                }}>
+                                                                    {isDone ? 'Done' : 'Pending'}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </motion.div>
                             )) : (

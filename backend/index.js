@@ -203,7 +203,7 @@ const getRequesterRole = async (user) => {
     return resolvedRole;
 };
 
-const ADMIN_ROLES = ['ADMIN'];
+const ADMIN_ROLES = ['ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'PH', 'PRODUCTION HEAD', 'TEAM LEAD', 'TL'];
 const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN'];
 const COO_ROLES = ['COO', 'ADMIN'];
 const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER'];
@@ -226,7 +226,10 @@ const requireRoles = (allowedRoles) => {
             }
             if (!normalizedAllowed.includes(resolvedRole)) {
                 console.warn(`[Auth] Forbidden: User ${req.user?.id} with role ${resolvedRole} tried to access restricted route. Allowed: ${normalizedAllowed.join(', ')}`);
-                return res.status(403).json({ error: 'Forbidden' });
+                return res.status(403).json({ 
+                    error: 'Forbidden', 
+                    details: `Your role (${resolvedRole}) does not have permission for this action. Required roles: ${normalizedAllowed.join(', ')}` 
+                });
             }
             req.resolvedRole = resolvedRole;
             next();
@@ -1056,7 +1059,7 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
 });
 
 // ─── Admin: Employee & TL Tracking ───
-app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (req, res) => {
+app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLOYEE', 'POSTING TEAM', 'POSTING']), async (req, res) => {
     try {
         const today = req.query.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
@@ -1067,8 +1070,17 @@ app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (re
 
         if (userError) throw userError;
 
-        const teamLeads = users.filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role || u.role_identifier));
-        const employees = users.filter(u => ['EMPLOYEE', 'POSTING TEAM', 'POSTING_TEAM'].includes(u.role || u.role_identifier));
+        const teamLeads = users.filter(u => {
+            const r = normalizeRole(u.role);
+            const ri = normalizeRole(u.role_identifier);
+            return ri.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
+        });
+
+        const employees = users.filter(u => {
+            const r = normalizeRole(u.role);
+            const ri = normalizeRole(u.role_identifier);
+            return ['EMPLOYEE'].includes(r) || ['EMPLOYEE'].includes(ri);
+        });
 
         // 2. Fetch Client Assignments for TLs
         const { data: clients, error: clientError } = await supabase
@@ -1087,14 +1099,50 @@ app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (re
 
         if (pocError) throw pocError;
 
-        // 4. Fetch TODAY'S Content Items (for both Employee and TL stats)
-        const { data: todayTasks, error: taskError } = await supabase
-            .from('content_items')
-            .select('id, client_id, assigned_to, employee_task_status, status, scheduled_datetime')
-            .gte('scheduled_datetime', `${today}T00:00:00Z`)
-            .lte('scheduled_datetime', `${today}T23:59:59Z`);
+        // 4. Fetch Relevant Content Items & Freelancer Tasks
+        const dayStart = `${today}T00:00:00Z`;
+        const dayEnd = `${today}T23:59:59Z`;
 
-        if (taskError) throw taskError;
+        const [
+            contentTodayRes,
+            contentActiveRes,
+            contentAssignedRes,
+            contentUpdatedRes,
+            freelanceTodayRes,
+            freelanceActiveRes,
+            freelanceAssignedRes,
+            freelanceUpdatedRes
+        ] = await Promise.all([
+            // Content Items
+            supabase.from('content_items').select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, clients(company_name)').gte('scheduled_datetime', dayStart).lte('scheduled_datetime', dayEnd),
+            supabase.from('content_items').select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, clients(company_name)').not('status', 'in', '("POSTED","APPROVED")'),
+            supabase.from('content_items').select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, clients(company_name)').gte('assigned_at', dayStart).lte('assigned_at', dayEnd),
+            supabase.from('content_items').select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, clients(company_name)').gte('updated_at', dayStart).lte('updated_at', dayEnd),
+            // Freelancer Tasks
+            supabase.from('freelancer_tasks').select('id, title, assigned_to, employee_task_status, status, scheduled_datetime').gte('scheduled_datetime', dayStart).lte('scheduled_datetime', dayEnd),
+            supabase.from('freelancer_tasks').select('id, title, assigned_to, employee_task_status, status, scheduled_datetime').not('status', 'in', '("POSTED","APPROVED")'),
+            supabase.from('freelancer_tasks').select('id, title, assigned_to, employee_task_status, status, scheduled_datetime').gte('assigned_at', dayStart).lte('assigned_at', dayEnd),
+            supabase.from('freelancer_tasks').select('id, title, assigned_to, employee_task_status, status, scheduled_datetime').gte('updated_at', dayStart).lte('updated_at', dayEnd)
+        ]);
+
+        const taskMap = new Map();
+        
+        const processContentTask = (t) => {
+            if (!taskMap.has(t.id)) taskMap.set(t.id, { ...t, clientName: t.clients?.company_name || 'Direct' });
+        };
+        const processFreelanceTask = (t) => {
+            if (!taskMap.has(t.id)) taskMap.set(t.id, { ...t, clientName: 'Freelancer Task' });
+        };
+
+        [contentTodayRes, contentActiveRes, contentAssignedRes, contentUpdatedRes].forEach(res => {
+            if (!res.error && res.data) res.data.forEach(processContentTask);
+        });
+        
+        [freelanceTodayRes, freelanceActiveRes, freelanceAssignedRes, freelanceUpdatedRes].forEach(res => {
+            if (!res.error && res.data) res.data.forEach(processFreelanceTask);
+        });
+
+        const todayTasks = Array.from(taskMap.values());
 
         // --- Aggregate TL Stats ---
         const tlStats = teamLeads.map(tl => {
@@ -1111,11 +1159,11 @@ app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (re
             
             const talkedCount = assignedClients.filter(c => talkedToClientIds.has(c.id)).length;
 
-            // Content Flow for TL's Clients (Total tasks for today across all their clients)
-            const tlClientsContent = todayTasks.filter(t => assignedClientIds.includes(t.client_id));
+            // Content Flow for TL's Clients
+            const tlClientsContent = todayTasks.filter(t => t.client_id && assignedClientIds.includes(t.client_id));
             const todayContentTotal = tlClientsContent.length;
             const todayContentDone = tlClientsContent.filter(t => 
-                ['WAITING FOR POSTING', 'POSTED'].includes(t.status)
+                ['WAITING FOR POSTING', 'POSTED', 'APPROVED'].includes((t.status || '').toUpperCase())
             ).length;
 
             return {
@@ -1135,13 +1183,17 @@ app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (re
             };
         });
 
-        // --- Aggregate Employee Stats (Show ALL employees) ---
+        // --- Aggregate Employee Stats ---
         const empStats = employees.map(emp => {
             const empTasks = todayTasks.filter(t => t.assigned_to === emp.user_id);
             const total = empTasks.length;
-            const completedTasks = empTasks.filter(t => 
-                ['COMPLETED', 'POSTED', 'APPROVED'].includes(t.employee_task_status || '')
-            ).length;
+            
+            // A task is completed if:
+            // Employee manually marked it COMPLETED (matching Employee Dashboard logic exactly)
+            const completedTasks = empTasks.filter(t => {
+                const empStatus = (t.employee_task_status || '').toUpperCase();
+                return empStatus === 'COMPLETED';
+            }).length;
 
             return {
                 id: emp.user_id,
@@ -1150,7 +1202,15 @@ app.get('/api/admin/tracking/productivity', requireRoles(ADMIN_ROLES), async (re
                 role: emp.role_identifier || emp.role,
                 assignedTasks: total,
                 completedTasks: completedTasks,
-                completionRate: total > 0 ? (completedTasks / total) : 0
+                completionRate: total > 0 ? (completedTasks / total) : 0,
+                tasks: empTasks.map(t => ({
+                    id: t.id,
+                    title: t.title,
+                    clientName: t.clientName,
+                    status: t.status,
+                    employeeStatus: t.employee_task_status,
+                    scheduledDate: t.scheduled_datetime
+                }))
             };
         });
 
