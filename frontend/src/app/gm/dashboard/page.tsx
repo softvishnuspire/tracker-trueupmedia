@@ -140,15 +140,10 @@ export default function GMDashboard() {
         return client?.batch_type || '1-1';
     };
     // Period helpers
-    const isBiMonthlyView = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
+    const isBiMonthlyView = false; // GM dashboard always shows standard month view (1-1)
 
-    const periodStart = isBiMonthlyView
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-        : startOfMonth(currentMonth);
-
-    const periodEnd = isBiMonthlyView
-        ? new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 15, 23, 59, 59)
-        : endOfMonth(currentMonth);
+    const periodStart = startOfMonth(currentMonth);
+    const periodEnd = endOfMonth(currentMonth);
 
     const isDayInPeriod = (day: Date): boolean => {
         return day >= periodStart && day <= periodEnd;
@@ -159,15 +154,7 @@ export default function GMDashboard() {
     const fetchClientCalendar = useCallback(async (clientId: string) => {
         if (!clientId) return [];
         try {
-            if (isBiMonthlyView) {
-                // Fetch current and next month to cover the spanning period (15th to 15th)
-                const months = [currentMonth, addMonths(currentMonth, 1)];
-                const responses = await Promise.all(
-                    months.map(m => gmApi.getCalendar(clientId, format(m, 'yyyy-MM')))
-                );
-                const merged = responses.flatMap(res => res.data || []);
-                return Array.from(new Map(merged.map(item => [item.id, item])).values());
-            }
+
 
             const monthStr = format(currentMonth, 'yyyy-MM');
             const res = await gmApi.getCalendar(clientId, monthStr);
@@ -392,7 +379,7 @@ export default function GMDashboard() {
             const videoCount = reelsCount + youtubeCount;
 
             // Unified Production Logic
-            const shootDoneCount = periodData.filter(item => {
+            const shootDoneCount = periodData.filter((item: ContentItem) => {
                 const s = (item.status || '').toUpperCase();
                 const type = (item.content_type || '').toUpperCase();
                 if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(s)) return true;
@@ -400,7 +387,7 @@ export default function GMDashboard() {
                 return false;
             }).length;
 
-            const contentApprovedCount = periodData.filter(item => 
+            const contentApprovedCount = periodData.filter((item: ContentItem) => 
                 contentApprovedStatuses.includes((item.status || '').toUpperCase())
             ).length;
 
@@ -1036,9 +1023,7 @@ export default function GMDashboard() {
                                         <button onClick={handlePrev} className="month-btn"><ChevronLeft size={20} /></button>
                                         <span className="month-label" style={{ minWidth: '180px', textAlign: 'center' }}>
                                             {viewMode === 'month'
-                                                ? (isBiMonthlyView
-                                                    ? `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`
-                                                    : format(currentMonth, 'MMMM yyyy'))
+                                                ? format(currentMonth, 'MMMM yyyy')
                                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                             }
                                         </span>
@@ -1066,7 +1051,7 @@ export default function GMDashboard() {
                                         data={view === 'poc' ? [] : calendarData}
                                         clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find(c => c.id === selectedClient)?.company_name || 'Client'}
                                         month={currentMonth}
-                                        batchType={selectedClient !== 'all' ? getClientBatchType(selectedClient) : '1-1'}
+                                        batchType="1-1"
                                     />
                                 </>
                             )}
@@ -1602,7 +1587,7 @@ export default function GMDashboard() {
                                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                                                         {isPocView
                                                                             ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
-                                                                            : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' || view === 'gm' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${item.content_type}`}
+                                                                            : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${item.content_type}`}
                                                                     </span>
                                                                     {!isPocView && (
                                                                         item.assigned_to ? (
