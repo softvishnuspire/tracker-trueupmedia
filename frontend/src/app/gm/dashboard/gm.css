@@ -969,6 +969,7 @@
 .client-dropdown option {
     background: var(--bg-surface);
     color: var(--text-primary);
+    padding: 12px;
 }
 
 .dropdown-chevron {
@@ -1390,6 +1391,12 @@
     transition: all 0.15s;
     outline: none;
     background: var(--bg-elevated);
+}
+
+.form-input option {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 12px;
 }
 
 .form-input:focus {
@@ -2700,67 +2707,44 @@
 
 
 .client-filter-box {
-
     position: relative;
-
     display: flex;
-
     align-items: center;
-
     background: var(--bg-elevated);
-
     border: 1px solid var(--border);
-
     border-radius: 12px;
-
     padding: 0 12px;
-
     height: 44px;
-
     min-width: 200px;
-
     transition: all 0.2s;
-
 }
-
-
 
 .client-filter-box:hover {
-
     border-color: var(--accent);
-
 }
 
-
-
 .filter-icon {
-
     color: var(--text-muted);
-
     margin-right: 10px;
-
 }
 
 
 
 .client-select-dropdown {
-
     background: transparent;
-
     border: none;
-
     color: var(--text-primary);
-
     font-size: 14px;
-
     font-weight: 600;
-
     width: 100%;
-
     cursor: pointer;
-
     appearance: none;
+}
 
+.client-select-dropdown option {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 12px;
 }
 
 
