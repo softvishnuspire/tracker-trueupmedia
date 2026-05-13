@@ -1,6 +1,11 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-12 (Production Calendar Visibility)
+## Latest Changes — 2026-05-13 (GM Dashboard Dropdown Contrast Fix)
+- **Goal**: Resolve visibility issues in the "Operational Command Center" client dropdown where text and background colors were too similar.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/gm.css`: Explicitly styled `option` elements for `.client-select-dropdown`, `.client-dropdown`, and `.form-input` to use `var(--bg-surface)` and `var(--text-primary)`. This ensures high contrast in both light and dark modes across all browsers. Also cleaned up inconsistent spacing in the unified dashboard CSS section.
+
+## Previous Changes — 2026-05-12 (Production Calendar Visibility)
 - **Goal**: Temporarily hide the "Production Calendar" (Master Production Schedule) from the Admin Panel to simplify the interface.
 - **Affected Files**:
     - `frontend/src/app/admin/layout.tsx`: Commented out the 'Master Production Schedule' item from the `menuItems` array in the sidebar navigation. This removes the link from the sidebar, making the page inaccessible via the UI while keeping the underlying route and component logic intact.
