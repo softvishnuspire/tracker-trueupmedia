@@ -139,11 +139,18 @@ export default function GMDashboard() {
         const client = clients.find(c => c.id === clientId);
         return client?.batch_type || '1-1';
     };
-    // Period helpers
-    const isBiMonthlyView = false; // GM dashboard always shows standard month view (1-1)
 
-    const periodStart = startOfMonth(currentMonth);
-    const periodEnd = endOfMonth(currentMonth);
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const isBiMonthlyView = (view === 'client' || view === 'master') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+
+    const periodStart = isBiMonthlyView
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+
+    const nextMonthDate = addMonths(currentMonth, 1);
+    const periodEnd = isBiMonthlyView
+        ? new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth(), 15)
+        : endOfMonth(currentMonth);
 
     const isDayInPeriod = (day: Date): boolean => {
         return day >= periodStart && day <= periodEnd;
@@ -154,16 +161,26 @@ export default function GMDashboard() {
     const fetchClientCalendar = useCallback(async (clientId: string) => {
         if (!clientId) return [];
         try {
-
+            const client = clients.find(c => c.id === clientId);
+            const is1515 = client?.batch_type === '15-15';
 
             const monthStr = format(currentMonth, 'yyyy-MM');
             const res = await gmApi.getCalendar(clientId, monthStr);
-            return res.data;
+            let data = res.data;
+
+            if (is1515) {
+                // Fetch next month as well for 15-15 cycle
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await gmApi.getCalendar(clientId, nextMonthStr);
+                data = [...data, ...(nextRes.data || [])];
+            }
+
+            return data;
         } catch (error) {
             console.error('Error fetching client calendar:', error);
             return [];
         }
-    }, [currentMonth]);
+    }, [currentMonth, clients]);
 
     const fetchMasterCalendar = useCallback(async () => {
         try {
@@ -188,12 +205,27 @@ export default function GMDashboard() {
                 selectedClient === 'all' ? undefined : selectedClient,
                 selectedType === 'all' ? undefined : selectedType
             );
-            return res.data || [];
+            
+            let data = res.data || [];
+
+            // For master view with a specific client selected that is 15-15
+            const client = clients.find(c => c.id === selectedClient);
+            if (client?.batch_type === '15-15') {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await gmApi.getMasterCalendar(
+                    nextMonthStr,
+                    selectedClient,
+                    selectedType === 'all' ? undefined : selectedType
+                );
+                data = [...data, ...(nextRes.data || [])];
+            }
+
+            return data;
         } catch (error) {
             console.error('Error fetching master calendar:', error);
             return [];
         }
-    }, [currentMonth, view, selectedClient, selectedType]);
+    }, [currentMonth, view, selectedClient, selectedType, clients]);
 
     useEffect(() => {
         if (view === 'master' || view === 'company') {
@@ -1023,7 +1055,9 @@ export default function GMDashboard() {
                                         <button onClick={handlePrev} className="month-btn"><ChevronLeft size={20} /></button>
                                         <span className="month-label" style={{ minWidth: '180px', textAlign: 'center' }}>
                                             {viewMode === 'month'
-                                                ? format(currentMonth, 'MMMM yyyy')
+                                                ? (isBiMonthlyView
+                                                    ? `${format(periodStart, 'MMM d')} - ${format(periodEnd, 'MMM d, yyyy')}`
+                                                    : format(currentMonth, 'MMMM yyyy'))
                                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                             }
                                         </span>
@@ -1049,9 +1083,9 @@ export default function GMDashboard() {
 
                                     <ScheduleExport
                                         data={view === 'poc' ? [] : calendarData}
-                                        clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find(c => c.id === selectedClient)?.company_name || 'Client'}
+                                        clientName={selectedClient === 'all' ? 'TrueUp Media' : selectedClientData?.company_name || 'Client'}
                                         month={currentMonth}
-                                        batchType="1-1"
+                                        batchType={selectedClientData?.batch_type || '1-1'}
                                     />
                                 </>
                             )}

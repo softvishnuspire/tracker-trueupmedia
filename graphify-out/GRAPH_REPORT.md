@@ -1,6 +1,15 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-13 (GM Dashboard Dropdown Contrast Fix)
+## Latest Changes — 2026-05-15 (GM Dashboard Calendar Cycle Fix)
+- **Goal**: Resolve the issue where clients on a 15-15 calendar cycle were incorrectly displayed using a standard 1-1 monthly cycle in the GM dashboard.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`: 
+        - Refactored `periodStart` and `periodEnd` to dynamically calculate boundaries based on the client's `batch_type`.
+        - Updated `fetchClientCalendar` and `fetchMasterCalendar` to fetch data across two months when a 15-15 cycle is detected.
+        - Updated the calendar navigation header to display the explicit date range (e.g., "May 15 - Jun 15, 2024") for bi-monthly clients.
+        - Ensured that dashboard statistics and the `ScheduleExport` component respect the client-specific batch cycle.
+
+## Previous Changes — 2026-05-13 (GM Dashboard Dropdown Contrast Fix)
 - **Goal**: Resolve visibility issues in the "Operational Command Center" client dropdown where text and background colors were too similar.
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/gm.css`: Explicitly styled `option` elements for `.client-select-dropdown`, `.client-dropdown`, and `.form-input` to use `var(--bg-surface)` and `var(--text-primary)`. This ensures high contrast in both light and dark modes across all browsers. Also cleaned up inconsistent spacing in the unified dashboard CSS section.
