@@ -43,6 +43,8 @@ export default function AdminDashboard() {
     statusSummary: Record<string, number>;
     videoCount: number;
     postsCount: number;
+    completedReels: number;
+    completedPosts: number;
   } | null>(null);
   const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
   const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
@@ -245,13 +247,18 @@ export default function AdminDashboard() {
       const pCompletedCount = pPeriodData.filter(item => isItemCompleted(item)).length;
       const pPendingCount = pPeriodData.filter(item => !isItemCompleted(item)).length;
 
+      const pCompletedReels = pPeriodData.filter(item => (item.content_type === 'Reel' || item.content_type === 'YouTube') && isItemCompleted(item)).length;
+      const pCompletedPosts = pPeriodData.filter(item => item.content_type === 'Post' && isItemCompleted(item)).length;
+
       setPipelineStats({
         totalItems: pPeriodData.length,
         completed: pCompletedCount,
         pending: pPendingCount,
         statusSummary: pBreakdown,
         videoCount: pVideoCount,
-        postsCount: pPostsCount
+        postsCount: pPostsCount,
+        completedReels: pCompletedReels,
+        completedPosts: pCompletedPosts
       });
 
       await fetchDashboardLists();
@@ -536,12 +543,18 @@ export default function AdminDashboard() {
                     <p style={{ fontSize: '20px', fontWeight: 900 }}>{pipelineStats?.totalItems || 0}</p>
                 </div>
                 <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                    <p style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Completed</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--success)' }}>{pipelineStats?.completed || 0}</p>
+                    <p style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Reels</p>
+                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--success)' }}>
+                        {pipelineStats?.completedReels || 0}
+                        <span style={{ opacity: 0.5, fontSize: '14px', fontWeight: 700, marginLeft: '4px' }}>/ {pipelineStats?.videoCount || 0}</span>
+                    </p>
                 </div>
                 <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                    <p style={{ fontSize: '10px', color: 'var(--warning)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Pending</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--warning)' }}>{pipelineStats?.pending || 0}</p>
+                    <p style={{ fontSize: '10px', color: 'var(--warning)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Posts</p>
+                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--warning)' }}>
+                        {pipelineStats?.completedPosts || 0}
+                        <span style={{ opacity: 0.5, fontSize: '14px', fontWeight: 700, marginLeft: '4px' }}>/ {pipelineStats?.postsCount || 0}</span>
+                    </p>
                 </div>
             </div>
 
