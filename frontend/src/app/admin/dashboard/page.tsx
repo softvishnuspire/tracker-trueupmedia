@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistoryItem } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
+import { endOfWeek, format, isSameDay, isSameMonth, parseISO, startOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
 
 interface Stats {
@@ -73,14 +73,37 @@ export default function AdminDashboard() {
     return client?.batch_type || '1-1';
   }, [clients]);
 
+  const shootDoneStatuses = [
+    'SHOOT DONE',
+    'EDITING IN PROGRESS',
+    'EDITED',
+    'WAITING FOR APPROVAL',
+    'APPROVED',
+    'WAITING FOR POSTING',
+    'POSTED'
+  ];
+
+  const contentApprovedStatuses = [
+    'CONTENT READY',
+    'WAITING FOR APPROVAL',
+    'CONTENT APPROVED',
+    'SHOOT DONE',
+    'EDITING IN PROGRESS',
+    'EDITED',
+    'WAITING FOR FINAL APPROVAL',
+    'APPROVED',
+    'WAITING FOR POSTING',
+    'POSTED',
+    'DESIGNING IN PROGRESS',
+    'DESIGNING COMPLETED'
+  ];
+
   const getPeriodLabel = () => {
     return `Current Month (${format(startOfMonth(currentMonth), 'MMM d')} - ${format(endOfMonth(currentMonth), 'MMM d')})`;
   };
 
   const isDayInPeriod = useCallback((date: Date) => {
-    const start = startOfMonth(currentMonth);
-    const end = endOfMonth(currentMonth);
-    return date >= start && date <= end;
+    return isSameMonth(date, currentMonth);
   }, [currentMonth]);
 
   const fetchDashboardLists = useCallback(async () => {
@@ -95,6 +118,14 @@ export default function AdminDashboard() {
       console.error('Failed to load dashboard lists:', err);
     }
   }, []);
+
+  const isItemCompleted = (item: ContentItem) => {
+    const s = (item.status || '').toUpperCase();
+    const type = (item.content_type || '').toUpperCase();
+    if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(s)) return true;
+    if (type === 'POST' && (s === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(s))) return true;
+    return s === 'WAITING FOR POSTING' || s === 'POSTED';
+  };
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -126,13 +157,9 @@ export default function AdminDashboard() {
       const allYoutubeCount = allPeriodData.filter(item => item.content_type === 'YouTube').length;
       const allVideoCount = allReelsCount + allYoutubeCount;
 
-      const isItemCompleted = (status: string) => {
-        const s = status.toUpperCase();
-        return s === 'WAITING FOR POSTING' || s === 'POSTED';
-      };
 
-      const allCompletedItems = allPeriodData.filter(item => isItemCompleted(item.status));
-      const allPendingItems = allPeriodData.filter(item => !isItemCompleted(item.status));
+      const allCompletedItems = allPeriodData.filter(item => isItemCompleted(item));
+      const allPendingItems = allPeriodData.filter(item => !isItemCompleted(item));
 
       const allCompletedCount = allCompletedItems.length;
       const allPendingCount = allPendingItems.length;
@@ -151,7 +178,7 @@ export default function AdminDashboard() {
       const today = new Date();
       const todayItems = allData.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
       const totalToday = todayItems.length;
-      const completedToday = todayItems.filter((item: ContentItem) => item.status === 'POSTED').length;
+      const completedToday = todayItems.filter((item: ContentItem) => isItemCompleted(item)).length;
       
       setTodayStats({
         total: totalToday,
@@ -215,8 +242,8 @@ export default function AdminDashboard() {
       const pYoutubeCount = pPeriodData.filter(item => item.content_type === 'YouTube').length;
       const pVideoCount = pReelsCount + pYoutubeCount;
 
-      const pCompletedCount = pPeriodData.filter(item => isItemCompleted(item.status)).length;
-      const pPendingCount = pPeriodData.filter(item => !isItemCompleted(item.status)).length;
+      const pCompletedCount = pPeriodData.filter(item => isItemCompleted(item)).length;
+      const pPendingCount = pPeriodData.filter(item => !isItemCompleted(item)).length;
 
       setPipelineStats({
         totalItems: pPeriodData.length,
@@ -358,7 +385,7 @@ export default function AdminDashboard() {
   };
 
   const monthTotal = stats?.totalItemsThisMonth || 0;
-  const monthCompleted = (stats?.statusSummary?.POSTED || 0) as number;
+  const monthCompleted = stats?.completedCount || 0;
   const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
@@ -367,7 +394,7 @@ export default function AdminDashboard() {
     return itemDate >= weekStart && itemDate <= weekEnd;
   });
   const weekTotal = weekItems.length;
-  const weekCompleted = weekItems.filter((item) => (item.status || '').toUpperCase() === 'POSTED').length;
+  const weekCompleted = weekItems.filter((item) => isItemCompleted(item)).length;
   const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
 
   return (
@@ -510,11 +537,11 @@ export default function AdminDashboard() {
                 </div>
                 <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                     <p style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Completed</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--success)' }}>{pipelineStats?.statusSummary?.['POSTED'] || 0}</p>
+                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--success)' }}>{pipelineStats?.completed || 0}</p>
                 </div>
                 <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                     <p style={{ fontSize: '10px', color: 'var(--warning)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Pending</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--warning)' }}>{(pipelineStats?.totalItems || 0) - (pipelineStats?.statusSummary?.['POSTED'] || 0)}</p>
+                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--warning)' }}>{pipelineStats?.pending || 0}</p>
                 </div>
             </div>
 
@@ -528,9 +555,6 @@ export default function AdminDashboard() {
                     });
                     
                     return Object.entries(normalized).map(([status, count]) => {
-                        // Denominator Logic:
-                        // Video: Reel, YouTube
-                        // Graphic: Post
                         const s = status.toUpperCase();
                         let denominator = pipelineStats?.totalItems || 0;
                         
@@ -538,11 +562,28 @@ export default function AdminDashboard() {
                             denominator = pipelineStats?.videoCount || 0;
                         } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
                             denominator = pipelineStats?.postsCount || 0;
+                        } else if (s === 'REEL' || s === 'POST') {
+                            // Support for the simplified summary categories if they appear in summary
+                            denominator = s === 'REEL' ? pipelineStats?.videoCount || 0 : pipelineStats?.postsCount || 0;
                         }
 
+                        // Determine if this status counts as "Production Done" for consistent labeling
+                        const isProdDone = shootDoneStatuses.includes(s) || (s === 'DESIGNING COMPLETED');
+
                         return (
-                            <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>{status}</span>
+                            <div key={status} style={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center', 
+                                padding: '12px 16px', 
+                                background: 'var(--bg-elevated)', 
+                                borderRadius: '12px', 
+                                border: isProdDone ? '1px solid var(--success-border, rgba(16, 185, 129, 0.2))' : '1px solid var(--border)',
+                                position: 'relative',
+                                overflow: 'hidden'
+                            }}>
+                                {isProdDone && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'var(--success)' }}></div>}
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: isProdDone ? 'var(--success)' : 'var(--text-secondary)' }}>{status}</span>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                                     <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>{count}</span>
                                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>/ {denominator}</span>

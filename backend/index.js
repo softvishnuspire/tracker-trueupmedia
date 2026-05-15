@@ -409,25 +409,13 @@ app.get('/api/gm/master-calendar', requireRoles(GM_ROLES), async (req, res) => {
     const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
     const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-    let query = supabase
-        .from('content_items')
-        .select(`*, clients (company_name)`)
-        .gte('scheduled_datetime', startDate)
-        .lte('scheduled_datetime', endDate);
-
-    if (client_id === 'freelancer') {
-        query = query.is('client_id', null);
-    } else if (client_id) {
-        query = query.eq('client_id', client_id);
+    try {
+        const data = await fetchCombinedCalendarData(startDate, endDate, client_id, content_type);
+        const transformedData = await applyHistoricalStatus(data, asOfDate);
+        res.json(transformedData);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    if (content_type) query = query.eq('content_type', content_type);
-
-    const { data, error } = await query.order('scheduled_datetime');
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    const transformedData = await applyHistoricalStatus(data, asOfDate);
-    res.json(transformedData);
 });
 
 // ─── GM: Content CRUD ───

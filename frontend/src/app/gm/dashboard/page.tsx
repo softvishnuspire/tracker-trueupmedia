@@ -8,6 +8,7 @@ import {
     startOfWeek,
     endOfWeek,
     eachDayOfInterval,
+    isSameMonth,
     isSameDay,
     addMonths,
     subMonths,
@@ -178,6 +179,7 @@ export default function GMDashboard() {
         : endOfMonth(currentMonth);
 
     const isDayInPeriod = (day: Date): boolean => {
+        if (!isBiMonthlyView) return isSameMonth(day, currentMonth);
         return day >= periodStart && day <= periodEnd;
     };
 
