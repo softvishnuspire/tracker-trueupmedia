@@ -1,5 +1,16 @@
 # GRAPH REPORT
 
+## Latest Changes — 2026-05-15 (PH Dashboard Stats Simplification)
+- **Goal**: Declutter the Production Head (PH) dashboard by removing redundant stats cards and consolidating monthly metrics into four key `x/y` cards.
+- **Affected Files**:
+    - `frontend/src/app/ph/dashboard/page.tsx`:
+        - Refactored `monthStatusCounts` calculation to track `completed` vs `total` for Reels, Posts, and Shoots.
+        - Replaced the 8 legacy stats cards with 4 unified cards: Monthly Pipeline, Reels Progress, Posts Progress, and Shoots Done.
+        - Updated the `status-summary-row` to use the new metric property names, resolving TypeScript errors.
+    - `frontend/src/app/ph/dashboard/ph.css`:
+        - Updated `.posting-stats-grid` to support 4 columns on desktop and improved responsive wrapping for tablet/mobile.
+        - Implemented comprehensive light mode support, fixing invisible text (page title, card labels) and adjusting card backgrounds for better readability.
+
 ## Latest Changes — 2026-05-15 (PH Dashboard Client-wise Filtering & Stats Correction)
 - **Goal**: Implement client-specific data filtering in the Production Head (PH) dashboard and ensure operational metrics accurately reflect production progress.
 - **Affected Files**:
