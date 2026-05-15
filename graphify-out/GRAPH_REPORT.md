@@ -11,8 +11,18 @@
         - Updated `.posting-stats-grid` to support 4 columns on desktop and improved responsive wrapping for tablet/mobile.
         - Implemented comprehensive light mode support, fixing invisible text (page title, card labels) and adjusting card backgrounds for better readability.
 
+## Latest Changes — 2026-05-15 (GM Dashboard Simplification & Stats Refactoring)
+- **Goal**: Streamline GM dashboard by decluttering statistics and reordering panels for better operational visibility.
+- **Key Updates**:
+    - **Stats Consolidation**: Removed redundant stat cards (Clients, Scheduled, Pending, Completed).
+    - **Simplified Metrics**: Implemented a 2-card ribbon showing "REELS x/y" and "POSTS x/y" using production-based completion boundaries.
+    - **Data Accuracy**: Updated `isItemCompleted` to include 'SHOOT DONE' and 'DESIGNING COMPLETED' statuses.
+    - **Layout Reorganization**: Surfaced statistics at the top; moved "Emergency Tasks" and "Pending Tasks" panels to the bottom.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`
+    - `frontend/src/app/gm/dashboard/gm.css`
+
 ## Latest Changes — 2026-05-15 (PH Dashboard Client-wise Filtering & Stats Correction)
-- **Goal**: Implement client-specific data filtering in the Production Head (PH) dashboard and ensure operational metrics accurately reflect production progress.
 - **Affected Files**:
     - `frontend/src/app/ph/dashboard/page.tsx`:
         - Added a client selection dropdown to the main dashboard header.

@@ -369,6 +369,7 @@
     color: var(--text-muted);
 }
 
+
 /* ─── Stats Grid ─── */
 .stats-grid {
     display: grid;
@@ -2770,33 +2771,25 @@
 /* Stats Ribbon */
 
 .unified-stats-ribbon {
-
     display: grid;
-
-    grid-template-columns: repeat(6, 1fr);
-
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border);
     border-bottom: 1px solid var(--border);
-
-    background: var(--bg-card);
-
+    border-top: 1px solid var(--border);
 }
 
-
-
 .ribbon-item {
-
-    padding: 20px;
-
+    background: var(--bg-surface);
+    padding: 24px 32px;
     display: flex;
-
     align-items: center;
+    gap: 20px;
+    transition: all 0.2s ease;
+}
 
-    gap: 16px;
-
-    border-right: 1px solid var(--border);
-
-    transition: background 0.2s;
-
+.ribbon-item:hover {
+    background: var(--bg-hover);
 }
 
 
@@ -3250,9 +3243,7 @@
 @media (max-width: 1024px) {
 
     .unified-stats-ribbon {
-
-        grid-template-columns: repeat(3, 1fr);
-
+        grid-template-columns: 1fr;
     }
 
     .unified-body-grid {

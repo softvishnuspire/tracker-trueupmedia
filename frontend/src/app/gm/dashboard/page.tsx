@@ -99,6 +99,31 @@ export default function GMDashboard() {
     const [isPocDetailsOpen, setIsPocDetailsOpen] = useState(false);
     const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
 
+    const shootDoneStatuses = [
+        'SHOOT DONE',
+        'EDITING IN PROGRESS',
+        'EDITED',
+        'WAITING FOR APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED'
+    ];
+
+    const contentApprovedStatuses = [
+        'CONTENT READY',
+        'WAITING FOR APPROVAL',
+        'CONTENT APPROVED',
+        'SHOOT DONE',
+        'EDITING IN PROGRESS',
+        'EDITED',
+        'WAITING FOR FINAL APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED',
+        'DESIGNING IN PROGRESS',
+        'DESIGNING COMPLETED'
+    ];
+
     const router = useRouter();
     const supabase = createClient();
 
@@ -282,8 +307,12 @@ export default function GMDashboard() {
         } catch (err) { console.error(err); } finally { setLoading(false); }
     }, []);
 
-    const isItemCompleted = (status: string) => {
-        const s = (status || '').toUpperCase();
+    const isItemCompleted = (item: ContentItem) => {
+        const s = (item.status || '').toUpperCase();
+        const type = (item.content_type || '').toUpperCase();
+        // Production-ready logic aligned with PH dashboard
+        if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(s)) return true;
+        if (type === 'POST' && (s === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(s))) return true;
         return s === 'WAITING FOR POSTING' || s === 'POSTED';
     };
 
@@ -335,6 +364,8 @@ export default function GMDashboard() {
         youtubeCount: 0,
         videoCount: 0,
         shootDoneCount: 0,
+        shootDoneReels: 0,
+        shootDonePosts: 0,
         contentApprovedCount: 0,
         weeksPending: 0
     });
@@ -369,7 +400,7 @@ export default function GMDashboard() {
             const today = new Date();
             const todayItems = calendarData.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
-            const completedToday = todayItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
+            const completedToday = todayItems.filter((item: ContentItem) => isItemCompleted(item)).length;
 
             setTodayStats({
                 total: totalToday,
@@ -386,15 +417,15 @@ export default function GMDashboard() {
                 return itemDate >= weekStart && itemDate <= weekEnd;
             });
             const totalWeek = weekItems.length;
-            const completedWeek = weekItems.filter((item: ContentItem) => isItemCompleted(item.status)).length;
+            const completedWeek = weekItems.filter((item: ContentItem) => isItemCompleted(item)).length;
             setMasterWeekStats({
                 total: totalWeek,
                 completed: completedWeek,
                 percentage: totalWeek > 0 ? Math.round((completedWeek / totalWeek) * 100) : 0
             });
 
-            const completedItems = periodData.filter((item: ContentItem) => isItemCompleted(item.status));
-            const pendingItems = periodData.filter((item: ContentItem) => !isItemCompleted(item.status));
+            const completedItems = periodData.filter((item: ContentItem) => isItemCompleted(item));
+            const pendingItems = periodData.filter((item: ContentItem) => !isItemCompleted(item));
 
             const completedCount = completedItems.length;
             const pendingCount = pendingItems.length;
@@ -411,13 +442,17 @@ export default function GMDashboard() {
             const videoCount = reelsCount + youtubeCount;
 
             // Unified Production Logic
-            const shootDoneCount = periodData.filter((item: ContentItem) => {
+            const shootDoneItems = periodData.filter((item: ContentItem) => {
                 const s = (item.status || '').toUpperCase();
                 const type = (item.content_type || '').toUpperCase();
                 if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(s)) return true;
                 if (type === 'POST' && (s === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(s))) return true;
                 return false;
-            }).length;
+            });
+
+            const shootDoneCount = shootDoneItems.length;
+            const shootDoneReels = shootDoneItems.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'REEL').length;
+            const shootDonePosts = shootDoneItems.filter((item: ContentItem) => (item.content_type || '').toUpperCase() === 'POST').length;
 
             const contentApprovedCount = periodData.filter((item: ContentItem) => 
                 contentApprovedStatuses.includes((item.status || '').toUpperCase())
@@ -439,12 +474,14 @@ export default function GMDashboard() {
                 youtubeCount,
                 videoCount,
                 shootDoneCount,
+                shootDoneReels,
+                shootDonePosts,
                 contentApprovedCount,
                 weeksPending: calendarData.filter((item: ContentItem) => {
                     const itemDate = parseISO(item.scheduled_datetime);
                     const now = new Date();
                     const sevenDaysFromNow = endOfDay(addDays(now, 7));
-                    return itemDate >= startOfDay(now) && itemDate <= sevenDaysFromNow && !isItemCompleted(item.status);
+                    return itemDate >= startOfDay(now) && itemDate <= sevenDaysFromNow && !isItemCompleted(item);
                 }).length
             });
             setCalendarData(calendarData);
@@ -480,6 +517,7 @@ export default function GMDashboard() {
         fetchUserEffect();
     }, [fetchClients, supabase]);
 
+
     const days = viewMode === 'month'
         ? eachDayOfInterval({
             start: startOfWeek(periodStart, { weekStartsOn: 1 }),
@@ -490,36 +528,11 @@ export default function GMDashboard() {
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
         });
 
-    const shootDoneStatuses = [
-        'SHOOT DONE',
-        'EDITING IN PROGRESS',
-        'EDITED',
-        'WAITING FOR APPROVAL',
-        'APPROVED',
-        'WAITING FOR POSTING',
-        'POSTED'
-    ];
-
-    const contentApprovedStatuses = [
-        'CONTENT READY',
-        'WAITING FOR APPROVAL',
-        'CONTENT APPROVED',
-        'SHOOT DONE',
-        'EDITING IN PROGRESS',
-        'EDITED',
-        'WAITING FOR FINAL APPROVAL',
-        'APPROVED',
-        'WAITING FOR POSTING',
-        'POSTED',
-        'DESIGNING IN PROGRESS',
-        'DESIGNING COMPLETED'
-    ];
-
     const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
-            const isCompleted = isItemCompleted(item.status);
+            const isCompleted = isItemCompleted(item);
             
             if (contentApprovedStatuses.includes(normalizedStatus)) {
                 acc.contentApproved += 1;
@@ -1122,63 +1135,6 @@ export default function GMDashboard() {
                 )}
 
 
-                {view === 'dashboard' && emergencyTasks.length > 0 && (
-                    <div className="emergency-panel">
-                        <div className="emergency-panel-header">
-                            <ShieldAlert size={24} color="#ef4444" />
-                            <h2 className="emergency-panel-title">Emergency Tasks</h2>
-                        </div>
-                        <div className="emergency-list">
-                            {emergencyTasks.map((task: ContentItem) => (
-                                <div
-                                    key={task.id}
-                                    className="emergency-card"
-                                    onClick={() => handleItemClick(task)}
-                                >
-                                    <div className="emergency-card-icon">
-                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
-                                    </div>
-                                    <div className="emergency-card-info">
-                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
-                                    </div>
-                                    <ArrowRight size={18} color="var(--text-muted)" />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {view === 'dashboard' && pendingTasks.length > 0 && (
-                    <div className="emergency-panel" style={{ marginTop: '24px', borderColor: 'var(--accent)' }}>
-                        <div className="emergency-panel-header">
-                            <Clock size={24} color="var(--accent)" />
-                            <h2 className="emergency-panel-title">Pending Important Tasks</h2>
-                        </div>
-                        <div className="emergency-list">
-                            {pendingTasks.map((task: ContentItem) => (
-                                <div
-                                    key={task.id}
-                                    className="emergency-card"
-                                    onClick={() => handleItemClick(task)}
-                                    style={{ borderLeftColor: 'var(--accent)' }}
-                                >
-                                    <div className="emergency-card-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
-                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
-                                    </div>
-                                    <div className="emergency-card-info">
-                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
-                                            <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
-                                        </div>
-                                    </div>
-                                    <ArrowRight size={18} color="var(--text-muted)" />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
                 {/* Removed global loading bar in favor of inline skeletons */}
 
@@ -1209,60 +1165,28 @@ export default function GMDashboard() {
                                 </div>
                             </div>
 
-                            {/* Unified Stats Ribbon */}
-                            <div className="unified-stats-ribbon">
+                            {/* Simplified Stats Ribbon */}
+                            <div className="unified-stats-ribbon" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                                 <div className="ribbon-item">
-                                    <div className="ribbon-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
-                                        <Users size={20} />
+                                    <div className="ribbon-icon" style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' }}>
+                                        <Video size={24} />
                                     </div>
                                     <div className="ribbon-info">
-                                        <span className="ribbon-label">Clients</span>
-                                        <span className="ribbon-value">{stats.totalClients}</span>
+                                        <span className="ribbon-label">REELS</span>
+                                        <span className="ribbon-value" style={{ fontSize: '28px' }}>
+                                            {stats.shootDoneReels}<small style={{ fontSize: '16px', opacity: 0.6 }}>/{stats.reelsCount}</small>
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="ribbon-item">
-                                    <div className="ribbon-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
-                                        <CalendarIcon size={20} />
+                                    <div className="ribbon-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+                                        <FileText size={24} />
                                     </div>
                                     <div className="ribbon-info">
-                                        <span className="ribbon-label">Scheduled</span>
-                                        <span className="ribbon-value">{stats.monthlyContent}</span>
-                                    </div>
-                                </div>
-                                <div className="ribbon-item">
-                                    <div className="ribbon-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
-                                        <Video size={20} />
-                                    </div>
-                                    <div className="ribbon-info">
-                                        <span className="ribbon-label">Reels</span>
-                                        <span className="ribbon-value">{stats.completedReels}<small>/{stats.reelsCount}</small></span>
-                                    </div>
-                                </div>
-                                <div className="ribbon-item">
-                                    <div className="ribbon-icon" style={{ background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-secondary)' }}>
-                                        <FileText size={20} />
-                                    </div>
-                                    <div className="ribbon-info">
-                                        <span className="ribbon-label">Posts</span>
-                                        <span className="ribbon-value">{stats.completedPosts}<small>/{stats.postsCount}</small></span>
-                                    </div>
-                                </div>
-                                <div className="ribbon-item">
-                                    <div className="ribbon-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
-                                        <Clock size={20} />
-                                    </div>
-                                    <div className="ribbon-info">
-                                        <span className="ribbon-label">Pending</span>
-                                        <span className="ribbon-value">{stats.pendingCount}</span>
-                                    </div>
-                                </div>
-                                <div className="ribbon-item">
-                                    <div className="ribbon-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
-                                        <Check size={20} />
-                                    </div>
-                                    <div className="ribbon-info">
-                                        <span className="ribbon-label">Completed</span>
-                                        <span className="ribbon-value">{stats.completedCount}</span>
+                                        <span className="ribbon-label">POSTS</span>
+                                        <span className="ribbon-value" style={{ fontSize: '28px' }}>
+                                            {stats.shootDonePosts}<small style={{ fontSize: '16px', opacity: 0.6 }}>/{stats.postsCount}</small>
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -1364,6 +1288,61 @@ export default function GMDashboard() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Emergency Panels Moved Here */}
+                        {emergencyTasks.length > 0 && (
+                            <div className="emergency-panel" style={{ marginTop: '24px' }}>
+                                <div className="emergency-panel-header">
+                                    <ShieldAlert size={24} color="#ef4444" />
+                                    <h2 className="emergency-panel-title">Emergency Tasks</h2>
+                                </div>
+                                <div className="emergency-list">
+                                    {emergencyTasks.map((task: ContentItem) => (
+                                        <div key={task.id} className="emergency-card" onClick={() => handleItemClick(task)}>
+                                            <div className="emergency-card-icon">
+                                                {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                            </div>
+                                            <div className="emergency-card-info">
+                                                <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                                <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                            </div>
+                                            <ArrowRight size={18} color="var(--text-muted)" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {pendingTasks.length > 0 && (
+                            <div className="emergency-panel" style={{ marginTop: '24px', borderColor: 'var(--accent)' }}>
+                                <div className="emergency-panel-header">
+                                    <Clock size={24} color="var(--accent)" />
+                                    <h2 className="emergency-panel-title">Pending Important Tasks</h2>
+                                </div>
+                                <div className="emergency-list">
+                                    {pendingTasks.map((task: ContentItem) => (
+                                        <div
+                                            key={task.id}
+                                            className="emergency-card"
+                                            onClick={() => handleItemClick(task)}
+                                            style={{ borderLeftColor: 'var(--accent)' }}
+                                        >
+                                            <div className="emergency-card-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                                                {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                            </div>
+                                            <div className="emergency-card-info">
+                                                <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                                    <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
+                                                </div>
+                                            </div>
+                                            <ArrowRight size={18} color="var(--text-muted)" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
