@@ -431,29 +431,55 @@ export default function ProductionHeadDashboard() {
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();
 
-            if (contentApprovedStatuses.includes(normalizedStatus)) acc.contentApproved += 1;
-            
-            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
-                if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
-            } else if (normalizedType === 'POST') {
-                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
-                    acc.shootDone += 1;
+            // Overall Pipeline
+            acc.overallTotal += 1;
+            if (shootDoneStatuses.includes(normalizedStatus)) {
+                acc.overallCompleted += 1;
+            }
+
+            // Reels
+            if (normalizedType === 'REEL') {
+                acc.reelsTotal += 1;
+                if (shootDoneStatuses.includes(normalizedStatus)) {
+                    acc.reelsCompleted += 1;
                 }
             }
 
-            if (normalizedStatus === 'POSTED') acc.posted += 1;
+            // Posts
+            if (normalizedType === 'POST') {
+                acc.postsTotal += 1;
+                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
+                    acc.postsCompleted += 1;
+                }
+            }
 
-            if (normalizedType === 'REEL') acc.reels += 1;
-            if (normalizedType === 'POST') acc.posts += 1;
+            // Shoots (Reels + YouTube)
+            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
+                acc.shootsTotal += 1;
+                if (shootDoneStatuses.includes(normalizedStatus)) {
+                    acc.shootsCompleted += 1;
+                }
+            }
+
+            // Legacy compatibility
+            if (contentApprovedStatuses.includes(normalizedStatus)) acc.contentApproved += 1;
+            if (normalizedStatus === 'POSTED') acc.posted += 1;
 
             return acc;
         },
-        { contentApproved: 0, shootDone: 0, posted: 0, reels: 0, posts: 0 }
+        { 
+            overallTotal: 0, overallCompleted: 0, 
+            reelsTotal: 0, reelsCompleted: 0, 
+            postsTotal: 0, postsCompleted: 0, 
+            shootsTotal: 0, shootsCompleted: 0,
+            contentApproved: 0, posted: 0 
+        }
     );
 
-    const monthTotal = calendarData.length;
-    const monthCompleted = monthStatusCounts.shootDone;
-    const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
+    const monthPercentage = monthStatusCounts.overallTotal > 0 ? Math.round((monthStatusCounts.overallCompleted / monthStatusCounts.overallTotal) * 100) : 0;
+    const reelsPercentage = monthStatusCounts.reelsTotal > 0 ? Math.round((monthStatusCounts.reelsCompleted / monthStatusCounts.reelsTotal) * 100) : 0;
+    const postsPercentage = monthStatusCounts.postsTotal > 0 ? Math.round((monthStatusCounts.postsCompleted / monthStatusCounts.postsTotal) * 100) : 0;
+    const shootsPercentage = monthStatusCounts.shootsTotal > 0 ? Math.round((monthStatusCounts.shootsCompleted / monthStatusCounts.shootsTotal) * 100) : 0;
 
     return (
         <div className="dashboard-container">
@@ -651,157 +677,77 @@ export default function ProductionHeadDashboard() {
 
                 {view === 'dashboard' && (
                     <div className="daily-stats-banner" style={{ width: '100%' }}>
-                        <div className="stats-rows-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
-                            <div className="posting-stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', width: '100%' }}>
-                                <div className="progress-meter-card">
-                                    <div className="card-icon-overlay"><Video size={24} /></div>
-                                    <h3 className="stat-label">Today's Shoots</h3>
-                                    <div className="progress-values">
-                                        <span className="current">{todayStats.completed}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{todayStats.total}</span>
-                                        <span className="unit">Shoots</span>
-                                    </div>
-                                    <div className="meter-labels">
-                                        <span className="percentage">{todayStats.percentage}% Done</span>
-                                        <div className="progress-bar-container">
-                                            <div className="progress-bar-fill" style={{ width: `${todayStats.percentage}%` }}></div>
-                                        </div>
-                                    </div>
-
+                        <div className="posting-stats-grid">
+                            {/* Monthly Pipeline */}
+                            <div className="progress-meter-card">
+                                <div className="card-icon-overlay"><Layers size={24} /></div>
+                                <h3 className="stat-label">Monthly Pipeline</h3>
+                                <div className="progress-values">
+                                    <span className="current">{monthStatusCounts.overallCompleted}</span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{monthStatusCounts.overallTotal}</span>
+                                    <span className="unit">Items</span>
                                 </div>
-                                <div className="progress-meter-card">
-                                    <div className="card-icon-overlay"><CalendarClock size={24} /></div>
-                                    <h3 className="stat-label">Week's Production</h3>
-                                    <div className="progress-values">
-                                        <span className="current">{weekStats.completed}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{weekStats.total}</span>
-                                        <span className="unit">Shoots</span>
+                                <div className="meter-labels">
+                                    <span className="percentage">{monthPercentage}% Shot</span>
+                                    <div className="progress-bar-container">
+                                        <div className="progress-bar-fill" style={{ width: `${monthPercentage}%` }}></div>
                                     </div>
-                                    <div className="meter-labels">
-                                        <span className="percentage">{weekStats.percentage}% Done</span>
-                                        <div className="progress-bar-container">
-                                            <div className="progress-bar-fill" style={{ width: `${weekStats.percentage}%` }}></div>
-                                        </div>
-                                    </div>
-
-                                </div>
-                                <div className="progress-meter-card">
-                                    <div className="card-icon-overlay"><Layers size={24} /></div>
-                                    <h3 className="stat-label">Monthly Pipeline</h3>
-                                    <div className="progress-values">
-                                        <span className="current">{monthCompleted}</span>
-                                        <span className="separator">/</span>
-                                        <span className="total">{monthTotal}</span>
-                                        <span className="unit">Items</span>
-                                    </div>
-                                    <div className="meter-labels">
-                                        <span className="percentage">{monthPercentage}% Shot</span>
-                                        <div className="progress-bar-container">
-                                            <div className="progress-bar-fill" style={{ width: `${monthPercentage}%` }}></div>
-                                        </div>
-                                    </div>
-
                                 </div>
                             </div>
 
-                            <div className="posting-stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', width: '100%' }}>
-                                <div className="progress-meter-card pending-reels">
-                                    <div className="card-icon-overlay"><Video size={24} /></div>
-                                    <h3 className="stat-label">Pending Reels</h3>
-                                    <div className="progress-values">
-                                        <span className="current">{todayStats.pendingReels}</span>
-                                        <span className="unit">Remaining</span>
-                                    </div>
-                                    <div className="meter-labels">
-                                        <span className="percentage" style={{ color: '#c084fc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <AlertTriangle size={14} />
-                                            Action Required
-                                        </span>
-                                    </div>
-
+                            {/* Reels Progress */}
+                            <div className="progress-meter-card" style={{ borderLeft: '4px solid #a855f7' }}>
+                                <div className="card-icon-overlay"><Video size={24} style={{ color: '#a855f7' }} /></div>
+                                <h3 className="stat-label">Reels Progress</h3>
+                                <div className="progress-values">
+                                    <span className="current" style={{ color: '#a855f7' }}>{monthStatusCounts.reelsCompleted}</span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{monthStatusCounts.reelsTotal}</span>
+                                    <span className="unit">Reels</span>
                                 </div>
-                                <div className="progress-meter-card pending-shoots">
-                                    <div className="card-icon-overlay"><Film size={24} /></div>
-                                    <h3 className="stat-label">Pending Shoots</h3>
-                                    <div className="progress-values">
-                                        <span className="current">{todayStats.pendingShoots}</span>
-                                        <span className="unit">Shoots</span>
+                                <div className="meter-labels">
+                                    <span className="percentage">{reelsPercentage}% Done</span>
+                                    <div className="progress-bar-container">
+                                        <div className="progress-bar-fill" style={{ width: `${reelsPercentage}%`, background: 'linear-gradient(90deg, #a855f7, #c084fc)' }}></div>
                                     </div>
-                                    <div className="meter-labels">
-                                        <span className="percentage" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <Clock size={14} />
-                                            Production Queue
-                                        </span>
-                                    </div>
-
-                                </div>
-                                <div className="progress-meter-card pending-posts">
-                                    <div className="card-icon-overlay"><FileText size={24} /></div>
-                                    <h3 className="stat-label">Pending Posts</h3>
-                                    <div className="progress-values">
-                                        <span className="current">{todayStats.pendingPosts}</span>
-                                        <span className="unit">Remaining</span>
-                                    </div>
-                                    <div className="meter-labels">
-                                        <span className="percentage" style={{ color: '#6366f1', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <AlertTriangle size={14} />
-                                            Action Required
-                                        </span>
-                                    </div>
-
                                 </div>
                             </div>
 
-                            <div className="posting-stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', width: '100%' }}>
-                                <div className="progress-meter-card total-pending">
-                                    <div className="card-icon-overlay"><ShieldAlert size={24} /></div>
-                                    <h3 className="stat-label">Total Pending</h3>
-                                    <div className="progress-values">
-                                        <span className="current">{pendingTasks.length}</span>
-                                        <span className="unit">Total Tasks</span>
-                                    </div>
-                                    <div className="meter-labels">
-                                        <span className="percentage" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <ShieldAlert size={14} />
-                                            Critical Queue
-                                        </span>
-                                    </div>
-
+                            {/* Posts Progress */}
+                            <div className="progress-meter-card" style={{ borderLeft: '4px solid #6366f1' }}>
+                                <div className="card-icon-overlay"><FileText size={24} style={{ color: '#6366f1' }} /></div>
+                                <h3 className="stat-label">Posts Progress</h3>
+                                <div className="progress-values">
+                                    <span className="current" style={{ color: '#6366f1' }}>{monthStatusCounts.postsCompleted}</span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{monthStatusCounts.postsTotal}</span>
+                                    <span className="unit">Posts</span>
                                 </div>
-                                <div className="progress-meter-card summary-card" style={{ gridColumn: 'span 2' }}>
-                                    <div className="card-icon-overlay"><Layers size={24} /></div>
-                                    <h3 className="stat-label">Monthly Production Summary</h3>
-                                    <div className="summary-grid" style={{ 
-                                        display: 'grid', 
-                                        gridTemplateColumns: 'repeat(4, 1fr)', 
-                                        gap: '20px', 
-                                        marginTop: '12px',
-                                        background: 'rgba(255, 255, 255, 0.03)',
-                                        padding: '20px',
-                                        borderRadius: '20px',
-                                        border: '1px solid rgba(255, 255, 255, 0.05)'
-                                    }}>
-                                        <div className="summary-item">
-                                            <span className="summary-val" style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', fontFamily: 'Fira Sans' }}>{todayStats.monthShoots}</span>
-                                            <span className="summary-lab" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginTop: '4px', display: 'block' }}>Shoots</span>
-                                        </div>
-                                        <div className="summary-item">
-                                            <span className="summary-val" style={{ fontSize: '24px', fontWeight: 800, color: '#c084fc', fontFamily: 'Fira Sans' }}>{todayStats.monthReels}</span>
-                                            <span className="summary-lab" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginTop: '4px', display: 'block' }}>Reels</span>
-                                        </div>
-                                        <div className="summary-item">
-                                            <span className="summary-val" style={{ fontSize: '24px', fontWeight: 800, color: '#6366f1', fontFamily: 'Fira Sans' }}>{todayStats.monthPosts}</span>
-                                            <span className="summary-lab" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginTop: '4px', display: 'block' }}>Posts</span>
-                                        </div>
-                                        <div className="summary-item">
-                                            <span className="summary-val" style={{ fontSize: '24px', fontWeight: 800, color: '#ef4444', fontFamily: 'Fira Sans' }}>{todayStats.monthPending}</span>
-                                            <span className="summary-lab" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginTop: '4px', display: 'block' }}>Pending</span>
-                                        </div>
+                                <div className="meter-labels">
+                                    <span className="percentage">{postsPercentage}% Done</span>
+                                    <div className="progress-bar-container">
+                                        <div className="progress-bar-fill" style={{ width: `${postsPercentage}%`, background: 'linear-gradient(90deg, #6366f1, #818cf8)' }}></div>
                                     </div>
                                 </div>
+                            </div>
 
+                            {/* Shoot Done Progress */}
+                            <div className="progress-meter-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                                <div className="card-icon-overlay"><Film size={24} style={{ color: '#f59e0b' }} /></div>
+                                <h3 className="stat-label">Shoots Done</h3>
+                                <div className="progress-values">
+                                    <span className="current" style={{ color: '#f59e0b' }}>{monthStatusCounts.shootsCompleted}</span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{monthStatusCounts.shootsTotal}</span>
+                                    <span className="unit">Shoots</span>
+                                </div>
+                                <div className="meter-labels">
+                                    <span className="percentage">{shootsPercentage}% Shot</span>
+                                    <div className="progress-bar-container">
+                                        <div className="progress-bar-fill" style={{ width: `${shootsPercentage}%`, background: 'linear-gradient(90deg, #f59e0b, #fbbf24)' }}></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -967,11 +913,11 @@ export default function ProductionHeadDashboard() {
                     <div className="status-summary-row">
                         <div className="status-pill status-pill-reels">
                             <span className="status-pill-label">Reels</span>
-                            <span className="status-pill-count">{monthStatusCounts.reels}</span>
+                            <span className="status-pill-count">{monthStatusCounts.reelsTotal}</span>
                         </div>
                         <div className="status-pill status-pill-posts">
                             <span className="status-pill-label">Posts</span>
-                            <span className="status-pill-count">{monthStatusCounts.posts}</span>
+                            <span className="status-pill-count">{monthStatusCounts.postsTotal}</span>
                         </div>
                         <div className="status-pill status-pill-content-approved">
                             <span className="status-pill-label">Content Approved</span>
@@ -979,7 +925,7 @@ export default function ProductionHeadDashboard() {
                         </div>
                         <div className="status-pill status-pill-shoot-done">
                             <span className="status-pill-label">Shoot Done</span>
-                            <span className="status-pill-count">{monthStatusCounts.shootDone}</span>
+                            <span className="status-pill-count">{monthStatusCounts.shootsCompleted}</span>
                         </div>
                         <div className="status-pill status-pill-posted">
                             <span className="status-pill-label">Posted</span>
