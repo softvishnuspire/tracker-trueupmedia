@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
-  Users, Calendar, ShieldAlert, FileText, Video, ArrowRight, 
-  X, Clock, Undo2, Check, Edit2, Trash2, ChevronDown, Filter, ChevronLeft, ChevronRight 
+  Calendar, ShieldAlert, FileText, Video, ArrowRight, 
+  X, Undo2, Edit2, Trash2, ChevronDown, Filter, ChevronLeft, ChevronRight, Clock, Check
 } from 'lucide-react';
 import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistoryItem } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,6 +36,14 @@ interface ContentDetails {
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [pipelineStats, setPipelineStats] = useState<{
+    totalItems: number;
+    completed: number;
+    pending: number;
+    statusSummary: Record<string, number>;
+    videoCount: number;
+    postsCount: number;
+  } | null>(null);
   const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
   const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,71 +100,56 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       // Fetch clients if not already loaded
-      if (clients.length === 0) {
+      let currentClients = clients;
+      if (currentClients.length === 0) {
         const clientsRes = await adminApi.getClients();
-        setClients(clientsRes.data);
+        currentClients = clientsRes.data;
+        setClients(currentClients);
       }
 
-      // Fetch master calendar for the current month to get throughput and status breakdown
-      const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
       const currentMonthStr = format(currentMonth, 'yyyy-MM');
-      let data: ContentItem[] = [];
+      
+      // 1. ALL CLIENTS DATA (for overall dashboard stats)
+      const allCalendarRes = await adminApi.getMasterCalendar(currentMonthStr);
+      const allData = allCalendarRes.data || [];
+      setCalendarData(allData);
 
-      if (isBiMonthly) {
-        const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-        const resCurr = await adminApi.getMasterCalendar(currentMonthStr, selectedClient);
-        const resNext = await adminApi.getMasterCalendar(nextMonthStr, selectedClient);
-        data = [...(resCurr.data || []), ...(resNext.data || [])];
-      } else {
-        const calendarRes = await adminApi.getMasterCalendar(
-          currentMonthStr,
-          selectedClient === 'all' ? undefined : selectedClient
-        );
-        data = calendarRes.data || [];
-      }
-      setCalendarData(data);
+      const allPeriodData = allData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
 
-      // Filter data for the current period stats
-      const periodData = data.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
-
-      const breakdown = periodData.reduce((acc: any, item: ContentItem) => {
+      const allBreakdown = allPeriodData.reduce((acc: any, item: ContentItem) => {
         acc[item.status] = (acc[item.status] || 0) + 1;
         return acc;
       }, {});
 
-      const reelsCount = periodData.filter(item => item.content_type === 'Reel').length;
-      const postsCount = periodData.filter(item => item.content_type === 'Post').length;
-      const youtubeCount = periodData.filter(item => item.content_type === 'YouTube').length;
-      const videoCount = reelsCount + youtubeCount;
+      const allReelsCount = allPeriodData.filter(item => item.content_type === 'Reel').length;
+      const allPostsCount = allPeriodData.filter(item => item.content_type === 'Post').length;
+      const allYoutubeCount = allPeriodData.filter(item => item.content_type === 'YouTube').length;
+      const allVideoCount = allReelsCount + allYoutubeCount;
 
-      // Pending vs Completed logic
-      // Completed: Waiting for Posting or Posted
       const isItemCompleted = (status: string) => {
         const s = status.toUpperCase();
         return s === 'WAITING FOR POSTING' || s === 'POSTED';
       };
 
-      const completedItems = periodData.filter(item => isItemCompleted(item.status));
-      const pendingItems = periodData.filter(item => !isItemCompleted(item.status));
+      const allCompletedItems = allPeriodData.filter(item => isItemCompleted(item.status));
+      const allPendingItems = allPeriodData.filter(item => !isItemCompleted(item.status));
 
-      const completedCount = completedItems.length;
-      const pendingCount = pendingItems.length;
+      const allCompletedCount = allCompletedItems.length;
+      const allPendingCount = allPendingItems.length;
 
-      const completedReels = completedItems.filter(item => item.content_type === 'Reel').length;
-      const completedPosts = completedItems.filter(item => item.content_type === 'Post').length;
+      const allCompletedReels = allCompletedItems.filter(item => item.content_type === 'Reel').length;
+      const allCompletedPosts = allCompletedItems.filter(item => item.content_type === 'Post').length;
 
-      const pendingReels = pendingItems.filter(item => item.content_type === 'Reel').length;
-      const pendingPosts = pendingItems.filter(item => item.content_type === 'Post').length;
+      const allPendingReels = allPendingItems.filter(item => item.content_type === 'Reel').length;
+      const allPendingPosts = allPendingItems.filter(item => item.content_type === 'Post').length;
 
-      // Reels where shoot is not yet done
-      const shootPendingReels = periodData.filter(item => 
+      const allShootPendingReels = allPeriodData.filter(item => 
         (item.content_type === 'Reel' || item.content_type === 'YouTube') && 
         ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED'].includes(item.status.toUpperCase())
       ).length;
 
-      // Calculate today's stats
       const today = new Date();
-      const todayItems = data.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
+      const todayItems = allData.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
       const totalToday = todayItems.length;
       const completedToday = todayItems.filter((item: ContentItem) => item.status === 'POSTED').length;
       
@@ -167,61 +160,72 @@ export default function AdminDashboard() {
         percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
       });
 
-      const assignedTotals = (() => {
-        if (selectedClient && selectedClient !== 'all') {
-          const client = clients.find(c => c.id === selectedClient);
-          return {
-            reels: client?.reels_per_month || 0,
-            posts: client?.posts_per_month || 0
-          };
-        }
-        return clients.reduce((acc, c) => ({
-          reels: acc.reels + (c.reels_per_month || 0),
-          posts: acc.posts + (c.posts_per_month || 0)
-        }), { reels: 0, posts: 0 });
-      })();
+      const assignedTotals = currentClients.reduce((acc, c) => ({
+        reels: acc.reels + (c.reels_per_month || 0),
+        posts: acc.posts + (c.posts_per_month || 0)
+      }), { reels: 0, posts: 0 });
 
-      // Update stats state for the pipeline and summary
+      const statsRes = await adminApi.getStats();
+      setStats({
+        ...statsRes.data,
+        totalClients: currentClients.length,
+        totalItemsThisMonth: allPeriodData.length,
+        statusSummary: allBreakdown,
+        reelsCount: allReelsCount,
+        postsCount: allPostsCount,
+        youtubeCount: allYoutubeCount,
+        videoCount: allVideoCount,
+        completedCount: allCompletedCount,
+        pendingCount: allPendingCount,
+        completedReels: allCompletedReels,
+        completedPosts: allCompletedPosts,
+        assignedReels: assignedTotals.reels,
+        assignedPosts: assignedTotals.posts,
+        pendingReels: allPendingReels,
+        pendingPosts: allPendingPosts,
+        shootPendingReels: allShootPendingReels
+      });
+
+      // 2. SELECTED CLIENT DATA (for Production Pipeline)
+      let pipelineData: ContentItem[] = [];
       if (selectedClient === 'all') {
-        const statsRes = await adminApi.getStats();
-        setStats({
-          ...statsRes.data,
-          statusSummary: breakdown,
-          totalItemsThisMonth: periodData.length,
-          reelsCount,
-          postsCount,
-          youtubeCount,
-          videoCount,
-          completedCount,
-          pendingCount,
-          completedReels,
-          completedPosts,
-          assignedReels: assignedTotals.reels,
-          assignedPosts: assignedTotals.posts,
-          pendingReels,
-          pendingPosts,
-          shootPendingReels
-        });
+        pipelineData = allData;
       } else {
-        setStats({
-          totalClients: clients.length,
-          totalItemsThisMonth: periodData.length,
-          statusSummary: breakdown,
-          reelsCount,
-          postsCount,
-          youtubeCount,
-          videoCount,
-          completedCount,
-          pendingCount,
-          completedReels,
-          completedPosts,
-          assignedReels: assignedTotals.reels,
-          assignedPosts: assignedTotals.posts,
-          pendingReels,
-          pendingPosts,
-          shootPendingReels
-        });
+        const isBiMonthly = getClientBatchType(selectedClient) === '15-15';
+        if (isBiMonthly) {
+          const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+          const resCurr = await adminApi.getMasterCalendar(currentMonthStr, selectedClient);
+          const resNext = await adminApi.getMasterCalendar(nextMonthStr, selectedClient);
+          pipelineData = [...(resCurr.data || []), ...(resNext.data || [])];
+        } else {
+          const resCurr = await adminApi.getMasterCalendar(currentMonthStr, selectedClient);
+          pipelineData = resCurr.data || [];
+        }
       }
+
+      const pPeriodData = pipelineData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
+
+      const pBreakdown = pPeriodData.reduce((acc: any, item: ContentItem) => {
+        acc[item.status] = (acc[item.status] || 0) + 1;
+        return acc;
+      }, {});
+
+      const pReelsCount = pPeriodData.filter(item => item.content_type === 'Reel').length;
+      const pPostsCount = pPeriodData.filter(item => item.content_type === 'Post').length;
+      const pYoutubeCount = pPeriodData.filter(item => item.content_type === 'YouTube').length;
+      const pVideoCount = pReelsCount + pYoutubeCount;
+
+      const pCompletedCount = pPeriodData.filter(item => isItemCompleted(item.status)).length;
+      const pPendingCount = pPeriodData.filter(item => !isItemCompleted(item.status)).length;
+
+      setPipelineStats({
+        totalItems: pPeriodData.length,
+        completed: pCompletedCount,
+        pending: pPendingCount,
+        statusSummary: pBreakdown,
+        videoCount: pVideoCount,
+        postsCount: pPostsCount
+      });
 
       await fetchDashboardLists();
 
@@ -403,20 +407,11 @@ export default function AdminDashboard() {
         ) : (
           <>
             <div className="stat-card">
-              <div className="stat-icon-box" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)' }}>
-                <Users size={28} />
-              </div>
-              <div className="stat-info">
-                <h3>Total Clients</h3>
-                <p className="stat-value">{stats?.totalClients || 0}</p>
-              </div>
-            </div>
-            <div className="stat-card">
               <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
                 <Calendar size={28} />
               </div>
               <div className="stat-info">
-                <h3>Scheduled (Month)</h3>
+                <h3>Monthly Pipeline</h3>
                 <p className="stat-value">{stats?.totalItemsThisMonth || 0}</p>
               </div>
             </div>
@@ -430,9 +425,6 @@ export default function AdminDashboard() {
                   {stats?.completedReels || 0}
                   <span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.reelsCount || 0}</span>
                 </p>
-                <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
-                  {stats?.assignedReels || 0} Assigned Quota
-                </div>
               </div>
             </div>
             <div className="stat-card">
@@ -445,56 +437,6 @@ export default function AdminDashboard() {
                   {stats?.completedPosts || 0}
                   <span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.postsCount || 0}</span>
                 </p>
-                <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', color: 'var(--text-secondary)' }}>
-                  {stats?.assignedPosts || 0} Assigned Quota
-                </div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon-box" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
-                <Clock size={28} />
-              </div>
-              <div className="stat-info">
-                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  Pending
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
-                </h3>
-                <p className="stat-value">{stats?.pendingCount || 0}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.totalItemsThisMonth || 0}</span></p>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  <span style={{ color: 'var(--warning)' }}>{stats?.pendingReels || 0} R</span>
-                  <span style={{ color: 'var(--accent-secondary)' }}>{stats?.pendingPosts || 0} P</span>
-                </div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
-                <Check size={28} />
-              </div>
-              <div className="stat-info">
-                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  Completed
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MTD</span>
-                </h3>
-                <p className="stat-value">{stats?.completedCount || 0}<span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.totalItemsThisMonth || 0}</span></p>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  <span style={{ color: 'var(--warning)' }}>{stats?.completedReels || 0} R</span>
-                  <span style={{ color: 'var(--accent-secondary)' }}>{stats?.completedPosts || 0} P</span>
-                </div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
-                <Clock size={28} />
-              </div>
-              <div className="stat-info">
-                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  Shoot Pending
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Reels</span>
-                </h3>
-                <p className="stat-value">{stats?.shootPendingReels || 0}</p>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Needs Shoot Done status</span>
-                </div>
               </div>
             </div>
           </>
@@ -564,21 +506,21 @@ export default function AdminDashboard() {
             <div className="pipeline-stats-grid">
                 <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid var(--border)' }}>
                     <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Total Tasks</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900 }}>{stats?.totalItemsThisMonth || 0}</p>
+                    <p style={{ fontSize: '20px', fontWeight: 900 }}>{pipelineStats?.totalItems || 0}</p>
                 </div>
                 <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                     <p style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Completed</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--success)' }}>{stats?.statusSummary?.['POSTED'] || 0}</p>
+                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--success)' }}>{pipelineStats?.statusSummary?.['POSTED'] || 0}</p>
                 </div>
                 <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                     <p style={{ fontSize: '10px', color: 'var(--warning)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Pending</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--warning)' }}>{(stats?.totalItemsThisMonth || 0) - (stats?.statusSummary?.['POSTED'] || 0)}</p>
+                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--warning)' }}>{(pipelineStats?.totalItems || 0) - (pipelineStats?.statusSummary?.['POSTED'] || 0)}</p>
                 </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {(() => {
-                    const summary = stats?.statusSummary || {};
+                    const summary = pipelineStats?.statusSummary || {};
                     const normalized: Record<string, number> = {};
                     Object.entries(summary).forEach(([status, count]) => {
                         const s = (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') ? 'CONTENT APPROVED' : status;
@@ -590,12 +532,12 @@ export default function AdminDashboard() {
                         // Video: Reel, YouTube
                         // Graphic: Post
                         const s = status.toUpperCase();
-                        let denominator = stats?.totalItemsThisMonth || 0;
+                        let denominator = pipelineStats?.totalItems || 0;
                         
                         if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
-                            denominator = stats?.videoCount || 0;
+                            denominator = pipelineStats?.videoCount || 0;
                         } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
-                            denominator = stats?.postsCount || 0;
+                            denominator = pipelineStats?.postsCount || 0;
                         }
 
                         return (
@@ -610,7 +552,7 @@ export default function AdminDashboard() {
                     });
                 })()}
 
-                {Object.keys(stats?.statusSummary || {}).length === 0 && (
+                {Object.keys(pipelineStats?.statusSummary || {}).length === 0 && (
                     <p style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>No content items this month.</p>
                 )}
             </div>
