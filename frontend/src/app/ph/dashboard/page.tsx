@@ -58,6 +58,8 @@ export default function ProductionHeadDashboard() {
     const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
+    const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
+    const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [loading, setLoading] = useState(false);
@@ -108,15 +110,17 @@ export default function ProductionHeadDashboard() {
 
     const fetchTodayStats = useCallback(async () => {
         try {
-            const res = await phApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), undefined, undefined);
+            const clientId = selectedClient === 'all' ? undefined : selectedClient;
+            const res = await phApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), clientId, undefined);
             const data = res.data as ContentItem[];
             const today = new Date();
             const todayItems = data.filter(item => 
                 isSameDay(parseISO(item.scheduled_datetime), today)
             );
             const totalToday = todayItems.length;
+
             const completedToday = todayItems.filter(item => 
-                ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
+                shootDoneStatuses.includes((item.status || '').toUpperCase())
             ).length;
             
             setCalendarData(data);
@@ -130,7 +134,7 @@ export default function ProductionHeadDashboard() {
             });
             const totalWeek = weekItems.length;
             const completedWeek = weekItems.filter(item => 
-                ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status)
+                shootDoneStatuses.includes((item.status || '').toUpperCase())
             ).length;
             setWeekStats({
                 total: totalWeek,
@@ -144,8 +148,16 @@ export default function ProductionHeadDashboard() {
                 dashboardApi.getPendingImportant()
             ]);
             
-            setEmergencyTasks(emergencyRes.data || []);
-            const allPending = pendingRes.data || [];
+            let allEmergency = emergencyRes.data || [];
+            let allPending = pendingRes.data || [];
+
+            // Client filtering for lists
+            if (selectedClient !== 'all') {
+                allEmergency = allEmergency.filter(t => t.client_id === selectedClient);
+                allPending = allPending.filter(t => t.client_id === selectedClient);
+            }
+            
+            setEmergencyTasks(allEmergency);
             setPendingTasks(allPending);
 
             const pReels = allPending.filter((t: ContentItem) => t.content_type === 'Reel').length;
@@ -156,7 +168,7 @@ export default function ProductionHeadDashboard() {
             const mPosts = data.filter(i => i.content_type === 'Post').length;
             const mReels = data.filter(i => i.content_type === 'Reel').length;
             const mShoots = data.filter(i => i.content_type === 'Reel' || i.content_type === 'YouTube').length;
-            const mPending = data.filter(i => !['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(i.status)).length;
+            const mPending = data.filter(i => !shootDoneStatuses.includes((i.status || '').toUpperCase())).length;
 
             setTodayStats(prev => ({
                 ...prev,
@@ -173,7 +185,7 @@ export default function ProductionHeadDashboard() {
                 pendingShoots: pShoots
             }));
         } catch (err) { console.error('Error fetching dashboard lists:', err); }
-    }, []);
+    }, [selectedClient]);
 
     const getPeriodLabel = useCallback(() => {
         return format(currentMonth, 'MMMM yyyy');
@@ -414,9 +426,6 @@ export default function ProductionHeadDashboard() {
         end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
     });
 
-    const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
-    const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
-
     const monthStatusCounts = calendarData.reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
@@ -443,7 +452,7 @@ export default function ProductionHeadDashboard() {
     );
 
     const monthTotal = calendarData.length;
-    const monthCompleted = monthStatusCounts.posted;
+    const monthCompleted = monthStatusCounts.shootDone;
     const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
 
     return (
@@ -572,6 +581,16 @@ export default function ProductionHeadDashboard() {
                         </div>
 
                         <div className="header-controls">
+                            {view === 'dashboard' && (
+                                <div className="client-dropdown-wrapper">
+                                    <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
+                                        <option value="all">All Clients</option>
+                                        {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                                    </select>
+                                    <ChevronDown size={16} className="dropdown-chevron" />
+                                </div>
+                            )}
+
                             {view === 'client' && (
                                 <div className="client-dropdown-wrapper">
                                     <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>

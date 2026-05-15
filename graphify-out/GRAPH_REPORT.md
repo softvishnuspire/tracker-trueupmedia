@@ -1,6 +1,16 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-15 (GM Dashboard Calendar Cycle Fix)
+## Latest Changes — 2026-05-15 (PH Dashboard Client-wise Filtering & Stats Correction)
+- **Goal**: Implement client-specific data filtering in the Production Head (PH) dashboard and ensure operational metrics accurately reflect production progress.
+- **Affected Files**:
+    - `frontend/src/app/ph/dashboard/page.tsx`:
+        - Added a client selection dropdown to the main dashboard header.
+        - Updated `fetchTodayStats` to filter master calendar data, pending tasks, and emergency tasks based on the selected client.
+        - Refined "Completed" metrics for Today/Week stats to use actual production completion statuses (e.g., `SHOOT DONE`) instead of just `CONTENT READY`.
+        - Corrected the "Monthly Pipeline" percentage calculation to reflect items that have been shot, aligning the UI label "Shot" with the underlying data.
+        - Centralized production status constants (`contentApprovedStatuses`, `shootDoneStatuses`) for better maintainability.
+
+## Previous Changes — 2026-05-15 (GM Dashboard Calendar Cycle Fix)
 - **Goal**: Resolve the issue where clients on a 15-15 calendar cycle were incorrectly displayed using a standard 1-1 monthly cycle in the GM dashboard.
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`: 
