@@ -371,7 +371,7 @@ export default function EmployeeTrackingPage() {
                                                 <p className="section-label" style={{ marginBottom: '8px' }}>Task Details</p>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                                     {emp.tasks.map(task => {
-                                                        const isDone = task.employeeStatus === 'COMPLETED' || ['POSTED', 'APPROVED', 'WAITING FOR POSTING'].includes(task.status?.toUpperCase());
+                                                        const isDone = (task.employeeStatus || '').toUpperCase() === 'COMPLETED';
                                                         return (
                                                             <div key={task.id} style={{ 
                                                                 display: 'flex', 
