@@ -40,7 +40,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 logging: false,
                 allowTaint: true,
                 imageTimeout: 0
-            });
+            } as any);
             const imgData = canvas.toDataURL('image/png', 1.0);
 
             const pdf = new jsPDF({

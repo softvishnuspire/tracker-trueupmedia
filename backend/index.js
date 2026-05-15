@@ -1241,10 +1241,8 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
                 const taskDateKey = toUtcDateKey(dateRef);
                 if (!taskDateKey) return false;
 
-                const empStatus = (t.employee_task_status || '').toUpperCase();
-                const isOverduePending = taskDateKey < selectedDateKey && empStatus === 'PENDING';
                 const isSelectedDay = taskDateKey === selectedDateKey;
-                return isSelectedDay || isOverduePending;
+                return isSelectedDay;
             });
 
             const total = empTasks.length;

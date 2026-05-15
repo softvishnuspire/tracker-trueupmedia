@@ -332,16 +332,11 @@ export default function EmployeeTrackingPage() {
                                             <h3>{emp.name}</h3>
                                             <p>{emp.role}</p>
                                         </div>
-                                        <div className="completion-badge" style={{ 
-                                            background: `rgba(${emp.completionRate >= 1 ? '16, 185, 129' : '99, 102, 241'}, 0.1)`,
-                                            color: emp.completionRate >= 1 ? 'var(--success)' : 'var(--accent)',
-                                            padding: '4px 12px',
-                                            borderRadius: '20px',
-                                            fontSize: '12px',
-                                            fontWeight: 800
-                                        }}>
-                                            {Math.round(emp.completionRate * 100)}%
-                                        </div>
+                                        <RadialProgress 
+                                            progress={emp.completionRate} 
+                                            size={54} 
+                                            color={emp.completionRate >= 1 ? "var(--success)" : "var(--accent-secondary)"} 
+                                        />
                                     </div>
 
                                     <div className="card-body">
@@ -362,8 +357,36 @@ export default function EmployeeTrackingPage() {
                                             </div>
                                         </div>
 
-                                        <div className="progress-bar-container">
-                                            <div className="progress-bar-fill" style={{ width: `${emp.completionRate * 100}%` }}></div>
+                                        <div className="productivity-gauge" style={{ marginTop: '4px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+                                                <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.05em' }}>
+                                                    <Activity size={12} className="text-accent" />
+                                                    DAILY PRODUCTIVITY
+                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)' }}>
+                                                        {emp.completedTasks} / {emp.assignedTasks}
+                                                    </span>
+                                                    <span style={{ fontSize: '11px', fontWeight: 900, color: emp.completionRate >= 1 ? 'var(--success)' : 'var(--accent)' }}>
+                                                        {Math.round(emp.completionRate * 100)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="progress-bar-container" style={{ height: '8px', background: 'rgba(0,0,0,0.1)', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                                <motion.div 
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${emp.completionRate * 100}%` }}
+                                                    transition={{ duration: 1.5, ease: "circOut" }}
+                                                    className="progress-bar-fill" 
+                                                    style={{ 
+                                                        height: '100%', 
+                                                        background: emp.completionRate >= 1 
+                                                            ? 'linear-gradient(90deg, var(--success), #34d399)' 
+                                                            : 'linear-gradient(90deg, var(--accent), var(--accent-secondary))',
+                                                        boxShadow: emp.completionRate > 0 ? `0 0 15px ${emp.completionRate >= 1 ? 'rgba(16, 185, 129, 0.4)' : 'var(--accent-glow)'}` : 'none'
+                                                    }} 
+                                                />
+                                            </div>
                                         </div>
 
                                         {emp.tasks && emp.tasks.length > 0 && (
