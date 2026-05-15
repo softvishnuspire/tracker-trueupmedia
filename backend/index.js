@@ -1198,16 +1198,57 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
         });
 
         // --- Aggregate Employee Stats ---
+        // Use the same source and inclusion rules as Employee Dashboard:
+        // assignments from the selected month + overdue pending tasks.
+        const employeeIds = employees.map(e => e.user_id).filter(Boolean);
+        let employeeTaskPool = [];
+
+        if (employeeIds.length > 0) {
+            const [year, month] = String(today).split('-');
+            const startOfMonth = `${year}-${month}-01T00:00:00`;
+
+            const { data: dashboardTasks, error: dashboardTasksError } = await supabase
+                .from('content_items')
+                .select('id, title, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, clients(company_name)')
+                .in('assigned_to', employeeIds)
+                .or(`assigned_at.gte.${startOfMonth},employee_task_status.eq.PENDING`)
+                .order('assigned_at', { ascending: true });
+
+            if (dashboardTasksError) throw dashboardTasksError;
+            employeeTaskPool = dashboardTasks || [];
+        }
+
+        const toUtcDateKey = (dateLike) => {
+            if (!dateLike) return null;
+            const d = new Date(dateLike);
+            if (Number.isNaN(d.getTime())) return null;
+            const y = d.getUTCFullYear();
+            const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+
+        const selectedDateKey = String(today);
+
         const empStats = employees.map(emp => {
-            const empTasks = todayTasks.filter(t => t.assigned_to === emp.user_id);
-            const total = empTasks.length;
-            
-            // A task is completed if:
-            // Employee manually marked it COMPLETED (matching Employee Dashboard logic exactly)
-            const completedTasks = empTasks.filter(t => {
+            const empTaskCandidates = employeeTaskPool.filter(t => t.assigned_to === emp.user_id);
+
+            // Mirror Employee Dashboard cards:
+            // - "Today's Assignments" (selected day here)
+            // - "Overdue Tasks" (older pending assignments)
+            const empTasks = empTaskCandidates.filter(t => {
+                const dateRef = t.assigned_at || t.scheduled_datetime;
+                const taskDateKey = toUtcDateKey(dateRef);
+                if (!taskDateKey) return false;
+
                 const empStatus = (t.employee_task_status || '').toUpperCase();
-                return empStatus === 'COMPLETED';
-            }).length;
+                const isOverduePending = taskDateKey < selectedDateKey && empStatus === 'PENDING';
+                const isSelectedDay = taskDateKey === selectedDateKey;
+                return isSelectedDay || isOverduePending;
+            });
+
+            const total = empTasks.length;
+            const completedTasks = empTasks.filter(t => (t.employee_task_status || '').toUpperCase() === 'COMPLETED').length;
 
             return {
                 id: emp.user_id,
@@ -1215,15 +1256,16 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
                 email: emp.email,
                 role: emp.role_identifier || emp.role,
                 assignedTasks: total,
-                completedTasks: completedTasks,
+                completedTasks,
                 completionRate: total > 0 ? (completedTasks / total) : 0,
                 tasks: empTasks.map(t => ({
                     id: t.id,
                     title: t.title,
-                    clientName: t.clientName,
+                    clientName: t.clients?.company_name || 'Direct',
                     status: t.status,
                     employeeStatus: t.employee_task_status,
-                    scheduledDate: t.scheduled_datetime
+                    scheduledDate: t.scheduled_datetime,
+                    assignedDate: t.assigned_at
                 }))
             };
         });

@@ -681,10 +681,11 @@
 
 .master-filters-container .client-dropdown {
     min-width: 140px;
-    border: none;
-    background: transparent;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     box-shadow: none;
-    padding: 6px 32px 6px 4px;
+    padding: 6px 32px 6px 12px;
 }
 
 /* ─── Main Content ─── */
@@ -956,6 +957,7 @@
     outline: none;
     min-width: 200px;
     transition: all 0.15s ease;
+    color-scheme: light;
 }
 
 .client-dropdown:hover {
@@ -967,11 +969,15 @@
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
+<<<<<<< Updated upstream
 .client-dropdown option {
     background: var(--bg-surface);
     color: var(--text-primary);
     padding: 12px;
 }
+=======
+/* Dropdown options handled by color-scheme: light */
+>>>>>>> Stashed changes
 
 .dropdown-chevron {
     position: absolute;

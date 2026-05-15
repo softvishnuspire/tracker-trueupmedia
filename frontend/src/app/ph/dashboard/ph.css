@@ -153,6 +153,7 @@
     outline: none;
     min-width: 200px;
     transition: all 0.15s ease;
+    color-scheme: light;
 }
 
 .client-dropdown:hover {
@@ -164,10 +165,7 @@
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
-.client-dropdown option {
-    background: var(--bg-surface);
-    color: var(--text-primary);
-}
+/* Dropdown options handled by color-scheme: light */
 
 .dropdown-chevron {
     position: absolute;

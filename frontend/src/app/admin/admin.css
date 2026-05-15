@@ -282,8 +282,8 @@
 }
 
 .client-dropdown option {
-    background: var(--bg-surface);
-    color: var(--text-primary);
+    background-color: #ffffff !important;
+    color: #000000 !important;
 }
 
 .view-mode-toggle {
