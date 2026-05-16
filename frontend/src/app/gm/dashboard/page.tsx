@@ -48,7 +48,11 @@ import {
     Search,
     User as UserIcon,
     Phone,
-    Mail
+    Mail,
+    Layers,
+    Film,
+    MessageSquare,
+    Activity
 } from 'lucide-react';
 import {
     gmApi,
@@ -88,6 +92,7 @@ export default function GMDashboard() {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
+    const [globalCalendarData, setGlobalCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc'>('dashboard');
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
@@ -254,6 +259,15 @@ export default function GMDashboard() {
         }
     }, [currentMonth, view, selectedClient, selectedType, clients]);
 
+    const fetchGlobalData = useCallback(async () => {
+        try {
+            const res = await gmApi.getMasterCalendar(format(currentMonth, 'yyyy-MM'));
+            setGlobalCalendarData(res.data || []);
+        } catch (err) {
+            console.error("Error fetching global data:", err);
+        }
+    }, [currentMonth]);
+
     useEffect(() => {
         if (view === 'master' || view === 'company') {
             fetchMasterCalendar().then(setCalendarData);
@@ -266,7 +280,8 @@ export default function GMDashboard() {
         } else if (view === 'dashboard') {
             fetchDashboardStats();
         }
-    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length]);
+        fetchGlobalData();
+    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length, fetchGlobalData]);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -311,11 +326,7 @@ export default function GMDashboard() {
 
     const isItemCompleted = (item: ContentItem) => {
         const s = (item.status || '').toUpperCase();
-        const type = (item.content_type || '').toUpperCase();
-        // Production-ready logic aligned with PH dashboard
-        if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(s)) return true;
-        if (type === 'POST' && (s === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(s))) return true;
-        return s === 'WAITING FOR POSTING' || s === 'POSTED';
+        return s === 'POSTED' || s === 'SCHEDULED' || s === 'COMPLETED' || s === 'WAITING FOR POSTING';
     };
 
     const fetchClients = useCallback(async () => {
@@ -337,6 +348,8 @@ export default function GMDashboard() {
             setEmployees(res.data);
         } catch (err) { console.error(err); }
     }, []);
+
+
 
     useEffect(() => {
         fetchEmployees();
@@ -530,41 +543,67 @@ export default function GMDashboard() {
             end: endOfWeek(currentMonth, { weekStartsOn: 1 })
         });
 
+    const globalMonthCounts = globalCalendarData.filter(item => {
+        const itemDate = parseISO(item.scheduled_datetime);
+        return isSameMonth(itemDate, currentMonth);
+    }).reduce(
+        (acc, item) => {
+            const status = (item.status || '').toUpperCase();
+            const type = (item.content_type || '').toUpperCase();
+            const isShot = shootDoneStatuses.includes(status);
+            const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
+            
+            if (type === 'REEL' || type === 'YOUTUBE') {
+                acc.totalReels += 1;
+                if (isShot) acc.shotReels += 1;
+                if (isDone) acc.doneReels += 1;
+            } else if (type === 'POST') {
+                acc.totalPosts += 1;
+                if (isShot) acc.shotPosts += 1;
+                if (isDone) acc.donePosts += 1;
+            }
+            return acc;
+        },
+        { totalReels: 0, totalPosts: 0, shotReels: 0, shotPosts: 0, doneReels: 0, donePosts: 0 }
+    );
+
     const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
         (acc, item) => {
-            const normalizedStatus = (item.status || '').toUpperCase();
+            const status = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
-            const isCompleted = isItemCompleted(item);
+            const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
             
-            if (contentApprovedStatuses.includes(normalizedStatus)) {
-                acc.contentApproved += 1;
-            }
+            acc.total += 1;
+            if (isDone) acc.completed += 1;
 
-            // Cumulative Shoot Done Logic (Reels & YouTube)
-            if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(normalizedStatus)) {
-                acc.shootDone += 1;
-            }
+            // Track status distribution for the Activity Hub
+            acc.statusCounts[status] = (acc.statusCounts[status] || 0) + 1;
 
-            // For Posts, we treat "DESIGNING COMPLETED" and later as "Production Done" equivalent for the summary
-            if (type === 'POST' && (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus))) {
-                acc.shootDone += 1;
-            }
-            
-            if (type === 'REEL') {
+            if (type === 'REEL' || type === 'YOUTUBE') {
                 acc.reels += 1;
-                if (isCompleted) acc.completedReels += 1;
-            }
-            if (type === 'POST') {
+                if (isDone) acc.completedReels += 1;
+                if (shootDoneStatuses.includes(status)) acc.shootDone += 1;
+            } else if (type === 'POST') {
                 acc.posts += 1;
-                if (isCompleted) acc.completedPosts += 1;
+                if (isDone) acc.completedPosts += 1;
+                if (status === 'CONTENT APPROVED' || shootDoneStatuses.includes(status)) acc.contentApproved += 1;
             }
 
             return acc;
         },
-        { shootDone: 0, reels: 0, posts: 0, completedReels: 0, completedPosts: 0, contentApproved: 0 }
+        { 
+            total: 0, completed: 0, reels: 0, posts: 0, 
+            completedReels: 0, completedPosts: 0, 
+            shootDone: 0, contentApproved: 0,
+            statusCounts: {} as Record<string, number> 
+        }
     );
 
-    // Calculate assigned totals from clients
+    const activeClientPocNotes = pocNotes
+        .filter(note => selectedClient === 'all' || note.client_id === selectedClient)
+        .sort((a, b) => new Date(b.note_date).getTime() - new Date(a.note_date).getTime())
+        .slice(0, 5);
+
     const assignedTotals = (() => {
         if (selectedClient && selectedClient !== 'all') {
             const client = clients.find(c => c.id === selectedClient);
@@ -834,7 +873,12 @@ export default function GMDashboard() {
                 <nav className="flex-1 sidebar-nav">
                     <p className="sidebar-label">Navigation</p>
                     <div
-                        onClick={() => setView('dashboard')}
+                        onClick={() => {
+                            setView('dashboard');
+                            if (selectedClient === 'all' && clients.length > 0) {
+                                setSelectedClient(clients[0].id);
+                            }
+                        }}
                         className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
                     >
                         <LayoutDashboard size={20} />
@@ -851,7 +895,10 @@ export default function GMDashboard() {
                         <span>Client Calendar</span>
                     </div>
                     <div
-                        onClick={() => setView('master')}
+                        onClick={() => {
+                            setView('master');
+                            setSelectedClient('all');
+                        }}
                         className={`nav-item ${view === 'master' ? 'active' : ''}`}
                     >
                         <Globe size={20} />
@@ -874,7 +921,10 @@ export default function GMDashboard() {
                         <span>Teams</span>
                     </div>
                     <div
-                        onClick={() => setView('poc')}
+                        onClick={() => {
+                            setView('poc');
+                            setSelectedPocClient('all');
+                        }}
                         className={`nav-item ${view === 'poc' ? 'active' : ''}`}
                     >
                         <FileText size={20} />
@@ -1108,6 +1158,133 @@ export default function GMDashboard() {
                     </div>
                 </header>
 
+                {/* Premium Stats Grid - Decoupled Global View */}
+                <div className="premium-stats-grid" style={{ marginTop: '12px' }}>
+                    {/* Monthly Pipeline */}
+                    <div className="premium-stat-card pipeline">
+                        <div className="card-accent-line"></div>
+                        <div className="card-top">
+                            <div className="label-group">
+                                <span className="stat-label">MONTHLY PIPELINE</span>
+                            </div>
+                            <Layers size={20} className="stat-icon" />
+                        </div>
+                        <div className="card-main">
+                            <div className="value-group">
+                                <span className="main-value">{globalMonthCounts.shotReels + globalMonthCounts.shotPosts}</span>
+                                <span className="separator">/</span>
+                                <span className="total-value">{globalMonthCounts.totalReels + globalMonthCounts.totalPosts}</span>
+                                <span className="unit">ITEMS</span>
+                            </div>
+                        </div>
+                        <div className="card-footer">
+                            <div className="percentage-info">
+                                <span className="pct-value">{Math.round(((globalMonthCounts.shotReels + globalMonthCounts.shotPosts) / (globalMonthCounts.totalReels + globalMonthCounts.totalPosts || 1)) * 100)}%</span>
+                                <span className="pct-label">Shot</span>
+                            </div>
+                            <div className="progress-track">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${((globalMonthCounts.shotReels + globalMonthCounts.shotPosts) / (globalMonthCounts.totalReels + globalMonthCounts.totalPosts || 1)) * 100}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Reels Progress */}
+                    <div className="premium-stat-card reels">
+                        <div className="card-accent-line"></div>
+                        <div className="card-top">
+                            <div className="label-group">
+                                <span className="stat-label">REELS PROGRESS</span>
+                            </div>
+                            <Video size={20} className="stat-icon" />
+                        </div>
+                        <div className="card-main">
+                            <div className="value-group">
+                                <span className="main-value">{globalMonthCounts.doneReels}</span>
+                                <span className="separator">/</span>
+                                <span className="total-value">{globalMonthCounts.totalReels}</span>
+                                <span className="unit">REELS</span>
+                            </div>
+                        </div>
+                        <div className="card-footer">
+                            <div className="percentage-info">
+                                <span className="pct-value">{Math.round((globalMonthCounts.doneReels / (globalMonthCounts.totalReels || 1)) * 100)}%</span>
+                                <span className="pct-label">Done</span>
+                            </div>
+                            <div className="progress-track">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${(globalMonthCounts.doneReels / (globalMonthCounts.totalReels || 1)) * 100}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Posts Progress */}
+                    <div className="premium-stat-card posts">
+                        <div className="card-accent-line"></div>
+                        <div className="card-top">
+                            <div className="label-group">
+                                <span className="stat-label">POSTS PROGRESS</span>
+                            </div>
+                            <FileText size={20} className="stat-icon" />
+                        </div>
+                        <div className="card-main">
+                            <div className="value-group">
+                                <span className="main-value">{globalMonthCounts.donePosts}</span>
+                                <span className="separator">/</span>
+                                <span className="total-value">{globalMonthCounts.totalPosts}</span>
+                                <span className="unit">POSTS</span>
+                            </div>
+                        </div>
+                        <div className="card-footer">
+                            <div className="percentage-info">
+                                <span className="pct-value">{Math.round((globalMonthCounts.donePosts / (globalMonthCounts.totalPosts || 1)) * 100)}%</span>
+                                <span className="pct-label">Done</span>
+                            </div>
+                            <div className="progress-track">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${(globalMonthCounts.donePosts / (globalMonthCounts.totalPosts || 1)) * 100}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Shoots Done */}
+                    <div className="premium-stat-card shoots">
+                        <div className="card-accent-line"></div>
+                        <div className="card-top">
+                            <div className="label-group">
+                                <span className="stat-label">SHOOTS DONE</span>
+                            </div>
+                            <Film size={20} className="stat-icon" />
+                        </div>
+                        <div className="card-main">
+                            <div className="value-group">
+                                <span className="main-value">{globalMonthCounts.shotReels}</span>
+                                <span className="separator">/</span>
+                                <span className="total-value">{globalMonthCounts.totalReels}</span>
+                                <span className="unit">SHOOTS</span>
+                            </div>
+                        </div>
+                        <div className="card-footer">
+                            <div className="percentage-info">
+                                <span className="pct-value">{Math.round((globalMonthCounts.shotReels / (globalMonthCounts.totalReels || 1)) * 100)}%</span>
+                                <span className="pct-label">Shot</span>
+                            </div>
+                            <div className="progress-track">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${(globalMonthCounts.shotReels / (globalMonthCounts.totalReels || 1)) * 100}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <FreelancerTaskModal 
                     isOpen={isFreelancerModalOpen}
                     onClose={() => setIsFreelancerModalOpen(false)}
@@ -1157,7 +1334,6 @@ export default function GMDashboard() {
                                             value={selectedClient}
                                             onChange={(e) => setSelectedClient(e.target.value)}
                                         >
-                                            <option value="all">All Clients</option>
                                             {clients.map(c => (
                                                 <option key={c.id} value={c.id}>{c.company_name}</option>
                                             ))}
@@ -1167,73 +1343,76 @@ export default function GMDashboard() {
                                 </div>
                             </div>
 
-                            {/* Simplified Stats Ribbon */}
-                            <div className="unified-stats-ribbon" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                                <div className="ribbon-item">
-                                    <div className="ribbon-icon" style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' }}>
-                                        <Video size={24} />
-                                    </div>
-                                    <div className="ribbon-info">
-                                        <span className="ribbon-label">REELS</span>
-                                        <span className="ribbon-value" style={{ fontSize: '28px' }}>
-                                            {stats.shootDoneReels}<small style={{ fontSize: '16px', opacity: 0.6 }}>/{stats.reelsCount}</small>
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="ribbon-item">
-                                    <div className="ribbon-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
-                                        <FileText size={24} />
-                                    </div>
-                                    <div className="ribbon-info">
-                                        <span className="ribbon-label">POSTS</span>
-                                        <span className="ribbon-value" style={{ fontSize: '28px' }}>
-                                            {stats.shootDonePosts}<small style={{ fontSize: '16px', opacity: 0.6 }}>/{stats.postsCount}</small>
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
+                            {/* Operational Command Center Content */}
                             <div className="unified-body-grid">
                                 {/* Left Panel: Progress Gauges */}
+                                {/* Left Panel: POC Activity & Status Hub */}
                                 <div className="unified-progress-panel">
-                                    <h4 className="panel-title">Production Progress</h4>
-                                    <div className="progress-stack">
-                                        <div className="mini-progress-card">
-                                            <div className="mini-info">
-                                                <span>Today</span>
-                                                <strong>{todayStats.completed}/{todayStats.total}</strong>
+                                    <div className="panel-section">
+                                        <div className="section-header">
+                                            <div className="icon-badge">
+                                                <MessageSquare size={12} />
                                             </div>
-                                            <div className="mini-bar-bg">
-                                                <div className="mini-bar-fill" style={{ width: `${todayStats.percentage}%`, background: 'var(--accent)' }}></div>
-                                            </div>
+                                            <h4 className="section-label">POC COMMUNICATION</h4>
                                         </div>
-                                        <div className="mini-progress-card">
-                                            <div className="mini-info">
-                                                <span>This Week</span>
-                                                <strong>{masterWeekStats.completed}/{masterWeekStats.total}</strong>
-                                            </div>
-                                            <div className="mini-bar-bg">
-                                                <div className="mini-bar-fill" style={{ width: `${masterWeekStats.percentage}%`, background: 'var(--success)' }}></div>
-                                            </div>
-                                        </div>
-                                        <div className="mini-progress-card">
-                                            <div className="mini-info">
-                                                <span>This Month</span>
-                                                <strong>{stats.completedCount}/{stats.monthlyContent}</strong>
-                                            </div>
-                                            <div className="mini-bar-bg">
-                                                <div className="mini-bar-fill" style={{ width: `${stats.monthlyContent > 0 ? Math.round((stats.completedCount / stats.monthlyContent) * 100) : 0}%`, background: 'var(--warning)' }}></div>
-                                            </div>
+                                        
+                                        <div className="poc-feed-compact">
+                                            {activeClientPocNotes.length > 0 ? (
+                                                activeClientPocNotes.map((note, idx) => (
+                                                    <div key={note.id || idx} className="poc-feed-item">
+                                                        <div className="note-meta">
+                                                            <span className="note-author">{note.users?.name?.split(' ')[0] || 'TL'}</span>
+                                                            <span className="note-date">{format(parseISO(note.note_date), 'MMM d')}</span>
+                                                        </div>
+                                                        <p className="note-text">{note.note_text}</p>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="poc-empty-state">
+                                                    <p>No recent notes</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
-                                    <div className="quick-nav-box">
-                                        <button onClick={() => setView('teams')} className="quick-nav-btn">
-                                            <Users size={16} />
+                                    <div className="panel-divider"></div>
+
+                                    <div className="panel-section">
+                                        <div className="section-header">
+                                            <div className="icon-badge">
+                                                <Activity size={12} />
+                                            </div>
+                                            <h4 className="section-label">TASK LIFECYCLE</h4>
+                                        </div>
+                                        
+                                        <div className="lifecycle-list">
+                                            {Object.entries(monthStatusCounts.statusCounts)
+                                                .sort(([, a], [, b]) => b - a)
+                                                .slice(0, 4)
+                                                .map(([status, count]) => (
+                                                    <div key={status} className="lifecycle-item">
+                                                        <div className="lifecycle-info">
+                                                            <span className="lifecycle-name">{status}</span>
+                                                            <span className="lifecycle-count">{count}</span>
+                                                        </div>
+                                                        <div className="lifecycle-bar-bg">
+                                                            <div 
+                                                                className="lifecycle-bar-fill" 
+                                                                style={{ width: `${(count / (monthStatusCounts.total || 1)) * 100}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="panel-actions-vertical">
+                                        <button onClick={() => setView('teams')} className="action-btn-hub">
+                                            <Users size={14} />
                                             <span>Manage Teams</span>
                                         </button>
-                                        <button onClick={() => setView('master')} className="quick-nav-btn">
-                                            <Globe size={16} />
+                                        <button onClick={() => setView('master')} className="action-btn-hub">
+                                            <Globe size={14} />
                                             <span>Master Calendar</span>
                                         </button>
                                     </div>
