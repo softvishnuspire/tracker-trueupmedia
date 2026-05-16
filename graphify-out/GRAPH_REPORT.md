@@ -1,6 +1,14 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-16 (GM Dashboard Stats Expansion)
+## Latest Changes — 2026-05-16 (GM Command Center Refinement)
+- **Goal**: Improved the Operational Command Center by standardizing progress reporting and adding time-based metrics.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`:
+        - Updated "Task Lifecycle" list to display counts in `X / Y` format with context-aware denominators.
+        - Replaced "Production Status Breakdown" with a "Production Progress" section featuring Today, This Week, and This Month bars.
+- **System Impact**: Enhances GM's ability to quickly assess production velocity and completion rates across different time horizons.
+
+## Previous Changes — 2026-05-16 (GM Dashboard Stats Expansion)
 - **Goal**: Expanded the GM Dashboard's global overview by adding three new metric cards: Posted, Content Approved, and Designing in Progress.
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`: 

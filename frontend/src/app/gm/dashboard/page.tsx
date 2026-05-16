@@ -1490,20 +1490,30 @@ export default function GMDashboard() {
                                             {Object.entries(monthStatusCounts.statusCounts)
                                                 .sort(([, a], [, b]) => b - a)
                                                 .slice(0, 4)
-                                                .map(([status, count]) => (
-                                                    <div key={status} className="lifecycle-item">
-                                                        <div className="lifecycle-info">
-                                                            <span className="lifecycle-name">{status}</span>
-                                                            <span className="lifecycle-count">{count}</span>
+                                                .map(([status, count]) => {
+                                                    const s = status.toUpperCase();
+                                                    let denominator = monthStatusCounts.total || 1;
+                                                    if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
+                                                        denominator = monthStatusCounts.reels + (monthStatusCounts.statusCounts['YOUTUBE'] || 0) || 1;
+                                                    } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
+                                                        denominator = monthStatusCounts.posts || 1;
+                                                    }
+
+                                                    return (
+                                                        <div key={status} className="lifecycle-item">
+                                                            <div className="lifecycle-info">
+                                                                <span className="lifecycle-name">{status}</span>
+                                                                <span className="lifecycle-count">{count} / {denominator}</span>
+                                                            </div>
+                                                            <div className="lifecycle-bar-bg">
+                                                                <div 
+                                                                    className="lifecycle-bar-fill" 
+                                                                    style={{ width: `${(count / denominator) * 100}%` }}
+                                                                ></div>
+                                                            </div>
                                                         </div>
-                                                        <div className="lifecycle-bar-bg">
-                                                            <div 
-                                                                className="lifecycle-bar-fill" 
-                                                                style={{ width: `${(count / (monthStatusCounts.total || 1)) * 100}%` }}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                         </div>
                                     </div>
 
@@ -1522,50 +1532,43 @@ export default function GMDashboard() {
                                 {/* Right Panel: Detailed Pipeline */}
                                 <div className="unified-pipeline-panel">
                                     <div className="pipeline-header">
-                                        <h4 className="panel-title">Production Status Breakdown</h4>
+                                        <h4 className="panel-title">Production Progress</h4>
                                         <span className="live-tag">LIVE</span>
                                     </div>
                                     
                                     <div className="unified-status-list">
-                                        {(() => {
-                                            const breakdown = stats.statusBreakdown || {};
-                                            const normalized: Record<string, number> = {};
-                                            Object.entries(breakdown).forEach(([status, count]) => {
-                                                const s = (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') ? 'CONTENT APPROVED' : status;
-                                                normalized[s] = (normalized[s] || 0) + (count as number);
-                                            });
-
-                                            return Object.entries(normalized).map(([status, count]) => {
-                                                const s = status.toUpperCase();
-                                                let denominator = stats.monthlyContent || 0;
-
-                                                if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
-                                                    denominator = stats.videoCount || 0;
-                                                } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
-                                                    denominator = stats.postsCount || 0;
-                                                }
-
-                                                const percentage = denominator > 0 ? Math.round((count / denominator) * 100) : 0;
-
-                                                return (
-                                                    <div key={status} className="unified-pipeline-item">
-                                                        <div className="item-meta">
-                                                            <span className="status-label">{status}</span>
-                                                            <span className="status-count">{count} / {denominator}</span>
-                                                        </div>
-                                                        <div className="status-bar-bg">
-                                                            <div className="status-bar-fill" style={{ width: `${percentage}%` }}></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            });
-                                        })()}
-
-                                        {Object.keys(stats.statusBreakdown).length === 0 && (
-                                            <div className="empty-pipeline">
-                                                No content data available for this period.
+                                        {/* Today Progress */}
+                                        <div className="unified-pipeline-item">
+                                            <div className="item-meta">
+                                                <span className="status-label">TODAY</span>
+                                                <span className="status-count">{todayStats.completed} / {todayStats.total}</span>
                                             </div>
-                                        )}
+                                            <div className="status-bar-bg">
+                                                <div className="status-bar-fill" style={{ width: `${todayStats.percentage}%` }}></div>
+                                            </div>
+                                        </div>
+
+                                        {/* This Week Progress */}
+                                        <div className="unified-pipeline-item">
+                                            <div className="item-meta">
+                                                <span className="status-label">THIS WEEK</span>
+                                                <span className="status-count">{masterWeekStats.completed} / {masterWeekStats.total}</span>
+                                            </div>
+                                            <div className="status-bar-bg">
+                                                <div className="status-bar-fill" style={{ width: `${masterWeekStats.percentage}%` }}></div>
+                                            </div>
+                                        </div>
+
+                                        {/* This Month Progress */}
+                                        <div className="unified-pipeline-item">
+                                            <div className="item-meta">
+                                                <span className="status-label">THIS MONTH</span>
+                                                <span className="status-count">{monthStatusCounts.completed} / {monthStatusCounts.total}</span>
+                                            </div>
+                                            <div className="status-bar-bg">
+                                                <div className="status-bar-fill" style={{ width: `${monthStatusCounts.total > 0 ? Math.round((monthStatusCounts.completed / monthStatusCounts.total) * 100) : 0}%` }}></div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
