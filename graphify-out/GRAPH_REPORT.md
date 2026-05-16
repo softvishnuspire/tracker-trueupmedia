@@ -1,6 +1,17 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-16 (PH Dashboard Cleanup)
+## Latest Changes — 2026-05-16 (GM Dashboard Stats Expansion)
+- **Goal**: Expanded the GM Dashboard's global overview by adding three new metric cards: Posted, Content Approved, and Designing in Progress.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`: 
+        - Enhanced `globalMonthCounts` logic to track system-wide totals for the new statuses.
+        - Integrated 3 new premium stat cards into the top grid.
+    - `frontend/src/app/gm/dashboard/gm.css`:
+        - Updated `premium-stats-grid` to use `auto-fit` for responsive card wrapping (supporting 7+ cards).
+        - Added distinct accent colors and styling for the new metric cards.
+- **System Impact**: Provides more granular global visibility into the production pipeline, allowing GMs to track design progress and final posting status at a glance.
+
+## Previous Changes — 2026-05-16 (PH Dashboard Cleanup)
 - **Goal**: Simplified the Production Head (PH) dashboard by removing the "Production Status Overview" section as requested.
 - **Affected Files**:
     - `frontend/src/app/ph/dashboard/page.tsx`: Removed the `dashboard-view` block containing the `Production Status Overview` card.

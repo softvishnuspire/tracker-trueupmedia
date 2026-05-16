@@ -3295,7 +3295,7 @@
 /* ─── Premium Stats Grid ─── */
 .premium-stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 20px;
     margin-bottom: 24px;
 }
@@ -3335,6 +3335,9 @@
 .premium-stat-card.reels { --accent-start: #a855f7; --accent-end: #6366f1; }
 .premium-stat-card.posts { --accent-start: #3b82f6; --accent-end: #8b5cf6; }
 .premium-stat-card.shoots { --accent-start: #f59e0b; --accent-end: #ef4444; }
+.premium-stat-card.posted-card { --accent-start: #10b981; --accent-end: #059669; }
+.premium-stat-card.approved-card { --accent-start: #6366f1; --accent-end: #4f46e5; }
+.premium-stat-card.designing-card { --accent-start: #f59e0b; --accent-end: #d97706; }
 
 .card-top {
     display: flex;
@@ -3393,6 +3396,9 @@
 .premium-stat-card.reels .main-value { color: #a855f7; }
 .premium-stat-card.posts .main-value { color: #3b82f6; }
 .premium-stat-card.shoots .main-value { color: #f59e0b; }
+.premium-stat-card.posted-card .main-value { color: #10b981; }
+.premium-stat-card.approved-card .main-value { color: #6366f1; }
+.premium-stat-card.designing-card .main-value { color: #f59e0b; }
 
 .card-footer {
     display: flex;

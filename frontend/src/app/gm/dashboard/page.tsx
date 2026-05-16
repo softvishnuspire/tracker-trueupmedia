@@ -553,6 +553,11 @@ export default function GMDashboard() {
             const isShot = shootDoneStatuses.includes(status);
             const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
             
+            acc.totalItems += 1;
+            if (status === 'POSTED') acc.posted += 1;
+            if (status === 'CONTENT APPROVED' || status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') acc.contentApproved += 1;
+            if (status === 'DESIGNING IN PROGRESS') acc.designingInProgress += 1;
+
             if (type === 'REEL' || type === 'YOUTUBE') {
                 acc.totalReels += 1;
                 if (isShot) acc.shotReels += 1;
@@ -564,7 +569,10 @@ export default function GMDashboard() {
             }
             return acc;
         },
-        { totalReels: 0, totalPosts: 0, shotReels: 0, shotPosts: 0, doneReels: 0, donePosts: 0 }
+        { 
+            totalReels: 0, totalPosts: 0, shotReels: 0, shotPosts: 0, doneReels: 0, donePosts: 0,
+            totalItems: 0, posted: 0, contentApproved: 0, designingInProgress: 0
+        }
     );
 
     const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
@@ -1279,6 +1287,99 @@ export default function GMDashboard() {
                                 <div 
                                     className="progress-fill" 
                                     style={{ width: `${(globalMonthCounts.shotReels / (globalMonthCounts.totalReels || 1)) * 100}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Posted */}
+                    <div className="premium-stat-card posted-card">
+                        <div className="card-accent-line"></div>
+                        <div className="card-top">
+                            <div className="label-group">
+                                <span className="stat-label">POSTED</span>
+                            </div>
+                            <CheckCircle2 size={20} className="stat-icon" />
+                        </div>
+                        <div className="card-main">
+                            <div className="value-group">
+                                <span className="main-value">{globalMonthCounts.posted}</span>
+                                <span className="separator">/</span>
+                                <span className="total-value">{globalMonthCounts.totalItems}</span>
+                                <span className="unit">ITEMS</span>
+                            </div>
+                        </div>
+                        <div className="card-footer">
+                            <div className="percentage-info">
+                                <span className="pct-value">{Math.round((globalMonthCounts.posted / (globalMonthCounts.totalItems || 1)) * 100)}%</span>
+                                <span className="pct-label">Posted</span>
+                            </div>
+                            <div className="progress-track">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${(globalMonthCounts.posted / (globalMonthCounts.totalItems || 1)) * 100}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Content Approved */}
+                    <div className="premium-stat-card approved-card">
+                        <div className="card-accent-line"></div>
+                        <div className="card-top">
+                            <div className="label-group">
+                                <span className="stat-label">CONTENT APPROVED</span>
+                            </div>
+                            <Activity size={20} className="stat-icon" />
+                        </div>
+                        <div className="card-main">
+                            <div className="value-group">
+                                <span className="main-value">{globalMonthCounts.contentApproved}</span>
+                                <span className="separator">/</span>
+                                <span className="total-value">{globalMonthCounts.totalItems}</span>
+                                <span className="unit">ITEMS</span>
+                            </div>
+                        </div>
+                        <div className="card-footer">
+                            <div className="percentage-info">
+                                <span className="pct-value">{Math.round((globalMonthCounts.contentApproved / (globalMonthCounts.totalItems || 1)) * 100)}%</span>
+                                <span className="pct-label">Approved</span>
+                            </div>
+                            <div className="progress-track">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${(globalMonthCounts.contentApproved / (globalMonthCounts.totalItems || 1)) * 100}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Designing In Progress */}
+                    <div className="premium-stat-card designing-card">
+                        <div className="card-accent-line"></div>
+                        <div className="card-top">
+                            <div className="label-group">
+                                <span className="stat-label">DESIGNING IN PROGRESS</span>
+                            </div>
+                            <Edit size={20} className="stat-icon" />
+                        </div>
+                        <div className="card-main">
+                            <div className="value-group">
+                                <span className="main-value">{globalMonthCounts.designingInProgress}</span>
+                                <span className="separator">/</span>
+                                <span className="total-value">{globalMonthCounts.totalPosts}</span>
+                                <span className="unit">POSTS</span>
+                            </div>
+                        </div>
+                        <div className="card-footer">
+                            <div className="percentage-info">
+                                <span className="pct-value">{Math.round((globalMonthCounts.designingInProgress / (globalMonthCounts.totalPosts || 1)) * 100)}%</span>
+                                <span className="pct-label">Designing</span>
+                            </div>
+                            <div className="progress-track">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${(globalMonthCounts.designingInProgress / (globalMonthCounts.totalPosts || 1)) * 100}%` }}
                                 ></div>
                             </div>
                         </div>
