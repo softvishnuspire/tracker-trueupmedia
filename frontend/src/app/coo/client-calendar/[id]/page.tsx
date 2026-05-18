@@ -298,10 +298,13 @@ export default function CooClientCalendarPage() {
                     ))}
 
                     {days.map((day, idx) => {
-                        const dayContent = calendarData.filter((item) => {
-                            const itemDate = parseISO(item.scheduled_datetime);
-                            return isSameDay(itemDate, day);
-                        });
+                        const isOutOfPeriod = !isDayInPeriod(day);
+                        const dayContent = isOutOfPeriod
+                            ? []
+                            : calendarData.filter((item) => {
+                                const itemDate = parseISO(item.scheduled_datetime);
+                                return isSameDay(itemDate, day);
+                            });
 
                         return (
                             <div
@@ -315,8 +318,8 @@ export default function CooClientCalendarPage() {
                                         }
                                     }
                                 }}
-                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
+                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (dayContent.length > 0 && !isOutOfPeriod) ? 'pointer' : 'default' }}
                             >
                                 <span className="day-number">{format(day, 'd')}</span>
                                 <div className="day-items desktop-only">

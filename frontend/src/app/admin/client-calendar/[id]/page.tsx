@@ -410,11 +410,13 @@ export default function ClientCalendarPage() {
                     ))}
 
                     {days.map((day, idx) => {
-                        const dayContent = calendarData.filter(item => {
-                            const itemDate = parseISO(item.scheduled_datetime);
-                            return isSameDay(itemDate, day);
-                        });
                         const isOutOfPeriod = !isDayInPeriod(day);
+                        const dayContent = isOutOfPeriod
+                            ? []
+                            : calendarData.filter(item => {
+                                const itemDate = parseISO(item.scheduled_datetime);
+                                return isSameDay(itemDate, day);
+                            });
 
                         return (
                             <div

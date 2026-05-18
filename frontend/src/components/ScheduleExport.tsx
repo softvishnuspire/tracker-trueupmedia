@@ -238,7 +238,9 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                         ))}
                         {gridDays.map((day, idx) => {
                             const isInPeriod = day >= periodStart && day <= periodEnd;
-                            const dayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), day));
+                            const dayItems = isInPeriod
+                                ? data.filter(item => isSameDay(parseISO(item.scheduled_datetime), day))
+                                : [];
 
                             return (
                                 <div key={idx} style={{
