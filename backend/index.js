@@ -435,11 +435,20 @@ app.post('/api/gm/content', requireRoles(GM_ROLES), async (req, res) => {
         // Get client's assigned employee
         const { data: clientData } = await supabase
             .from('clients')
-            .select('employee_id')
+            .select('employee_id, reel_employee_id, post_employee_id')
             .eq('id', client_id)
             .single();
 
-        const employeeId = clientData ? clientData.employee_id : null;
+        let employeeId = null;
+        if (clientData) {
+            if (['Reel', 'YouTube'].includes(content_type)) {
+                employeeId = clientData.reel_employee_id || clientData.employee_id;
+            } else if (content_type === 'Post') {
+                employeeId = clientData.post_employee_id || clientData.employee_id;
+            } else {
+                employeeId = clientData.employee_id;
+            }
+        }
 
         const { data, error } = await supabase
             .from('content_items')
@@ -1033,12 +1042,41 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     try {
         console.log(`[Admin] Starting deletion sequence for ${id}`);
 
-        // 1. Unassign from clients
-        const { error: unassignError } = await supabase
+        // 1. Unassign from clients (team lead)
+        const { error: unassignTlError } = await supabase
             .from('clients')
             .update({ team_lead_id: null })
             .eq('team_lead_id', id);
-        if (unassignError) console.warn('[Admin] Client unassign warning:', unassignError.message);
+        if (unassignTlError) console.warn('[Admin] Client TL unassign warning:', unassignTlError.message);
+
+        // 1b. Unassign from clients (generic employee)
+        const { error: unassignEmpError } = await supabase
+            .from('clients')
+            .update({ employee_id: null })
+            .eq('employee_id', id);
+        if (unassignEmpError) console.warn('[Admin] Client employee_id unassign warning:', unassignEmpError.message);
+
+        // 1c. Unassign from clients (reel editor)
+        const { error: unassignReelError } = await supabase
+            .from('clients')
+            .update({ reel_employee_id: null })
+            .eq('reel_employee_id', id);
+        if (unassignReelError) console.warn('[Admin] Client reel_employee_id unassign warning:', unassignReelError.message);
+
+        // 1d. Unassign from clients (post editor)
+        const { error: unassignPostError } = await supabase
+            .from('clients')
+            .update({ post_employee_id: null })
+            .eq('post_employee_id', id);
+        if (unassignPostError) console.warn('[Admin] Client post_employee_id unassign warning:', unassignPostError.message);
+
+        // 1e. Clear assigned_to in content_items
+        const { error: contentAssignError } = await supabase
+            .from('content_items')
+            .update({ assigned_to: null, assigned_at: null })
+            .eq('assigned_to', id);
+        if (contentAssignError) console.warn('[Admin] Content items assigned_to cleanup warning:', contentAssignError.message);
+
 
         // 2. Clear references in status_logs (set to null so history is preserved)
         const { error: logError } = await supabase
@@ -1405,7 +1443,7 @@ async function fetchContentOrFreelancerItem(id) {
     // 1. Try content_items first
     const { data: item, error } = await supabase
         .from('content_items')
-        .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+        .select(`*, clients (company_name, employee_id, reel_employee_id, post_employee_id, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
         .eq('id', id)
         .single();
         
@@ -1656,11 +1694,20 @@ app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
         // Get client's assigned employee
         const { data: clientData } = await supabase
             .from('clients')
-            .select('employee_id')
+            .select('employee_id, reel_employee_id, post_employee_id')
             .eq('id', client_id)
             .single();
 
-        const employeeId = clientData ? clientData.employee_id : null;
+        let employeeId = null;
+        if (clientData) {
+            if (['Reel', 'YouTube'].includes(content_type)) {
+                employeeId = clientData.reel_employee_id || clientData.employee_id;
+            } else if (content_type === 'Post') {
+                employeeId = clientData.post_employee_id || clientData.employee_id;
+            } else {
+                employeeId = clientData.employee_id;
+            }
+        }
 
         const { data, error } = await supabase
             .from('content_items')
@@ -1892,7 +1939,7 @@ app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('clients')
-            .select('id, company_name, employee_id, batch_type, team_lead:team_lead_id (name)')
+            .select('id, company_name, employee_id, reel_employee_id, post_employee_id, batch_type, team_lead:team_lead_id (name)')
             .eq('is_active', true)
             .eq('is_deleted', false)
             .order('company_name');
@@ -1987,9 +2034,23 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
         const threshold = employeeThresholds[item.content_type];
         
         if (threshold && finalStatus === threshold && !item.assigned_to) {
-            const { data: client } = await supabase.from('clients').select('employee_id').eq('id', item.client_id).single();
-            if (client?.employee_id) {
-                autoAssignedId = client.employee_id;
+            const { data: client } = await supabase
+                .from('clients')
+                .select('employee_id, reel_employee_id, post_employee_id')
+                .eq('id', item.client_id)
+                .single();
+            let employeeId = null;
+            if (client) {
+                if (['Reel', 'YouTube'].includes(item.content_type)) {
+                    employeeId = client.reel_employee_id || client.employee_id;
+                } else if (item.content_type === 'Post') {
+                    employeeId = client.post_employee_id || client.employee_id;
+                } else {
+                    employeeId = client.employee_id;
+                }
+            }
+            if (employeeId) {
+                autoAssignedId = employeeId;
                 console.log(`[PH StatusUpdate] Auto-assigning item ${id} to employee ${autoAssignedId}`);
             }
         }
@@ -2064,7 +2125,7 @@ app.get('/api/ph/employees', requireRoles(PH_ROLES), async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('users')
-            .select('user_id, name, email')
+            .select('user_id, name, email, role_identifier')
             .eq('role', 'EMPLOYEE')
             .order('name');
 
@@ -2115,22 +2176,61 @@ app.patch('/api/ph/content/:id/assign', requireRoles(PH_ROLES), async (req, res)
 // PH: Assign Employee to Client (Default Assignment)
 app.patch('/api/ph/clients/:id/assign-employee', requireRoles(PH_ROLES), async (req, res) => {
     const { id } = req.params;
-    const { employee_id } = req.body;
+    const { employee_id, unassign_id } = req.body;
 
-    console.log(`[PH ClientAssign] Request for client ${id}, assign default employee to ${employee_id}`);
-    
-    // Check if employee_id is valid
-    if (employee_id && typeof employee_id !== 'string') {
-        return res.status(400).json({ error: 'Invalid employee_id format' });
-    }
+    console.log(`[PH ClientAssign] Client: ${id}, assign: ${employee_id}, unassign: ${unassign_id}`);
 
     try {
-        // 1. Update the client's default assigned employee
+        let updatePayload = {};
+        let targetContentType = null;
+        let targetEmployeeId = null;
+
+        if (unassign_id) {
+            const { data: user } = await supabase
+                .from('users')
+                .select('role_identifier')
+                .eq('user_id', unassign_id)
+                .single();
+
+            const role_identifier = user?.role_identifier;
+            if (role_identifier === 'REEL') {
+                updatePayload = { reel_employee_id: null };
+                targetContentType = ['Reel', 'YouTube'];
+            } else if (role_identifier === 'POST') {
+                updatePayload = { post_employee_id: null };
+                targetContentType = ['Post'];
+            } else {
+                updatePayload = { employee_id: null };
+                targetContentType = null;
+            }
+            targetEmployeeId = null;
+        } else if (employee_id) {
+            const { data: user } = await supabase
+                .from('users')
+                .select('role_identifier')
+                .eq('user_id', employee_id)
+                .single();
+
+            const role_identifier = user?.role_identifier;
+            if (role_identifier === 'REEL') {
+                updatePayload = { reel_employee_id: employee_id };
+                targetContentType = ['Reel', 'YouTube'];
+            } else if (role_identifier === 'POST') {
+                updatePayload = { post_employee_id: employee_id };
+                targetContentType = ['Post'];
+            } else {
+                updatePayload = { employee_id: employee_id };
+                targetContentType = null;
+            }
+            targetEmployeeId = employee_id;
+        } else {
+            return res.status(400).json({ error: 'Either employee_id or unassign_id is required' });
+        }
+
+        // 1. Update the client
         const { data, error } = await supabase
             .from('clients')
-            .update({
-                employee_id: employee_id || null
-            })
+            .update(updatePayload)
             .eq('id', id)
             .select();
 
@@ -2143,22 +2243,25 @@ app.patch('/api/ph/clients/:id/assign-employee', requireRoles(PH_ROLES), async (
             return res.status(404).json({ error: 'Client not found' });
         }
 
-        // 2. Cascade assignment: Update all tasks for this client to the assigned employee
-        const updatePayload = {
-            assigned_to: employee_id || null,
-            assigned_at: employee_id ? new Date().toISOString() : null,
-            employee_task_status: employee_id ? 'PENDING' : null
-        };
+        // 2. Cascade assignment to content_items of matching content_type
+        if (targetContentType) {
+            const cascadePayload = {
+                assigned_to: targetEmployeeId,
+                assigned_at: targetEmployeeId ? new Date().toISOString() : null,
+                employee_task_status: targetEmployeeId ? 'PENDING' : null
+            };
 
-        const { error: cascadeError } = await supabase
-            .from('content_items')
-            .update(updatePayload)
-            .eq('client_id', id); // Cascade to all tasks for consistent calendars across all screens
+            const { error: cascadeError } = await supabase
+                .from('content_items')
+                .update(cascadePayload)
+                .eq('client_id', id)
+                .in('content_type', targetContentType);
 
-        if (cascadeError) {
-            console.error('[PH ClientAssign] Cascade tasks assignment error:', cascadeError.message);
-        } else {
-            console.log(`[PH ClientAssign] Successfully cascaded task assignments to all content items for client ${id}`);
+            if (cascadeError) {
+                console.error('[PH ClientAssign] Cascade task assignment error:', cascadeError.message);
+            } else {
+                console.log(`[PH ClientAssign] Cascaded assignments to tasks for client ${id} of types ${targetContentType}`);
+            }
         }
 
         myCache.del(["gm_clients", "admin_clients", "ph_clients"]);
@@ -2196,11 +2299,26 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
             'WAITING FOR POSTING', 'POSTED'
         ];
 
+        // Get employee's specialization
+        const { data: user } = await supabase
+            .from('users')
+            .select('role_identifier')
+            .eq('user_id', userId)
+            .single();
+
+        const role_identifier = user?.role_identifier;
+
         // Step 1: Fetch clients assigned to this employee
-        const { data: clients, error: clientsError } = await supabase
-            .from('clients')
-            .select('id')
-            .eq('employee_id', userId);
+        let clientQuery = supabase.from('clients').select('id');
+        if (role_identifier === 'REEL') {
+            clientQuery = clientQuery.eq('reel_employee_id', userId);
+        } else if (role_identifier === 'POST') {
+            clientQuery = clientQuery.eq('post_employee_id', userId);
+        } else {
+            clientQuery = clientQuery.or(`employee_id.eq.${userId},reel_employee_id.eq.${userId},post_employee_id.eq.${userId}`);
+        }
+
+        const { data: clients, error: clientsError } = await clientQuery;
 
         if (clientsError) {
             console.error('[EmployeeTasks] Clients Query Error:', clientsError.message);
@@ -2212,8 +2330,14 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
         // Step 2: Fetch Content Items
         let contentQuery = supabase
             .from('content_items')
-            .select(`*, clients!inner(company_name, employee_id)`)
+            .select(`*, clients!inner(company_name, employee_id, reel_employee_id, post_employee_id)`)
             .in('status', employeeTriggerStatuses);
+
+        if (role_identifier === 'REEL') {
+            contentQuery = contentQuery.in('content_type', ['Reel', 'YouTube']);
+        } else if (role_identifier === 'POST') {
+            contentQuery = contentQuery.eq('content_type', 'Post');
+        }
 
         if (clientIds.length > 0) {
             contentQuery = contentQuery.in('client_id', clientIds);
@@ -2272,7 +2396,17 @@ app.patch('/api/employee/tasks/:id/status', requireRoles(EMPLOYEE_ROLES), async 
         if (fetchError || !item) return res.status(404).json({ error: 'Task not found' });
         
         // Authorization check
-        if (item.assigned_to !== userId && req.resolvedRole !== 'ADMIN') {
+        // Allow if: directly assigned, OR client-level assignment matches (reel/post employee), OR admin
+        const isDirectlyAssigned = item.assigned_to === userId;
+        const clientData = item.clients;
+        const contentType = (item.content_type || '').toUpperCase();
+        const isReelEmployee = clientData?.reel_employee_id === userId && (contentType === 'REEL' || contentType === 'YOUTUBE');
+        const isPostEmployee = clientData?.post_employee_id === userId && contentType === 'POST';
+        const isClientEmployee = clientData?.employee_id === userId;
+        const isAdmin = req.resolvedRole === 'ADMIN';
+
+        if (!isDirectlyAssigned && !isReelEmployee && !isPostEmployee && !isClientEmployee && !isAdmin) {
+            console.warn(`[EmployeeTasks] Auth denied: user ${userId} tried to update task ${id} (assigned_to: ${item.assigned_to}, reel_emp: ${clientData?.reel_employee_id}, post_emp: ${clientData?.post_employee_id})`);
             return res.status(403).json({ error: 'Unauthorized' });
         }
 

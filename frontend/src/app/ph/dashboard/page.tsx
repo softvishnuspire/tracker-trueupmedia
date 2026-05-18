@@ -966,7 +966,15 @@ export default function ProductionHeadDashboard() {
                     <div className="employees-view">
                         <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: '24px' }}>
                             {employees.map((emp: any) => {
-                                const assignedClients = clients.filter(c => c.employee_id === emp.user_id);
+                                const assignedClients = clients.filter(c => {
+                                    if (emp.role_identifier === 'REEL') {
+                                        return c.reel_employee_id === emp.user_id;
+                                    } else if (emp.role_identifier === 'POST') {
+                                        return c.post_employee_id === emp.user_id;
+                                    } else {
+                                        return c.employee_id === emp.user_id || c.reel_employee_id === emp.user_id || c.post_employee_id === emp.user_id;
+                                    }
+                                });
                                 return (
                                     <div key={emp.user_id} className="employee-card-premium">
                                         <div className="employee-card-header">
@@ -979,7 +987,9 @@ export default function ProductionHeadDashboard() {
                                                         {emp.name} 
                                                         <span className="role-id-tag">({emp.role_identifier || 'EMP'})</span>
                                                     </h3>
-                                                    <p className="employee-card-role">EMPLOYEE</p>
+                                                    <p className="employee-card-role">
+                                                        {emp.role_identifier === 'REEL' ? 'REEL EDITOR' : emp.role_identifier === 'POST' ? 'POSTER EDITOR' : 'EMPLOYEE'}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <button 
@@ -1006,7 +1016,7 @@ export default function ProductionHeadDashboard() {
                                                                 e.stopPropagation();
                                                                 if (confirm(`Unassign ${client.company_name} from ${emp.name}?`)) {
                                                                     try {
-                                                                        await phApi.assignEmployeeToClient(client.id, null);
+                                                                        await phApi.assignEmployeeToClient(client.id, null, emp.user_id);
                                                                         // Refresh data
                                                                         const cRes = await phApi.getClients();
                                                                         setClients(cRes.data);
@@ -1062,52 +1072,85 @@ export default function ProductionHeadDashboard() {
                             <div className="client-selection-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                                 {clients
                                     .filter(c => c.company_name.toLowerCase().includes(clientSearchTerm.toLowerCase()))
-                                    .map(client => (
-                                        <div 
-                                            key={client.id} 
-                                            className={`client-selection-item ${client.employee_id === assigningToEmployee.user_id ? 'already-assigned' : ''}`}
-                                            onClick={async () => {
-                                                if (client.employee_id === assigningToEmployee.user_id) return;
-                                                console.log(`[Assign] Attempting to assign client ${client.id} to employee ${assigningToEmployee.user_id}`);
-                                                try {
-                                                    const res = await phApi.assignEmployeeToClient(client.id, assigningToEmployee.user_id);
-                                                    console.log('[Assign] Success:', res.data);
-                                                    // Refresh data
-                                                    const cRes = await phApi.getClients();
-                                                    setClients(cRes.data);
-                                                    fetchTodayStats();
-                                                    fetchMasterCalendar();
-                                                    fetchClientCalendar();
-                                                    setToast(`Assigned ${client.company_name} to ${assigningToEmployee.name}`);
-                                                    setTimeout(() => setToast(null), 3000);
-                                                    setIsAssignModalOpen(false);
-                                                } catch (err: any) {
-                                                    alert(err.response?.data?.error || 'Failed to assign client');
-                                                }
-                                            }}
-                                            style={{ 
-                                                padding: '12px 16px', 
-                                                borderRadius: '10px', 
-                                                cursor: client.employee_id === assigningToEmployee.user_id ? 'default' : 'pointer',
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                marginBottom: '8px',
-                                                background: client.employee_id === assigningToEmployee.user_id ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-elevated)',
-                                                border: client.employee_id === assigningToEmployee.user_id ? '1px solid var(--accent)' : '1px solid var(--border)',
-                                                opacity: client.employee_id === assigningToEmployee.user_id ? 0.7 : 1
-                                            }}
-                                        >
-                                            <span style={{ fontWeight: 600 }}>{client.company_name}</span>
-                                            {client.employee_id ? (
-                                                <span style={{ fontSize: '11px', color: client.employee_id === assigningToEmployee.user_id ? 'var(--accent)' : 'var(--text-muted)' }}>
-                                                    {client.employee_id === assigningToEmployee.user_id ? 'Currently Assigned' : `Assigned to ${employees.find(e => e.user_id === client.employee_id)?.name || 'Other'}`}
-                                                </span>
-                                            ) : (
-                                                <span style={{ fontSize: '11px', color: 'var(--success)' }}>Available</span>
-                                            )}
-                                        </div>
-                                    ))
+                                    .map(client => {
+                                        const isAlreadyAssigned = 
+                                            assigningToEmployee.role_identifier === 'REEL' ? client.reel_employee_id === assigningToEmployee.user_id :
+                                            assigningToEmployee.role_identifier === 'POST' ? client.post_employee_id === assigningToEmployee.user_id :
+                                            client.employee_id === assigningToEmployee.user_id;
+
+                                        return (
+                                            <div 
+                                                key={client.id} 
+                                                className={`client-selection-item ${isAlreadyAssigned ? 'already-assigned' : ''}`}
+                                                onClick={async () => {
+                                                    if (isAlreadyAssigned) return;
+                                                    console.log(`[Assign] Attempting to assign client ${client.id} to employee ${assigningToEmployee.user_id}`);
+                                                    try {
+                                                        const res = await phApi.assignEmployeeToClient(client.id, assigningToEmployee.user_id);
+                                                        console.log('[Assign] Success:', res.data);
+                                                        // Refresh data
+                                                        const cRes = await phApi.getClients();
+                                                        setClients(cRes.data);
+                                                        fetchTodayStats();
+                                                        fetchMasterCalendar();
+                                                        fetchClientCalendar();
+                                                        setToast(`Assigned ${client.company_name} to ${assigningToEmployee.name}`);
+                                                        setTimeout(() => setToast(null), 3000);
+                                                        setIsAssignModalOpen(false);
+                                                    } catch (err: any) {
+                                                        alert(err.response?.data?.error || 'Failed to assign client');
+                                                    }
+                                                }}
+                                                style={{ 
+                                                    padding: '12px 16px', 
+                                                    borderRadius: '10px', 
+                                                    cursor: isAlreadyAssigned ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    marginBottom: '8px',
+                                                    background: isAlreadyAssigned ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-elevated)',
+                                                    border: isAlreadyAssigned ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                                    opacity: isAlreadyAssigned ? 0.7 : 1
+                                                }}
+                                            >
+                                                <span style={{ fontWeight: 600 }}>{client.company_name}</span>
+                                                {(() => {
+                                                    if (assigningToEmployee.role_identifier === 'REEL') {
+                                                        if (client.reel_employee_id) {
+                                                            const isCurrent = client.reel_employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned (Reel)' : `Reel Editor: ${employees.find((e: any) => e.user_id === client.reel_employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Reel Editor Available</span>;
+                                                    } else if (assigningToEmployee.role_identifier === 'POST') {
+                                                        if (client.post_employee_id) {
+                                                            const isCurrent = client.post_employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned (Post)' : `Poster Editor: ${employees.find((e: any) => e.user_id === client.post_employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Poster Editor Available</span>;
+                                                    } else {
+                                                        if (client.employee_id) {
+                                                            const isCurrent = client.employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned' : `Assigned to ${employees.find((e: any) => e.user_id === client.employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Available</span>;
+                                                    }
+                                                })()}
+                                            </div>
+                                        );
+                                    })
                                 }
                             </div>
                         </div>

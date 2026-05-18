@@ -289,6 +289,23 @@ export default function TeamManagement() {
                   </div>
                 </div>
               )}
+
+              {formData.role === 'EMPLOYEE' && (
+                <div className="form-group">
+                  <label className="form-label">Employee Category *</label>
+                  <select 
+                    className="form-input"
+                    required
+                    value={formData.role_identifier}
+                    onChange={(e) => setFormData({ ...formData, role_identifier: e.target.value })}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="" disabled>Select specialization...</option>
+                    <option value="REEL">Reel Editor</option>
+                    <option value="POST">Poster Editor</option>
+                  </select>
+                </div>
+              )}
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn-primary" disabled={loading} style={{ width: 'auto', padding: '10px 24px' }}>

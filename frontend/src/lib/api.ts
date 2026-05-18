@@ -252,8 +252,8 @@ export const phApi = {
     getEmployees: () => phBase.get<TeamMember[]>('/api/ph/employees'),
     assignEmployee: (id: string, employeeId: string | null) =>
         phBase.patch(`/api/ph/content/${id}/assign`, { assigned_to: employeeId }),
-    assignEmployeeToClient: (clientId: string, employeeId: string | null) =>
-        phBase.patch(`/api/ph/clients/${clientId}/assign-employee`, { employee_id: employeeId }),
+    assignEmployeeToClient: (clientId: string, employeeId: string | null, unassignId?: string | null) =>
+        phBase.patch(`/api/ph/clients/${clientId}/assign-employee`, { employee_id: employeeId, unassign_id: unassignId }),
     addFreelancerContent: (data: any) => phBase.post('/api/ph/freelancer-content', data),
 };
 
@@ -403,14 +403,40 @@ export const emergencyApi = {
     toggle: (id: string) => emergencyBase.post(`/${id}/toggle`),
 };
 
+const ROLE_PATHS: Record<string, string[]> = {
+    '/ph/': ['ph', 'production head', 'admin', 'gm'],
+    '/admin/': ['admin'],
+    '/gm/': ['gm', 'general manager', 'admin'],
+    '/coo/': ['coo', 'admin'],
+    '/tl/': ['tl', 'team lead', 'admin'],
+    '/posting/': ['posting', 'posting team', 'admin'],
+    '/employee/': ['employee', 'admin'],
+};
+
 const handleAuthError = (error: any) => {
-    if (error.response && error.response.status === 401) {
-        if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-            window.location.href = '/';
+    if (typeof window === 'undefined') return Promise.reject(error);
+    const status = error.response?.status;
+    const pathname = window.location.pathname;
+
+    if (status === 401) {
+        if (pathname !== '/') window.location.href = '/';
+    } else if (status === 403) {
+        // Detect if we're on a role-restricted page that this user can't access
+        // This usually means a session conflict (another user logged in on the same browser)
+        const isRolePage = Object.keys(ROLE_PATHS).some(prefix => pathname.startsWith(prefix));
+        if (isRolePage && pathname !== '/') {
+            console.warn('[API] 403 on role-restricted page — possible session conflict. Redirecting to login.');
+            // Sign out via supabase to clear the conflicting session
+            import('@/utils/supabase/client').then(({ createClient }) => {
+                createClient().auth.signOut().finally(() => {
+                    window.location.href = '/?error=session_conflict';
+                });
+            });
         }
     }
     return Promise.reject(error);
 };
+
 
 api.interceptors.response.use((r) => r, handleAuthError);
 adminBase.interceptors.response.use((r) => r, handleAuthError);

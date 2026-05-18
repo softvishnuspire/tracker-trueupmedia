@@ -101,6 +101,14 @@ export default function Login() {
   useEffect(() => {
     // Force dark theme for login page
     document.documentElement.setAttribute('data-theme', 'dark');
+
+    // Detect session conflict redirect from api.ts error handler
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'session_conflict') {
+      setError('You were logged out because a different account was active in another tab. Please log in again with the correct role.');
+      // Clean up the URL
+      window.history.replaceState({}, '', '/');
+    }
   }, []);
 
   const handleLogin = async (e: FormEvent) => {
