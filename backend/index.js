@@ -1892,7 +1892,7 @@ app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('clients')
-            .select('id, company_name, employee_id, team_lead:team_lead_id (name)')
+            .select('id, company_name, employee_id, batch_type, team_lead:team_lead_id (name)')
             .eq('is_active', true)
             .eq('is_deleted', false)
             .order('company_name');

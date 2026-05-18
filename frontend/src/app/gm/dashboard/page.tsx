@@ -1167,6 +1167,7 @@ export default function GMDashboard() {
                 </header>
 
                 {/* Premium Stats Grid - Decoupled Global View */}
+                {view === 'dashboard' && (
                 <div className="premium-stats-grid" style={{ marginTop: '12px' }}>
                     {/* Monthly Pipeline */}
                     <div className="premium-stat-card pipeline">
@@ -1385,6 +1386,7 @@ export default function GMDashboard() {
                         </div>
                     </div>
                 </div>
+                )}
 
                 <FreelancerTaskModal 
                     isOpen={isFreelancerModalOpen}

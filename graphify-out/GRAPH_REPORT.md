@@ -1,6 +1,22 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-16 (GM Command Center Refinement)
+## Latest Changes — 2026-05-18 (PH Dashboard Calendar Cycle Fix)
+- **Goal**: Resolve the issue where clients on a 15-15 calendar cycle were incorrectly displayed using a standard 1-1 monthly cycle in the Production Head (PH) dashboard.
+- **Affected Files**:
+    - `frontend/src/app/ph/dashboard/page.tsx`:
+        - Implemented dynamic date bounds (`periodStart`, `periodEnd`) based on the client's `batch_type`.
+        - Updated `fetchClientCalendar` and `fetchMasterCalendar` to automatically fetch and merge the current and next month's data if a 15-15 cycle is detected.
+        - Adjusted `days` calculation and `getPeriodLabel` to correctly reflect the bi-monthly boundary.
+- **System Impact**: Synchronizes the PH dashboard with the GM dashboard logic, ensuring accurate scheduling and visibility for bi-monthly clients.
+
+## Previous Changes — 2026-05-18 (GM Dashboard Stats Tabs Visibility)
+- **Goal**: Restrict the visibility of the premium statistics grid so that it only appears on the main "Dashboard Overview", reducing clutter on other views (like Master Calendar and Client Calendar).
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`:
+        - Wrapped the `.premium-stats-grid` block with a `view === 'dashboard'` conditional check.
+- **System Impact**: Keeps the large, overarching statistical data focused on the main dashboard screen, allowing granular calendar views to remain clean and focused on task scheduling.
+
+## Previous Changes — 2026-05-16 (GM Command Center Refinement)
 - **Goal**: Improved the Operational Command Center by standardizing progress reporting and adding time-based metrics.
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`:

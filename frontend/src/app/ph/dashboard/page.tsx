@@ -191,13 +191,29 @@ export default function ProductionHeadDashboard() {
         } catch (err) { console.error('Error fetching dashboard lists:', err); }
     }, [selectedClient]);
 
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const isBiMonthlyView = (view === 'client' || view === 'master') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+
+    const periodStart = isBiMonthlyView
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+
+    const nextMonthDate = addMonths(currentMonth, 1);
+    const periodEnd = isBiMonthlyView
+        ? new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth(), 15)
+        : endOfMonth(currentMonth);
+
     const getPeriodLabel = useCallback(() => {
+        if (isBiMonthlyView) {
+            return `${format(periodStart, 'MMM d')} - ${format(periodEnd, 'MMM d, yyyy')}`;
+        }
         return format(currentMonth, 'MMMM yyyy');
-    }, [currentMonth]);
+    }, [currentMonth, isBiMonthlyView, periodStart, periodEnd]);
 
     const isDayInPeriod = useCallback((date: Date) => {
-        return isSameMonth(date, currentMonth);
-    }, [currentMonth]);
+        if (!isBiMonthlyView) return isSameMonth(date, currentMonth);
+        return date >= periodStart && date <= periodEnd;
+    }, [currentMonth, isBiMonthlyView, periodStart, periodEnd]);
 
     const fetchClientCalendar = useCallback(async () => {
         if (selectedClient === 'all') return;
@@ -205,10 +221,19 @@ export default function ProductionHeadDashboard() {
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await phApi.getCalendar(selectedClient, currentMonthStr, undefined, true);
-            setCalendarData(res.data || []);
+            let data = res.data || [];
+            
+            const client = clients.find(c => c.id === selectedClient);
+            if (client?.batch_type === '15-15') {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await phApi.getCalendar(selectedClient, nextMonthStr, undefined, true);
+                data = [...data, ...(nextRes.data || [])];
+            }
+            
+            setCalendarData(data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
-    }, [selectedClient, currentMonth]);
+    }, [selectedClient, currentMonth, clients]);
 
     const fetchMasterCalendar = useCallback(async () => {
         setLoading(true);
@@ -221,10 +246,19 @@ export default function ProductionHeadDashboard() {
                 asOfDate = d.toISOString();
             }
             const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient, undefined, asOfDate);
-            setCalendarData(res.data || []);
+            let data = res.data || [];
+            
+            const client = clients.find(c => c.id === selectedClient);
+            if (client?.batch_type === '15-15') {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await phApi.getMasterCalendar(nextMonthStr, selectedClient, undefined, asOfDate);
+                data = [...data, ...(nextRes.data || [])];
+            }
+            
+            setCalendarData(data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
-    }, [view, selectedClient, currentMonth]);
+    }, [view, selectedClient, currentMonth, clients]);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -434,8 +468,8 @@ export default function ProductionHeadDashboard() {
     };
 
     const days = eachDayOfInterval({
-        start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-        end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+        start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+        end: endOfWeek(periodEnd, { weekStartsOn: 1 })
     });
 
     const monthStatusCounts = calendarData.reduce(
