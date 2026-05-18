@@ -1,6 +1,15 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-18 (PH Dashboard Calendar Cycle Fix)
+## Latest Changes — 2026-05-18 (GM Dashboard Stats Alignment & 15-15 Cycle Synchronization)
+- **Goal**: Align the premium statistics cards at the top of the GM Dashboard with the active client's calendar date boundary and batch cycle boundaries (standard 1-1 month vs. bi-monthly 15-15 cycle) when a client is selected.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`:
+        - Expanded `monthStatusCounts` reduction logic to track additional metrics: `posted`, `contentApprovedCount`, `designingInProgress`, and `shotPosts`.
+        - Implemented an `activeStats` dynamic selector that switches context data source seamlessly (uses client-scoped `monthStatusCounts` when a client is filtered; defaults to system-wide `globalMonthCounts` when "All Clients" or global views are active).
+        - Updated the top-level `.premium-stats-grid` cards to render values from `activeStats` instead of standard monthly `globalMonthCounts`.
+- **System Impact**: Ensures perfect, real-time consistency between the top statistics panel and the calendar views below it, resolving the mismatch (e.g. 6 posts vs. 5 posts on top) when viewing bi-monthly client cycles.
+
+## Previous Changes — 2026-05-18 (PH Dashboard Calendar Cycle Fix)
 - **Goal**: Resolve the issue where clients on a 15-15 calendar cycle were incorrectly displayed using a standard 1-1 monthly cycle in the Production Head (PH) dashboard.
 - **Affected Files**:
     - `frontend/src/app/ph/dashboard/page.tsx`:

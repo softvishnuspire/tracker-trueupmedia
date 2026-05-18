@@ -579,10 +579,14 @@ export default function GMDashboard() {
         (acc, item) => {
             const status = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
+            const isShot = shootDoneStatuses.includes(status);
             const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
             
             acc.total += 1;
             if (isDone) acc.completed += 1;
+            if (status === 'POSTED') acc.posted += 1;
+            if (status === 'CONTENT APPROVED' || status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') acc.contentApprovedCount += 1;
+            if (status === 'DESIGNING IN PROGRESS') acc.designingInProgress += 1;
 
             // Track status distribution for the Activity Hub
             acc.statusCounts[status] = (acc.statusCounts[status] || 0) + 1;
@@ -590,11 +594,12 @@ export default function GMDashboard() {
             if (type === 'REEL' || type === 'YOUTUBE') {
                 acc.reels += 1;
                 if (isDone) acc.completedReels += 1;
-                if (shootDoneStatuses.includes(status)) acc.shootDone += 1;
+                if (isShot) acc.shootDone += 1;
             } else if (type === 'POST') {
                 acc.posts += 1;
                 if (isDone) acc.completedPosts += 1;
                 if (status === 'CONTENT APPROVED' || shootDoneStatuses.includes(status)) acc.contentApproved += 1;
+                if (isShot) acc.shotPosts += 1;
             }
 
             return acc;
@@ -603,9 +608,34 @@ export default function GMDashboard() {
             total: 0, completed: 0, reels: 0, posts: 0, 
             completedReels: 0, completedPosts: 0, 
             shootDone: 0, contentApproved: 0,
-            statusCounts: {} as Record<string, number> 
+            statusCounts: {} as Record<string, number>,
+            posted: 0, contentApprovedCount: 0, designingInProgress: 0, shotPosts: 0
         }
     );
+
+    const activeStats = (selectedClient && selectedClient !== 'all') ? {
+        totalItems: monthStatusCounts.total,
+        totalReels: monthStatusCounts.reels,
+        totalPosts: monthStatusCounts.posts,
+        shotReels: monthStatusCounts.shootDone,
+        shotPosts: monthStatusCounts.shotPosts,
+        doneReels: monthStatusCounts.completedReels,
+        donePosts: monthStatusCounts.completedPosts,
+        posted: monthStatusCounts.posted,
+        contentApproved: monthStatusCounts.contentApprovedCount,
+        designingInProgress: monthStatusCounts.designingInProgress
+    } : {
+        totalItems: globalMonthCounts.totalItems,
+        totalReels: globalMonthCounts.totalReels,
+        totalPosts: globalMonthCounts.totalPosts,
+        shotReels: globalMonthCounts.shotReels,
+        shotPosts: globalMonthCounts.shotPosts,
+        doneReels: globalMonthCounts.doneReels,
+        donePosts: globalMonthCounts.donePosts,
+        posted: globalMonthCounts.posted,
+        contentApproved: globalMonthCounts.contentApproved,
+        designingInProgress: globalMonthCounts.designingInProgress
+    };
 
     const activeClientPocNotes = pocNotes
         .filter(note => selectedClient === 'all' || note.client_id === selectedClient)
@@ -1180,21 +1210,21 @@ export default function GMDashboard() {
                         </div>
                         <div className="card-main">
                             <div className="value-group">
-                                <span className="main-value">{globalMonthCounts.shotReels + globalMonthCounts.shotPosts}</span>
+                                <span className="main-value">{activeStats.shotReels + activeStats.shotPosts}</span>
                                 <span className="separator">/</span>
-                                <span className="total-value">{globalMonthCounts.totalReels + globalMonthCounts.totalPosts}</span>
+                                <span className="total-value">{activeStats.totalReels + activeStats.totalPosts}</span>
                                 <span className="unit">ITEMS</span>
                             </div>
                         </div>
                         <div className="card-footer">
                             <div className="percentage-info">
-                                <span className="pct-value">{Math.round(((globalMonthCounts.shotReels + globalMonthCounts.shotPosts) / (globalMonthCounts.totalReels + globalMonthCounts.totalPosts || 1)) * 100)}%</span>
+                                <span className="pct-value">{Math.round(((activeStats.shotReels + activeStats.shotPosts) / (activeStats.totalReels + activeStats.totalPosts || 1)) * 100)}%</span>
                                 <span className="pct-label">Shot</span>
                             </div>
                             <div className="progress-track">
                                 <div 
                                     className="progress-fill" 
-                                    style={{ width: `${((globalMonthCounts.shotReels + globalMonthCounts.shotPosts) / (globalMonthCounts.totalReels + globalMonthCounts.totalPosts || 1)) * 100}%` }}
+                                    style={{ width: `${((activeStats.shotReels + activeStats.shotPosts) / (activeStats.totalReels + activeStats.totalPosts || 1)) * 100}%` }}
                                 ></div>
                             </div>
                         </div>
@@ -1211,21 +1241,21 @@ export default function GMDashboard() {
                         </div>
                         <div className="card-main">
                             <div className="value-group">
-                                <span className="main-value">{globalMonthCounts.doneReels}</span>
+                                <span className="main-value">{activeStats.doneReels}</span>
                                 <span className="separator">/</span>
-                                <span className="total-value">{globalMonthCounts.totalReels}</span>
+                                <span className="total-value">{activeStats.totalReels}</span>
                                 <span className="unit">REELS</span>
                             </div>
                         </div>
                         <div className="card-footer">
                             <div className="percentage-info">
-                                <span className="pct-value">{Math.round((globalMonthCounts.doneReels / (globalMonthCounts.totalReels || 1)) * 100)}%</span>
+                                <span className="pct-value">{Math.round((activeStats.doneReels / (activeStats.totalReels || 1)) * 100)}%</span>
                                 <span className="pct-label">Done</span>
                             </div>
                             <div className="progress-track">
                                 <div 
                                     className="progress-fill" 
-                                    style={{ width: `${(globalMonthCounts.doneReels / (globalMonthCounts.totalReels || 1)) * 100}%` }}
+                                    style={{ width: `${(activeStats.doneReels / (activeStats.totalReels || 1)) * 100}%` }}
                                 ></div>
                             </div>
                         </div>
@@ -1242,21 +1272,21 @@ export default function GMDashboard() {
                         </div>
                         <div className="card-main">
                             <div className="value-group">
-                                <span className="main-value">{globalMonthCounts.donePosts}</span>
+                                <span className="main-value">{activeStats.donePosts}</span>
                                 <span className="separator">/</span>
-                                <span className="total-value">{globalMonthCounts.totalPosts}</span>
+                                <span className="total-value">{activeStats.totalPosts}</span>
                                 <span className="unit">POSTS</span>
                             </div>
                         </div>
                         <div className="card-footer">
                             <div className="percentage-info">
-                                <span className="pct-value">{Math.round((globalMonthCounts.donePosts / (globalMonthCounts.totalPosts || 1)) * 100)}%</span>
+                                <span className="pct-value">{Math.round((activeStats.donePosts / (activeStats.totalPosts || 1)) * 100)}%</span>
                                 <span className="pct-label">Done</span>
                             </div>
                             <div className="progress-track">
                                 <div 
                                     className="progress-fill" 
-                                    style={{ width: `${(globalMonthCounts.donePosts / (globalMonthCounts.totalPosts || 1)) * 100}%` }}
+                                    style={{ width: `${(activeStats.donePosts / (activeStats.totalPosts || 1)) * 100}%` }}
                                 ></div>
                             </div>
                         </div>
@@ -1273,21 +1303,21 @@ export default function GMDashboard() {
                         </div>
                         <div className="card-main">
                             <div className="value-group">
-                                <span className="main-value">{globalMonthCounts.shotReels}</span>
+                                <span className="main-value">{activeStats.shotReels}</span>
                                 <span className="separator">/</span>
-                                <span className="total-value">{globalMonthCounts.totalReels}</span>
+                                <span className="total-value">{activeStats.totalReels}</span>
                                 <span className="unit">SHOOTS</span>
                             </div>
                         </div>
                         <div className="card-footer">
                             <div className="percentage-info">
-                                <span className="pct-value">{Math.round((globalMonthCounts.shotReels / (globalMonthCounts.totalReels || 1)) * 100)}%</span>
+                                <span className="pct-value">{Math.round((activeStats.shotReels / (activeStats.totalReels || 1)) * 100)}%</span>
                                 <span className="pct-label">Shot</span>
                             </div>
                             <div className="progress-track">
                                 <div 
                                     className="progress-fill" 
-                                    style={{ width: `${(globalMonthCounts.shotReels / (globalMonthCounts.totalReels || 1)) * 100}%` }}
+                                    style={{ width: `${(activeStats.shotReels / (activeStats.totalReels || 1)) * 100}%` }}
                                 ></div>
                             </div>
                         </div>
@@ -1304,21 +1334,21 @@ export default function GMDashboard() {
                         </div>
                         <div className="card-main">
                             <div className="value-group">
-                                <span className="main-value">{globalMonthCounts.posted}</span>
+                                <span className="main-value">{activeStats.posted}</span>
                                 <span className="separator">/</span>
-                                <span className="total-value">{globalMonthCounts.totalItems}</span>
+                                <span className="total-value">{activeStats.totalItems}</span>
                                 <span className="unit">ITEMS</span>
                             </div>
                         </div>
                         <div className="card-footer">
                             <div className="percentage-info">
-                                <span className="pct-value">{Math.round((globalMonthCounts.posted / (globalMonthCounts.totalItems || 1)) * 100)}%</span>
+                                <span className="pct-value">{Math.round((activeStats.posted / (activeStats.totalItems || 1)) * 100)}%</span>
                                 <span className="pct-label">Posted</span>
                             </div>
                             <div className="progress-track">
                                 <div 
                                     className="progress-fill" 
-                                    style={{ width: `${(globalMonthCounts.posted / (globalMonthCounts.totalItems || 1)) * 100}%` }}
+                                    style={{ width: `${(activeStats.posted / (activeStats.totalItems || 1)) * 100}%` }}
                                 ></div>
                             </div>
                         </div>
@@ -1335,21 +1365,21 @@ export default function GMDashboard() {
                         </div>
                         <div className="card-main">
                             <div className="value-group">
-                                <span className="main-value">{globalMonthCounts.contentApproved}</span>
+                                <span className="main-value">{activeStats.contentApproved}</span>
                                 <span className="separator">/</span>
-                                <span className="total-value">{globalMonthCounts.totalItems}</span>
+                                <span className="total-value">{activeStats.totalItems}</span>
                                 <span className="unit">ITEMS</span>
                             </div>
                         </div>
                         <div className="card-footer">
                             <div className="percentage-info">
-                                <span className="pct-value">{Math.round((globalMonthCounts.contentApproved / (globalMonthCounts.totalItems || 1)) * 100)}%</span>
+                                <span className="pct-value">{Math.round((activeStats.contentApproved / (activeStats.totalItems || 1)) * 100)}%</span>
                                 <span className="pct-label">Approved</span>
                             </div>
                             <div className="progress-track">
                                 <div 
                                     className="progress-fill" 
-                                    style={{ width: `${(globalMonthCounts.contentApproved / (globalMonthCounts.totalItems || 1)) * 100}%` }}
+                                    style={{ width: `${(activeStats.contentApproved / (activeStats.totalItems || 1)) * 100}%` }}
                                 ></div>
                             </div>
                         </div>
@@ -1366,21 +1396,21 @@ export default function GMDashboard() {
                         </div>
                         <div className="card-main">
                             <div className="value-group">
-                                <span className="main-value">{globalMonthCounts.designingInProgress}</span>
+                                <span className="main-value">{activeStats.designingInProgress}</span>
                                 <span className="separator">/</span>
-                                <span className="total-value">{globalMonthCounts.totalPosts}</span>
+                                <span className="total-value">{activeStats.totalPosts}</span>
                                 <span className="unit">POSTS</span>
                             </div>
                         </div>
                         <div className="card-footer">
                             <div className="percentage-info">
-                                <span className="pct-value">{Math.round((globalMonthCounts.designingInProgress / (globalMonthCounts.totalPosts || 1)) * 100)}%</span>
+                                <span className="pct-value">{Math.round((activeStats.designingInProgress / (activeStats.totalPosts || 1)) * 100)}%</span>
                                 <span className="pct-label">Designing</span>
                             </div>
                             <div className="progress-track">
                                 <div 
                                     className="progress-fill" 
-                                    style={{ width: `${(globalMonthCounts.designingInProgress / (globalMonthCounts.totalPosts || 1)) * 100}%` }}
+                                    style={{ width: `${(activeStats.designingInProgress / (activeStats.totalPosts || 1)) * 100}%` }}
                                 ></div>
                             </div>
                         </div>
