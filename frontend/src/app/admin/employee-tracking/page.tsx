@@ -14,7 +14,8 @@ import {
     Calendar,
     MessageSquare,
     ChevronRight,
-    Briefcase
+    Briefcase,
+    Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { adminApi, TlTrackingStats, EmployeeTrackingStats } from '@/lib/api';
@@ -252,55 +253,75 @@ export default function EmployeeTrackingPage() {
                                     className="tracking-card tl-card"
                                 >
                                     <div className="card-header">
-                                        <div className="user-avatar">
-                                            <UserCircle2 size={32} />
-                                        </div>
-                                        <div className="user-meta">
-                                            <h3>{tl.name}</h3>
-                                            <p>{tl.email}</p>
-                                        </div>
-                                        <RadialProgress progress={tl.progress} color={tl.progress >= 1 ? "var(--success)" : "var(--accent)"} />
-                                    </div>
-                                    
-                                    <div className="card-body">
-                                        <div className="metric-row">
-                                            <div className="metric-item">
-                                                <span className="metric-label">Daily Ratio (POC)</span>
-                                                <span className="metric-value">{tl.talkedToday} / {tl.totalClients}</span>
+                                        <div className="user-info-group">
+                                            <div className="user-avatar-small" style={{ color: 'var(--accent-secondary)' }}>
+                                                <Users size={20} />
                                             </div>
-                                            <div className="metric-status">
-                                                {tl.talkedToday === tl.totalClients ? (
-                                                    <span className="badge badge-success">Completed</span>
-                                                ) : (
-                                                    <span className="badge badge-warning">In Progress</span>
-                                                )}
+                                            <div className="user-meta">
+                                                <h3>{tl.name}</h3>
+                                                <p>Team Lead</p>
+                                            </div>
+                                        </div>
+                                        <div className="radial-group">
+                                            <RadialProgress 
+                                                progress={tl.progress} 
+                                                size={48} 
+                                                color={tl.progress >= 1 ? "var(--success)" : "var(--accent-secondary)"} 
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="card-body">
+                                        <div className="stats-2x2-grid">
+                                            <div className="metric-box poc">
+                                                <div className="box-header">
+                                                    <MessageSquare size={12} style={{ color: 'var(--accent-secondary)' }} />
+                                                    <span>POC COMMS</span>
+                                                </div>
+                                                <div className="box-content">
+                                                    <div className="val-pair">
+                                                        <span className="pair-main">{tl.talkedToday}</span>
+                                                        <span className="pair-sub">/ {tl.totalClients}</span>
+                                                    </div>
+                                                    <div className="mini-progress">
+                                                        <div className="bar"><div className="fill" style={{ width: `${tl.progress * 100}%`, background: 'var(--accent-secondary)' }}></div></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="metric-box content">
+                                                <div className="box-header">
+                                                    <TrendingUp size={12} className="text-success" />
+                                                    <span>CONTENT FLOW</span>
+                                                </div>
+                                                <div className="box-content">
+                                                    <div className="val-pair">
+                                                        <span className="pair-main">{tl.todayContentDone}</span>
+                                                        <span className="pair-sub">/ {tl.todayContentTotal}</span>
+                                                    </div>
+                                                    <div className="mini-progress">
+                                                        <div className="bar"><div className="fill" style={{ width: `${tl.todayContentTotal > 0 ? (tl.todayContentDone / tl.todayContentTotal) * 100 : 0}%`, background: 'var(--success)' }}></div></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="metric-row" style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-                                            <div className="metric-item">
-                                                <span className="metric-label">Content Flow (Today)</span>
-                                                <span className="metric-value">{tl.todayContentDone} / {tl.todayContentTotal}</span>
+                                        <div className="compact-task-list" style={{ marginTop: '12px' }}>
+                                            <div className="list-header">
+                                                <Circle size={10} />
+                                                <span>CLIENTS STATUS (TODAY)</span>
                                             </div>
-                                            <div className="metric-status">
-                                                <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
-                                                    {tl.todayContentTotal > 0 ? Math.round((tl.todayContentDone / tl.todayContentTotal) * 100) : 0}% Done
-                                                </span>
+                                            <div className="tasks-container scrollable-list">
+                                                {tl.assignedClients.map(client => (
+                                                    <div key={client.id} className="mini-task-item">
+                                                        <span className={`status-dot ${client.talkedToday ? 'done' : 'pending'}`}></span>
+                                                        <div className="task-info">
+                                                            <span className="task-name">{client.name}</span>
+                                                            <span className="task-client">{client.talkedToday ? 'Talked' : 'Not Contacted'}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        </div>
-                                        
-                                        <div className="client-mini-list" style={{ marginTop: '16px' }}>
-                                            <p className="section-label">Clients Status (Today)</p>
-                                            {tl.assignedClients.map(client => (
-                                                <div key={client.id} className="mini-client-item">
-                                                    {client.talkedToday ? (
-                                                        <CheckCircle2 className="text-success" size={14} />
-                                                    ) : (
-                                                        <Circle className="text-muted" size={14} />
-                                                    )}
-                                                    <span>{client.name}</span>
-                                                </div>
-                                            ))}
                                         </div>
                                     </div>
                                 </motion.div>
@@ -325,102 +346,74 @@ export default function EmployeeTrackingPage() {
                                     className="tracking-card emp-card"
                                 >
                                     <div className="card-header">
-                                        <div className="user-avatar" style={{ color: 'var(--accent-secondary)' }}>
-                                            <Briefcase size={32} />
+                                        <div className="user-info-group">
+                                            <div className="user-avatar-small">
+                                                <Briefcase size={20} />
+                                            </div>
+                                            <div className="user-meta">
+                                                <h3>{emp.name}</h3>
+                                                <p>{emp.role}</p>
+                                            </div>
                                         </div>
-                                        <div className="user-meta">
-                                            <h3>{emp.name}</h3>
-                                            <p>{emp.role}</p>
+                                        <div className="radial-group">
+                                            <RadialProgress 
+                                                progress={emp.completionRate} 
+                                                size={48} 
+                                                color={emp.completionRate >= 1 ? "var(--success)" : "var(--accent)"} 
+                                            />
                                         </div>
-                                        <RadialProgress 
-                                            progress={emp.completionRate} 
-                                            size={54} 
-                                            color={emp.completionRate >= 1 ? "var(--success)" : "var(--accent-secondary)"} 
-                                        />
                                     </div>
 
                                     <div className="card-body">
-                                        <div className="task-stats">
-                                            <div className="task-metric">
-                                                <Target size={16} className="text-accent" />
-                                                <div className="stat-col">
-                                                    <span className="stat-label">Assigned</span>
-                                                    <span className="stat-value">{emp.assignedTasks}</span>
+                                        <div className="stats-2x2-grid">
+                                            <div className="metric-box daily">
+                                                <div className="box-header">
+                                                    <Target size={12} className="text-accent" />
+                                                    <span>DAILY</span>
+                                                </div>
+                                                <div className="box-content">
+                                                    <div className="val-pair">
+                                                        <span className="pair-main">{emp.completedTasks}</span>
+                                                        <span className="pair-sub">/ {emp.assignedTasks}</span>
+                                                    </div>
+                                                    <div className="mini-progress">
+                                                        <div className="bar"><div className="fill" style={{ width: `${emp.completionRate * 100}%` }}></div></div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="task-metric">
-                                                <CheckCircle2 size={16} className="text-success" />
-                                                <div className="stat-col">
-                                                    <span className="stat-label">Completed</span>
-                                                    <span className="stat-value">{emp.completedTasks}</span>
-                                                </div>
-                                            </div>
-                                        </div>
 
-                                        <div className="productivity-gauge" style={{ marginTop: '4px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
-                                                <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.05em' }}>
-                                                    <Activity size={12} className="text-accent" />
-                                                    DAILY PRODUCTIVITY
-                                                </span>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)' }}>
-                                                        {emp.completedTasks} / {emp.assignedTasks}
-                                                    </span>
-                                                    <span style={{ fontSize: '11px', fontWeight: 900, color: emp.completionRate >= 1 ? 'var(--success)' : 'var(--accent)' }}>
-                                                        {Math.round(emp.completionRate * 100)}%
-                                                    </span>
+                                            <div className="metric-box monthly">
+                                                <div className="box-header">
+                                                    <Trophy size={12} style={{ color: '#fbbf24' }} />
+                                                    <span>MONTHLY</span>
                                                 </div>
-                                            </div>
-                                            <div className="progress-bar-container" style={{ height: '8px', background: 'rgba(0,0,0,0.1)', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                                <motion.div 
-                                                    initial={{ width: 0 }}
-                                                    animate={{ width: `${emp.completionRate * 100}%` }}
-                                                    transition={{ duration: 1.5, ease: "circOut" }}
-                                                    className="progress-bar-fill" 
-                                                    style={{ 
-                                                        height: '100%', 
-                                                        background: emp.completionRate >= 1 
-                                                            ? 'linear-gradient(90deg, var(--success), #34d399)' 
-                                                            : 'linear-gradient(90deg, var(--accent), var(--accent-secondary))',
-                                                        boxShadow: emp.completionRate > 0 ? `0 0 15px ${emp.completionRate >= 1 ? 'rgba(16, 185, 129, 0.4)' : 'var(--accent-glow)'}` : 'none'
-                                                    }} 
-                                                />
+                                                <div className="box-content">
+                                                    <div className="val-pair">
+                                                        <span className="pair-main">{emp.monthlyCompleted}</span>
+                                                        <span className="pair-sub">/ {emp.monthlyTotal}</span>
+                                                    </div>
+                                                    <div className="mini-progress">
+                                                        <div className="bar"><div className="fill monthly" style={{ width: `${emp.monthlyRate * 100}%` }}></div></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
                                         {emp.tasks && emp.tasks.length > 0 && (
-                                            <div className="card-tasks-list" style={{ marginTop: '16px', fontSize: '12px' }}>
-                                                <p className="section-label" style={{ marginBottom: '8px' }}>Task Details</p>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <div className="compact-task-list">
+                                                <div className="list-header">
+                                                    <Activity size={10} />
+                                                    <span>RECENT TASKS</span>
+                                                </div>
+                                                <div className="tasks-container scrollable-list">
                                                     {emp.tasks.map(task => {
                                                         const isDone = (task.employeeStatus || '').toUpperCase() === 'COMPLETED';
                                                         return (
-                                                            <div key={task.id} style={{ 
-                                                                display: 'flex', 
-                                                                justifyContent: 'space-between', 
-                                                                alignItems: 'center',
-                                                                padding: '6px 8px',
-                                                                background: 'rgba(255,255,255,0.03)',
-                                                                borderRadius: '6px',
-                                                                borderLeft: `2px solid ${isDone ? 'var(--success)' : 'var(--accent)'}`
-                                                            }}>
-                                                                <div style={{ flex: 1, marginRight: '8px', overflow: 'hidden' }}>
-                                                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                                        {task.title}
-                                                                    </div>
-                                                                    <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{task.clientName}</div>
-                                                                </div>
-                                                                <div style={{ 
-                                                                    fontSize: '9px', 
-                                                                    fontWeight: 800, 
-                                                                    padding: '2px 6px', 
-                                                                    borderRadius: '4px',
-                                                                    background: isDone ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                                                    color: isDone ? 'var(--success)' : 'var(--accent)',
-                                                                    textTransform: 'uppercase'
-                                                                }}>
-                                                                    {isDone ? 'Done' : 'Pending'}
+                                                            <div key={task.id} className="mini-task-item">
+                                                                <span className={`status-dot ${isDone ? 'done' : 'pending'}`}></span>
+                                                                <div className="task-info">
+                                                                    <span className="task-name">{task.title}</span>
+                                                                    <span className="task-client">{task.clientName}</span>
                                                                 </div>
                                                             </div>
                                                         );
@@ -482,155 +475,211 @@ export default function EmployeeTrackingPage() {
 
                 .tracking-card {
                     background: var(--bg-surface);
-                    border-radius: 24px;
+                    border-radius: 20px;
                     border: 1px solid var(--border);
-                    padding: 24px;
+                    padding: 20px;
                     display: flex;
                     flex-direction: column;
-                    gap: 20px;
-                    transition: all 0.3s ease;
+                    gap: 16px;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     position: relative;
                     overflow: hidden;
-                    backdrop-filter: blur(10px);
                 }
 
                 .tracking-card:hover {
                     border-color: var(--accent);
                     transform: translateY(-4px);
-                    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+                    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
                 }
 
                 .card-header {
                     display: flex;
+                    justify-content: space-between;
                     align-items: center;
-                    gap: 12px;
-                    width: 100%;
                 }
 
-                .user-meta {
-                    flex: 1;
+                .user-info-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .user-avatar-small {
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 10px;
+                    background: var(--bg-elevated);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: var(--accent);
+                    border: 1px solid var(--border);
                 }
 
                 .user-meta h3 {
-                    font-size: 16px;
+                    font-size: 15px;
                     font-weight: 800;
-                    color: var(--text-primary);
                     margin: 0;
+                    color: var(--text-primary);
                 }
 
                 .user-meta p {
-                    font-size: 12px;
+                    font-size: 11px;
                     color: var(--text-muted);
-                    margin: 2px 0 0;
+                    margin: 0;
                 }
 
-                .metric-row {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-end;
-                    margin-bottom: 16px;
+                .stats-2x2-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 12px;
+                    margin-bottom: 8px;
                 }
 
-                .metric-item {
+                .metric-box {
+                    padding: 12px;
+                    border-radius: 14px;
+                    background: rgba(255, 255, 255, 0.02);
+                    border: 1px solid var(--border);
                     display: flex;
                     flex-direction: column;
-                    gap: 4px;
+                    gap: 8px;
                 }
 
-                .metric-label {
-                    font-size: 11px;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    color: var(--text-muted);
-                }
-
-                .metric-value {
-                    font-size: 20px;
+                .box-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 9px;
                     font-weight: 800;
-                    color: var(--text-primary);
-                }
-
-                .section-label {
-                    font-size: 10px;
-                    font-weight: 800;
-                    text-transform: uppercase;
                     color: var(--text-muted);
-                    margin-bottom: 10px;
                     letter-spacing: 0.05em;
                 }
 
-                .client-mini-list {
-                    background: rgba(0, 0, 0, 0.1);
-                    padding: 12px;
-                    border-radius: 12px;
-                    border: 1px solid var(--border);
-                }
-
-                .mini-client-item {
+                .val-pair {
                     display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    padding: 6px 0;
-                    font-size: 13px;
-                    color: var(--text-secondary);
+                    align-items: baseline;
+                    gap: 4px;
                 }
 
-                .mini-client-item:not(:last-child) {
-                    border-bottom: 1px solid var(--border);
+                .pair-main {
+                    font-size: 18px;
+                    font-weight: 900;
+                    color: var(--text-primary);
                 }
 
-                .badge {
-                    padding: 4px 10px;
-                    border-radius: 20px;
-                    font-size: 10px;
-                    font-weight: 800;
-                    text-transform: uppercase;
-                }
-
-                .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
-                .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
-
-                .task-stats {
-                    display: flex;
-                    gap: 24px;
-                    margin-bottom: 16px;
-                }
-
-                .task-metric {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                }
-
-                .stat-col {
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .stat-label {
-                    font-size: 10px;
-                    color: var(--text-muted);
+                .pair-sub {
+                    font-size: 12px;
                     font-weight: 700;
+                    color: var(--text-muted);
                 }
 
-                .stat-value {
-                    font-size: 16px;
-                    font-weight: 800;
+                .mini-progress {
+                    width: 100%;
                 }
 
-                .progress-bar-container {
-                    height: 6px;
+                .mini-progress .bar {
+                    height: 4px;
                     background: rgba(255, 255, 255, 0.05);
                     border-radius: 10px;
                     overflow: hidden;
+                }
+
+                .mini-progress .fill {
+                    height: 100%;
+                    background: var(--accent);
+                    border-radius: 10px;
+                }
+
+                .mini-progress .fill.monthly {
+                    background: var(--accent-secondary);
+                }
+
+                .compact-task-list {
+                    background: rgba(0, 0, 0, 0.1);
+                    border-radius: 14px;
+                    padding: 12px;
                     border: 1px solid var(--border);
                 }
 
-                .progress-bar-fill {
-                    height: 100%;
-                    background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+                .list-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 9px;
+                    font-weight: 800;
+                    color: var(--text-muted);
+                    margin-bottom: 10px;
+                }
+
+                .tasks-container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+
+                .scrollable-list {
+                    max-height: 200px;
+                    overflow-y: auto;
+                    padding-right: 4px;
+                }
+
+                .scrollable-list::-webkit-scrollbar {
+                    width: 3px;
+                }
+
+                .scrollable-list::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+
+                .scrollable-list::-webkit-scrollbar-thumb {
+                    background: var(--border);
                     border-radius: 10px;
-                    transition: width 1s ease-in-out;
+                }
+
+                .mini-task-item {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 8px;
+                }
+
+                .status-dot {
+                    width: 6px;
+                    height: 6px;
+                    border-radius: 50%;
+                    margin-top: 5px;
+                    flex-shrink: 0;
+                }
+
+                .status-dot.done { background: var(--success); box-shadow: 0 0 8px var(--success); }
+                .status-dot.pending { background: var(--warning); }
+
+                .task-info {
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                }
+
+                .task-name {
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: var(--text-primary);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                .task-client {
+                    font-size: 9px;
+                    color: var(--text-muted);
+                }
+
+                .more-tasks-indicator {
+                    font-size: 10px;
+                    font-weight: 700;
+                    color: var(--accent);
+                    margin-top: 4px;
+                    text-align: center;
                 }
 
                 .loading-placeholder {
@@ -638,32 +687,22 @@ export default function EmployeeTrackingPage() {
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    min-height: 300px;
+                    min-height: 400px;
                     gap: 20px;
-                    color: var(--text-muted);
-                }
-
-                .pulse-loader {
-                    width: 48px;
-                    height: 48px;
-                    border-radius: 50%;
-                    background: var(--accent);
-                    animation: pulse 1.5s infinite ease-in-out;
                 }
 
                 @keyframes pulse {
-                    0% { transform: scale(0.8); opacity: 0.5; box-shadow: 0 0 0 0 var(--accent-glow); }
-                    50% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 20px transparent; }
-                    100% { transform: scale(0.8); opacity: 0.5; box-shadow: 0 0 0 0 transparent; }
+                    0% { transform: scale(0.9); opacity: 0.5; }
+                    50% { transform: scale(1.1); opacity: 1; }
+                    100% { transform: scale(0.9); opacity: 0.5; }
                 }
 
                 .refresh-btn {
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 12px;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 10px;
                     border: 1px solid var(--border);
                     background: var(--bg-surface);
-                    color: var(--text-primary);
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -676,24 +715,16 @@ export default function EmployeeTrackingPage() {
                     border-color: var(--accent);
                 }
 
-                .animate-spin {
-                    animation: spin 1s linear infinite;
-                }
-
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
-
                 .no-data {
                     grid-column: 1 / -1;
-                    padding: 60px;
+                    padding: 80px 20px;
                     text-align: center;
                     background: var(--bg-surface);
-                    border-radius: 24px;
+                    border-radius: 20px;
                     border: 1px dashed var(--border);
                     color: var(--text-muted);
                 }
+
             `}</style>
         </div>
     );

@@ -106,9 +106,13 @@ export default function EmployeeDashboard() {
         }
     };
 
-    const todayTasks = tasks.filter(t => isToday(parseISO(t.assigned_at || t.scheduled_datetime)));
+    const todayTasks = tasks.filter(t => isToday(parseISO(t.scheduled_datetime || t.assigned_at)));
     const pendingTasks = tasks.filter(t => 
-        isBefore(parseISO(t.assigned_at || t.scheduled_datetime), startOfToday()) && 
+        isBefore(parseISO(t.scheduled_datetime || t.assigned_at), startOfToday()) && 
+        t.employee_task_status === 'PENDING'
+    );
+    const upcomingTasks = tasks.filter(t => 
+        isAfter(parseISO(t.scheduled_datetime || t.assigned_at), endOfToday()) && 
         t.employee_task_status === 'PENDING'
     );
 
@@ -127,6 +131,30 @@ export default function EmployeeDashboard() {
                     </div>
                     <div className="task-grid">
                         {pendingTasks.map(task => (
+                            <TaskCard 
+                                key={task.id} 
+                                task={task} 
+                                onToggle={() => handleToggleStatus(task)} 
+                                isUpdating={updatingId === task.id} 
+                            />
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {upcomingTasks.length > 0 && (
+                <section className="task-section">
+                    <div className="section-header">
+                        <h2 className="section-title" style={{ color: 'var(--primary)' }}>
+                            <Clock size={20} />
+                            Upcoming Assignments
+                        </h2>
+                        <span className="task-count-badge" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}>
+                            {upcomingTasks.length}
+                        </span>
+                    </div>
+                    <div className="task-grid">
+                        {upcomingTasks.map(task => (
                             <TaskCard 
                                 key={task.id} 
                                 task={task} 
@@ -298,9 +326,9 @@ function TaskCard({ task, onToggle, isUpdating }: { task: Task, onToggle: () => 
             <p className="task-description">{task.description || 'No additional instructions provided for this task.'}</p>
 
             <div className="task-footer">
-                <div className="task-time" title={`Post Date: ${format(parseISO(task.scheduled_datetime), 'MMM do, h:mm a')}`}>
+                <div className="task-time" title={`Schedule Date: ${format(parseISO(task.scheduled_datetime), 'MMM do, h:mm a')}`}>
                     <Calendar size={14} />
-                    Assigned: {format(parseISO(task.assigned_at || task.scheduled_datetime), 'MMM do')}
+                    Due: {format(parseISO(task.scheduled_datetime), 'MMM do')}
                 </div>
                 <button 
                     className={`btn-complete-toggle ${isCompleted ? 'completed' : 'pending'}`}

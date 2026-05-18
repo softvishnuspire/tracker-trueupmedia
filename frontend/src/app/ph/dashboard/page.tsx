@@ -39,7 +39,9 @@ import {
     Film,
     User as UserIcon,
     Phone,
-    Mail
+    Mail,
+    Search,
+    Plus
 } from 'lucide-react';
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -48,13 +50,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
-import { Plus } from 'lucide-react';
 import './ph.css';
 
 // Using imported ContentItem from @/lib/api
 
 export default function ProductionHeadDashboard() {
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'employees'>('dashboard');
     const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
@@ -88,6 +89,9 @@ export default function ProductionHeadDashboard() {
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
     const [employees, setEmployees] = useState<any[]>([]);
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [assigningToEmployee, setAssigningToEmployee] = useState<any>(null);
+    const [clientSearchTerm, setClientSearchTerm] = useState('');
     const [isFreelancerModalOpen, setIsFreelancerModalOpen] = useState(false);
     const [userRole, setUserRole] = useState<string | null>(null);
 
@@ -241,7 +245,15 @@ export default function ProductionHeadDashboard() {
                 .single();
             
             const role = profile?.role_identifier || profile?.role || session.user.user_metadata?.role;
-            setUserRole(role?.toUpperCase());
+            const upperRole = role?.toUpperCase();
+            setUserRole(upperRole);
+            
+            const allowedRoles = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+            if (upperRole && !allowedRoles.includes(upperRole)) {
+                console.warn(`[RoleGuard] Access denied to /ph/dashboard for role: ${upperRole}`);
+                router.push('/');
+                return;
+            }
             
             // Fetch employees for assignment
             fetchEmployees();
@@ -522,6 +534,10 @@ export default function ProductionHeadDashboard() {
                             <span>Company Calendar</span>
                         </div>
                     )}
+                    <div onClick={() => setView('employees')} className={`nav-item ${view === 'employees' ? 'active' : ''}`}>
+                        <UserIcon size={20} />
+                        <span>Employee Management</span>
+                    </div>
 
                     {view === 'client' && (
                         <>
@@ -591,6 +607,7 @@ export default function ProductionHeadDashboard() {
                                 )}
                                 {view === 'master' && 'Master Production Schedule'}
                                 {view === 'company' && 'Company Calendar'}
+                                {view === 'employees' && 'Employee Management'}
                             </h1>
                             <p className="page-subtitle">
                                 {view === 'dashboard' && (
@@ -602,6 +619,7 @@ export default function ProductionHeadDashboard() {
                                 {view === 'client' && 'Manage shoot schedule for individual clients'}
                                 {view === 'master' && 'Review company-wide production pipeline'}
                                 {view === 'company' && 'Historical view of production schedule (-7 days)'}
+                                {view === 'employees' && 'Assign and manage clients for individual employees'}
                             </p>
 
                         </div>
@@ -995,7 +1013,159 @@ export default function ProductionHeadDashboard() {
                         </div>
                     </div>
                 )}
+
+                {view === 'employees' && (
+                    <div className="employees-view">
+                        <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: '24px' }}>
+                            {employees.map((emp: any) => {
+                                const assignedClients = clients.filter(c => c.employee_id === emp.user_id);
+                                return (
+                                    <div key={emp.user_id} className="employee-card-premium">
+                                        <div className="employee-card-header">
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                <div className="employee-avatar-large">
+                                                    {emp.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h3 className="employee-card-name">
+                                                        {emp.name} 
+                                                        <span className="role-id-tag">({emp.role_identifier || 'EMP'})</span>
+                                                    </h3>
+                                                    <p className="employee-card-role">EMPLOYEE</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                className="btn-assign-client"
+                                                onClick={() => {
+                                                    setAssigningToEmployee(emp);
+                                                    setIsAssignModalOpen(true);
+                                                }}
+                                            >
+                                                <Plus size={16} />
+                                                Assign Client
+                                            </button>
+                                        </div>
+
+                                        <div className="assigned-clients-section">
+                                            <h4 className="section-title">ASSIGNED CLIENTS ({assignedClients.length})</h4>
+                                            <div className="client-tags-grid">
+                                                {assignedClients.map(client => (
+                                                    <div key={client.id} className="client-tag-pill">
+                                                        <span>{client.company_name}</span>
+                                                        <button 
+                                                            className="remove-tag"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm(`Unassign ${client.company_name} from ${emp.name}?`)) {
+                                                                    try {
+                                                                        await phApi.assignEmployeeToClient(client.id, null);
+                                                                        // Refresh data
+                                                                        const cRes = await phApi.getClients();
+                                                                        setClients(cRes.data);
+                                                                        fetchTodayStats();
+                                                                        fetchMasterCalendar();
+                                                                        fetchClientCalendar();
+                                                                        setToast(`Unassigned ${client.company_name}`);
+                                                                        setTimeout(() => setToast(null), 3000);
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                    }
+                                                                }
+                                                            }}
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {assignedClients.length === 0 && (
+                                                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1' }}>No clients assigned yet.</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </main>
+
+            {isAssignModalOpen && assigningToEmployee && (
+                <div className="modal-overlay" onClick={() => setIsAssignModalOpen(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                        <div className="modal-header">
+                            <div>
+                                <h3 className="modal-title">Assign Client to {assigningToEmployee.name}</h3>
+                                <p className="modal-subtitle">Select a client to enable auto-assignment for production tasks.</p>
+                            </div>
+                            <button onClick={() => setIsAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="search-box" style={{ marginBottom: '20px', width: '100%' }}>
+                                <Search size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search clients..." 
+                                    value={clientSearchTerm}
+                                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '14px', width: '100%' }} 
+                                />
+                            </div>
+                            <div className="client-selection-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                {clients
+                                    .filter(c => c.company_name.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                                    .map(client => (
+                                        <div 
+                                            key={client.id} 
+                                            className={`client-selection-item ${client.employee_id === assigningToEmployee.user_id ? 'already-assigned' : ''}`}
+                                            onClick={async () => {
+                                                if (client.employee_id === assigningToEmployee.user_id) return;
+                                                console.log(`[Assign] Attempting to assign client ${client.id} to employee ${assigningToEmployee.user_id}`);
+                                                try {
+                                                    const res = await phApi.assignEmployeeToClient(client.id, assigningToEmployee.user_id);
+                                                    console.log('[Assign] Success:', res.data);
+                                                    // Refresh data
+                                                    const cRes = await phApi.getClients();
+                                                    setClients(cRes.data);
+                                                    fetchTodayStats();
+                                                    fetchMasterCalendar();
+                                                    fetchClientCalendar();
+                                                    setToast(`Assigned ${client.company_name} to ${assigningToEmployee.name}`);
+                                                    setTimeout(() => setToast(null), 3000);
+                                                    setIsAssignModalOpen(false);
+                                                } catch (err: any) {
+                                                    alert(err.response?.data?.error || 'Failed to assign client');
+                                                }
+                                            }}
+                                            style={{ 
+                                                padding: '12px 16px', 
+                                                borderRadius: '10px', 
+                                                cursor: client.employee_id === assigningToEmployee.user_id ? 'default' : 'pointer',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                marginBottom: '8px',
+                                                background: client.employee_id === assigningToEmployee.user_id ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-elevated)',
+                                                border: client.employee_id === assigningToEmployee.user_id ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                                opacity: client.employee_id === assigningToEmployee.user_id ? 0.7 : 1
+                                            }}
+                                        >
+                                            <span style={{ fontWeight: 600 }}>{client.company_name}</span>
+                                            {client.employee_id ? (
+                                                <span style={{ fontSize: '11px', color: client.employee_id === assigningToEmployee.user_id ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                    {client.employee_id === assigningToEmployee.user_id ? 'Currently Assigned' : `Assigned to ${employees.find(e => e.user_id === client.employee_id)?.name || 'Other'}`}
+                                                </span>
+                                            ) : (
+                                                <span style={{ fontSize: '11px', color: 'var(--success)' }}>Available</span>
+                                            )}
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {isDetailsOpen && activeItem && (
                 <div className="modal-overlay" onClick={() => setIsDetailsOpen(false)}>

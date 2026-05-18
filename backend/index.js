@@ -432,9 +432,28 @@ app.post('/api/gm/content', requireRoles(GM_ROLES), async (req, res) => {
             });
         }
 
+        // Get client's assigned employee
+        const { data: clientData } = await supabase
+            .from('clients')
+            .select('employee_id')
+            .eq('id', client_id)
+            .single();
+
+        const employeeId = clientData ? clientData.employee_id : null;
+
         const { data, error } = await supabase
             .from('content_items')
-            .insert([{ client_id, title, description, content_type, scheduled_datetime, status: initial_status }])
+            .insert([{ 
+                client_id, 
+                title, 
+                description, 
+                content_type, 
+                scheduled_datetime, 
+                status: initial_status,
+                assigned_to: employeeId || null,
+                assigned_at: employeeId ? new Date().toISOString() : null,
+                employee_task_status: employeeId ? 'PENDING' : null
+            }])
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
@@ -1198,24 +1217,35 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
         });
 
         // --- Aggregate Employee Stats ---
-        // Use the same source and inclusion rules as Employee Dashboard:
-        // assignments from the selected month + overdue pending tasks.
         const employeeIds = employees.map(e => e.user_id).filter(Boolean);
         let employeeTaskPool = [];
 
         if (employeeIds.length > 0) {
             const [year, month] = String(today).split('-');
             const startOfMonth = `${year}-${month}-01T00:00:00`;
+            const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+            const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-            const { data: dashboardTasks, error: dashboardTasksError } = await supabase
-                .from('content_items')
-                .select('id, title, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, clients(company_name)')
-                .in('assigned_to', employeeIds)
-                .or(`assigned_at.gte.${startOfMonth},employee_task_status.eq.PENDING`)
-                .order('assigned_at', { ascending: true });
+            const [contentRes, freelancerRes] = await Promise.all([
+                supabase
+                    .from('content_items')
+                    .select('id, title, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, clients(company_name)')
+                    .in('assigned_to', employeeIds)
+                    .or(`scheduled_datetime.gte.${startOfMonth},employee_task_status.eq.PENDING`),
+                supabase
+                    .from('freelancer_tasks')
+                    .select('id, title, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at')
+                    .in('assigned_to', employeeIds)
+                    .or(`scheduled_datetime.gte.${startOfMonth},employee_task_status.eq.PENDING`)
+            ]);
 
-            if (dashboardTasksError) throw dashboardTasksError;
-            employeeTaskPool = dashboardTasks || [];
+            if (contentRes.error) throw contentRes.error;
+            if (freelancerRes.error) throw freelancerRes.error;
+
+            employeeTaskPool = [
+                ...(contentRes.data || []).map(t => ({ ...t, clientName: t.clients?.company_name || 'Direct' })),
+                ...(freelancerRes.data || []).map(t => ({ ...t, clientName: 'Freelancer Task' }))
+            ];
         }
 
         const toUtcDateKey = (dateLike) => {
@@ -1233,33 +1263,43 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
         const empStats = employees.map(emp => {
             const empTaskCandidates = employeeTaskPool.filter(t => t.assigned_to === emp.user_id);
 
-            // Mirror Employee Dashboard cards:
-            // - "Today's Assignments" (selected day here)
-            // - "Overdue Tasks" (older pending assignments)
-            const empTasks = empTaskCandidates.filter(t => {
-                const dateRef = t.assigned_at || t.scheduled_datetime;
+            // Daily Tasks (Scheduled for the selected day)
+            const dailyTasks = empTaskCandidates.filter(t => {
+                const dateRef = t.scheduled_datetime || t.assigned_at;
                 const taskDateKey = toUtcDateKey(dateRef);
-                if (!taskDateKey) return false;
-
-                const isSelectedDay = taskDateKey === selectedDateKey;
-                return isSelectedDay;
+                return taskDateKey === selectedDateKey;
             });
 
-            const total = empTasks.length;
-            const completedTasks = empTasks.filter(t => (t.employee_task_status || '').toUpperCase() === 'COMPLETED').length;
+            // Monthly Tasks (Scheduled for the current month)
+            const [year, month] = String(today).split('-');
+            const monthPrefix = `${year}-${month}`;
+            const monthlyTasks = empTaskCandidates.filter(t => {
+                const dateRef = t.scheduled_datetime || t.assigned_at;
+                const dateKey = toUtcDateKey(dateRef);
+                return dateKey && dateKey.startsWith(monthPrefix);
+            });
+
+            const dailyTotal = dailyTasks.length;
+            const dailyCompleted = dailyTasks.filter(t => (t.employee_task_status || '').toUpperCase() === 'COMPLETED').length;
+
+            const monthlyTotal = monthlyTasks.length;
+            const monthlyCompleted = monthlyTasks.filter(t => (t.employee_task_status || '').toUpperCase() === 'COMPLETED').length;
 
             return {
                 id: emp.user_id,
                 name: emp.name,
                 email: emp.email,
                 role: emp.role_identifier || emp.role,
-                assignedTasks: total,
-                completedTasks,
-                completionRate: total > 0 ? (completedTasks / total) : 0,
-                tasks: empTasks.map(t => ({
+                assignedTasks: dailyTotal,
+                completedTasks: dailyCompleted,
+                completionRate: dailyTotal > 0 ? (dailyCompleted / dailyTotal) : 0,
+                monthlyTotal,
+                monthlyCompleted,
+                monthlyRate: monthlyTotal > 0 ? (monthlyCompleted / monthlyTotal) : 0,
+                tasks: dailyTasks.map(t => ({
                     id: t.id,
                     title: t.title,
-                    clientName: t.clients?.company_name || 'Direct',
+                    clientName: t.clientName,
                     status: t.status,
                     employeeStatus: t.employee_task_status,
                     scheduledDate: t.scheduled_datetime,
@@ -1613,9 +1653,28 @@ app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
             });
         }
 
+        // Get client's assigned employee
+        const { data: clientData } = await supabase
+            .from('clients')
+            .select('employee_id')
+            .eq('id', client_id)
+            .single();
+
+        const employeeId = clientData ? clientData.employee_id : null;
+
         const { data, error } = await supabase
             .from('content_items')
-            .insert([{ client_id, title, description, content_type, scheduled_datetime, status: initial_status }])
+            .insert([{ 
+                client_id, 
+                title, 
+                description, 
+                content_type, 
+                scheduled_datetime, 
+                status: initial_status,
+                assigned_to: employeeId || null,
+                assigned_at: employeeId ? new Date().toISOString() : null,
+                employee_task_status: employeeId ? 'PENDING' : null
+            }])
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
@@ -1833,7 +1892,7 @@ app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('clients')
-            .select('id, company_name, team_lead:team_lead_id (name)')
+            .select('id, company_name, employee_id, team_lead:team_lead_id (name)')
             .eq('is_active', true)
             .eq('is_deleted', false)
             .order('company_name');
@@ -1922,10 +1981,30 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
             return res.status(403).json({ error: 'Production Head authority ends at WAITING FOR FINAL APPROVAL' });
         }
 
+        // 2.5 Auto-assign employee if transitioning to production work
+        let autoAssignedId = null;
+        const employeeThresholds = { 'Reel': 'SHOOT DONE', 'YouTube': 'SHOOT DONE', 'Post': 'CONTENT APPROVED' };
+        const threshold = employeeThresholds[item.content_type];
+        
+        if (threshold && finalStatus === threshold && !item.assigned_to) {
+            const { data: client } = await supabase.from('clients').select('employee_id').eq('id', item.client_id).single();
+            if (client?.employee_id) {
+                autoAssignedId = client.employee_id;
+                console.log(`[PH StatusUpdate] Auto-assigning item ${id} to employee ${autoAssignedId}`);
+            }
+        }
+
         // 3. Perform update in the correct table
+        const updatePayload = { status: finalStatus, updated_at: new Date().toISOString() };
+        if (autoAssignedId) {
+            updatePayload.assigned_to = autoAssignedId;
+            updatePayload.assigned_at = new Date().toISOString();
+            updatePayload.employee_task_status = 'PENDING';
+        }
+
         const { error: updateError } = await supabase
             .from(table)
-            .update({ status: finalStatus, updated_at: new Date().toISOString() })
+            .update(updatePayload)
             .eq('id', id);
 
         if (updateError) {
@@ -2032,52 +2111,152 @@ app.patch('/api/ph/content/:id/assign', requireRoles(PH_ROLES), async (req, res)
     }
 });
 
+
+// PH: Assign Employee to Client (Default Assignment)
+app.patch('/api/ph/clients/:id/assign-employee', requireRoles(PH_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { employee_id } = req.body;
+
+    console.log(`[PH ClientAssign] Request for client ${id}, assign default employee to ${employee_id}`);
+    
+    // Check if employee_id is valid
+    if (employee_id && typeof employee_id !== 'string') {
+        return res.status(400).json({ error: 'Invalid employee_id format' });
+    }
+
+    try {
+        // 1. Update the client's default assigned employee
+        const { data, error } = await supabase
+            .from('clients')
+            .update({
+                employee_id: employee_id || null
+            })
+            .eq('id', id)
+            .select();
+
+        if (error) {
+            console.error('[PH ClientAssign] Supabase Error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'Client not found' });
+        }
+
+        // 2. Cascade assignment: Update all tasks for this client to the assigned employee
+        const updatePayload = {
+            assigned_to: employee_id || null,
+            assigned_at: employee_id ? new Date().toISOString() : null,
+            employee_task_status: employee_id ? 'PENDING' : null
+        };
+
+        const { error: cascadeError } = await supabase
+            .from('content_items')
+            .update(updatePayload)
+            .eq('client_id', id); // Cascade to all tasks for consistent calendars across all screens
+
+        if (cascadeError) {
+            console.error('[PH ClientAssign] Cascade tasks assignment error:', cascadeError.message);
+        } else {
+            console.log(`[PH ClientAssign] Successfully cascaded task assignments to all content items for client ${id}`);
+        }
+
+        myCache.del(["gm_clients", "admin_clients", "ph_clients"]);
+        res.json(data[0]);
+    } catch (err) {
+        console.error('[PH ClientAssign] Exception:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Employee Endpoints ───
 app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) => {
     const userId = req.user.id;
     const { month } = req.query;
 
     try {
+        let startDate, endDate;
         if (month) {
-            // History view: fetch all assignments made in a specific month
             const [year, mon] = String(month).split('-');
-            const startDate = `${year}-${mon}-01T00:00:00`;
+            startDate = `${year}-${mon}-01T00:00:00`;
             const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
-            const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
-
-            const { data, error } = await supabase
-                .from('content_items')
-                .select(`*, clients (company_name)`)
-                .eq('assigned_to', userId)
-                .gte('assigned_at', startDate)
-                .lte('assigned_at', endDate)
-                .order('assigned_at', { ascending: false });
-
-            if (error) return res.status(500).json({ error: error.message });
-            return res.json(data);
+            endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        } else {
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+            startDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01T00:00:00`;
+            endDate = null; // For dashboard, we want current month + pending
         }
 
-        // Default Dashboard view: Assignments made this month + any overdue pending tasks
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth() + 1;
-        
-        // Start of current month
-        const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01T00:00:00`;
-        
-        const { data, error } = await supabase
+        const employeeTriggerStatuses = [
+            'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 
+            'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+            'WAITING FOR FINAL APPROVAL', 'APPROVED', 
+            'WAITING FOR POSTING', 'POSTED'
+        ];
+
+        // Step 1: Fetch clients assigned to this employee
+        const { data: clients, error: clientsError } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('employee_id', userId);
+
+        if (clientsError) {
+            console.error('[EmployeeTasks] Clients Query Error:', clientsError.message);
+            return res.status(500).json({ error: clientsError.message });
+        }
+
+        const clientIds = (clients || []).map(c => c.id);
+
+        // Step 2: Fetch Content Items
+        let contentQuery = supabase
             .from('content_items')
-            .select(`*, clients (company_name)`)
-            .eq('assigned_to', userId)
-            .or(`assigned_at.gte.${startOfMonth},employee_task_status.eq.PENDING`)
-            .order('assigned_at', { ascending: true });
+            .select(`*, clients!inner(company_name, employee_id)`)
+            .in('status', employeeTriggerStatuses);
 
-        if (error) {
-            console.error('[EmployeeTasks] Dashboard Query Error:', error.message);
-            return res.status(500).json({ error: error.message });
+        if (clientIds.length > 0) {
+            contentQuery = contentQuery.in('client_id', clientIds);
+        } else {
+            contentQuery = contentQuery.eq('assigned_to', userId);
         }
-        res.json(data);
+
+        if (month) {
+            contentQuery = contentQuery.gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate);
+        } else {
+            contentQuery = contentQuery.or(`scheduled_datetime.gte.${startDate},employee_task_status.eq.PENDING`);
+        }
+
+        const { data: contentData, error: contentError } = await contentQuery;
+        if (contentError) throw contentError;
+
+        // Fetch Freelancer Tasks
+        let freelancerQuery = supabase
+            .from('freelancer_tasks')
+            .select(`*`)
+            .eq('assigned_to', userId);
+
+        if (month) {
+            freelancerQuery = freelancerQuery.gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate);
+        } else {
+            freelancerQuery = freelancerQuery.or(`scheduled_datetime.gte.${startDate},employee_task_status.eq.PENDING`);
+        }
+
+        const { data: freelancerData, error: freelancerError } = await freelancerQuery;
+        if (freelancerError) throw freelancerError;
+
+        // Merge and normalize
+        const combined = [
+            ...(contentData || []).map(item => ({ ...item, is_freelancer_task: false })),
+            ...(freelancerData || []).map(item => ({ ...item, is_freelancer_task: true, clients: { company_name: 'Freelancer Task' } }))
+        ];
+
+        // Final Sort
+        combined.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
+
+        res.json(combined);
     } catch (err) {
+        console.error('[EmployeeTasks] Combined Fetch Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -2088,19 +2267,17 @@ app.patch('/api/employee/tasks/:id/status', requireRoles(EMPLOYEE_ROLES), async 
     const userId = req.user.id;
 
     try {
-        const { data: item, error: fetchError } = await supabase
-            .from('content_items')
-            .select('assigned_to')
-            .eq('id', id)
-            .single();
+        const { data: item, error: fetchError, table } = await fetchContentOrFreelancerItem(id);
 
         if (fetchError || !item) return res.status(404).json({ error: 'Task not found' });
+        
+        // Authorization check
         if (item.assigned_to !== userId && req.resolvedRole !== 'ADMIN') {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
         const { data, error } = await supabase
-            .from('content_items')
+            .from(table)
             .update({ employee_task_status: status })
             .eq('id', id)
             .select();
@@ -2108,6 +2285,7 @@ app.patch('/api/employee/tasks/:id/status', requireRoles(EMPLOYEE_ROLES), async 
         if (error) return res.status(500).json({ error: error.message });
         res.json(data[0]);
     } catch (err) {
+        console.error('[EmployeeTasks] Status Update Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });

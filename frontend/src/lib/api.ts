@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/client';
 const supabase = createClient();
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://trueupmedia-manager.onrender.com';
+console.log('--- API_BASE_URL:', API_BASE_URL);
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -29,8 +30,8 @@ export interface Client {
     youtube_per_month?: number;
     batch_type?: '1-1' | '15-15';
     password?: string; // For adding/updating clients
-    created_at: string;
     team_lead?: { name: string; role_identifier?: string };
+    employee_id?: string;
 }
 
 export interface ContentItem {
@@ -156,6 +157,9 @@ export interface EmployeeTrackingStats {
     assignedTasks: number;
     completedTasks: number;
     completionRate: number;
+    monthlyTotal: number;
+    monthlyCompleted: number;
+    monthlyRate: number;
     tasks?: {
         id: string;
         title: string;
@@ -248,6 +252,8 @@ export const phApi = {
     getEmployees: () => phBase.get<TeamMember[]>('/api/ph/employees'),
     assignEmployee: (id: string, employeeId: string | null) =>
         phBase.patch(`/api/ph/content/${id}/assign`, { assigned_to: employeeId }),
+    assignEmployeeToClient: (clientId: string, employeeId: string | null) =>
+        phBase.patch(`/api/ph/clients/${clientId}/assign-employee`, { employee_id: employeeId }),
     addFreelancerContent: (data: any) => phBase.post('/api/ph/freelancer-content', data),
 };
 
