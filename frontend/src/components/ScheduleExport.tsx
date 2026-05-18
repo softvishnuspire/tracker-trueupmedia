@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, startOfWeek, endOfWeek, addMonths } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -59,13 +59,23 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
         }
     };
 
-    // Period Calculation — always use the full calendar month for export
-    const periodStart = startOfMonth(month);
-    const periodEnd = endOfMonth(month);
+    // Period Calculation
+    const isBiMonthly = batchType === '15-15';
+    const periodStart = isBiMonthly
+        ? new Date(month.getFullYear(), month.getMonth(), 15, 0, 0, 0, 0)
+        : startOfMonth(month);
+    const nextMonth = addMonths(month, 1);
+    const periodEnd = isBiMonthly
+        ? new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 15, 23, 59, 59, 999)
+        : endOfMonth(month);
 
-    const periodLabel = format(month, 'MMMM yyyy');
+    const periodLabel = isBiMonthly
+        ? `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`
+        : format(month, 'MMMM yyyy');
 
-    const filename = `${clientName}_Schedule_${format(month, 'MMM_yyyy')}.pdf`;
+    const filename = isBiMonthly
+        ? `${clientName}_Schedule_${format(periodStart, 'dd_MMM')}_to_${format(periodEnd, 'dd_MMM_yyyy')}.pdf`
+        : `${clientName}_Schedule_${format(month, 'MMM_yyyy')}.pdf`;
 
     // Prepare Weekly Data
     const daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
@@ -95,6 +105,9 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
     const gridStart = startOfWeek(periodStart, { weekStartsOn: 1 });
     const gridEnd = endOfWeek(periodEnd, { weekStartsOn: 1 });
     const gridDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
+
+    const totalWeeks = gridDays.length / 7;
+    const cellMinHeight = totalWeeks > 5 ? '68px' : '88px';
 
     return (
         <>
@@ -154,10 +167,10 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     </div>
                 </div>
 
-                <div style={{ width: '100%', height: '3px', background: '#10b981', marginBottom: '25px', borderRadius: '2px' }}></div>
+                <div style={{ width: '100%', height: '3px', background: '#10b981', marginBottom: '16px', borderRadius: '2px' }}></div>
 
                 {/* Summary Info Bar */}
-                <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', marginBottom: '30px', border: '1.2px solid #94a3b8' }}>
+                <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '12px 30px', display: 'flex', justifyContent: 'space-between', marginBottom: '20px', border: '1.2px solid #94a3b8' }}>
                     <div>
                         <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>PERIOD</p>
                         <p style={{ fontSize: '18px', fontWeight: 800, color: '#475569', margin: 0 }}>{periodLabel.toUpperCase()}</p>
@@ -178,31 +191,31 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 </div>
 
                 {/* Weekly Analysis Table */}
-                <div style={{ marginBottom: '35px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
-                        <div style={{ width: '4px', height: '22px', background: '#ef4444', borderRadius: '3px' }}></div>
-                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>WEEKLY ANALYSIS</h3>
+                <div style={{ marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                        <div style={{ width: '4px', height: '20px', background: '#ef4444', borderRadius: '3px' }}></div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>WEEKLY ANALYSIS</h3>
                     </div>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr style={{ borderBottom: '1.2px solid #94a3b8', background: '#f8fafc' }}>
-                                <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#475569' }}>DAY OF WEEK</th>
-                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#475569' }}>POSTERS</th>
-                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#475569' }}>REELS</th>
-                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#475569' }}>YOUTUBE</th>
+                                <th style={{ padding: '8px 20px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569' }}>DAY OF WEEK</th>
+                                <th style={{ padding: '8px 20px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#475569' }}>POSTERS</th>
+                                <th style={{ padding: '8px 20px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#475569' }}>REELS</th>
+                                <th style={{ padding: '8px 20px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#475569' }}>YOUTUBE</th>
                             </tr>
                         </thead>
                         <tbody>
                             {weeklyStats.map((row, i) => (
                                 <tr key={i} style={{ borderBottom: '1px solid #cbd5e1' }}>
-                                    <td style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, color: '#475569' }}>{row.day}</td>
-                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#10b981' }}>
+                                    <td style={{ padding: '6px 20px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>{row.day}</td>
+                                    <td style={{ padding: '6px 20px', textAlign: 'center', fontSize: '13px', fontWeight: 800, color: '#10b981' }}>
                                         {row.posterCount > 0 ? row.posterCount : '-'}
                                     </td>
-                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#0891b2' }}>
+                                    <td style={{ padding: '6px 20px', textAlign: 'center', fontSize: '13px', fontWeight: 800, color: '#0891b2' }}>
                                         {row.reelCount > 0 ? row.reelCount : '-'}
                                     </td>
-                                    <td style={{ padding: '10px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 800, color: '#d97706' }}>
+                                    <td style={{ padding: '6px 20px', textAlign: 'center', fontSize: '13px', fontWeight: 800, color: '#d97706' }}>
                                         {row.youtubeCount > 0 ? row.youtubeCount : '-'}
                                     </td>
                                 </tr>
@@ -213,13 +226,13 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
 
                 {/* Monthly Calendar View */}
                 <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
-                        <div style={{ width: '4px', height: '22px', background: '#10b981', borderRadius: '3px' }}></div>
-                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>CALENDAR VIEW</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                        <div style={{ width: '4px', height: '20px', background: '#10b981', borderRadius: '3px' }}></div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>CALENDAR VIEW</h3>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', border: '1.2px solid #94a3b8', borderRadius: '12px', overflow: 'hidden' }}>
                         {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
-                            <div key={day} style={{ padding: '10px', fontSize: '11px', fontWeight: 800, color: '#475569', textAlign: 'center', background: '#f8fafc', borderBottom: '1.2px solid #94a3b8' }}>
+                            <div key={day} style={{ padding: '6px', fontSize: '10px', fontWeight: 800, color: '#475569', textAlign: 'center', background: '#f8fafc', borderBottom: '1.2px solid #94a3b8' }}>
                                 {day}
                             </div>
                         ))}
@@ -229,8 +242,8 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
 
                             return (
                                 <div key={idx} style={{
-                                    minHeight: '88px',
-                                    padding: '8px',
+                                    minHeight: cellMinHeight,
+                                    padding: '6px 8px',
                                     borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #cbd5e1',
                                     borderBottom: '1px solid #cbd5e1',
                                     background: isInPeriod ? '#fff' : '#fcfdfe',

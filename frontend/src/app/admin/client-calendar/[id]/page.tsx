@@ -96,11 +96,11 @@ export default function ClientCalendarPage() {
     const isBiMonthly = (client?.batch_type || '1-1') === '15-15';
 
     const periodStart = isBiMonthly
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15, 0, 0, 0, 0)
         : startOfMonth(currentMonth);
     const nextMonth = addMonths(currentMonth, 1);
     const periodEnd = isBiMonthly
-        ? new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 15)
+        ? new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 15, 23, 59, 59, 999)
         : endOfMonth(currentMonth);
 
     const days = viewMode === 'month' 
