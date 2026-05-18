@@ -924,7 +924,7 @@ export default function ProductionHeadDashboard() {
                                             <span className="day-number">{format(day, 'd')}</span>
                                             <div className="day-items desktop-only">
                                                 {dayContent.map(item => (
-                                                    <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}>
+                                                    <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -952,7 +952,7 @@ export default function ProductionHeadDashboard() {
                                                 ))}
                                             </div>
                                             <div className="mobile-day-indicators">
-                                                {dayContent.map(item => <div key={item.id} className={`mobile-dot ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}></div>)}
+                                                {dayContent.map(item => <div key={item.id} className={`mobile-dot ${item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}></div>)}
                                             </div>
                                         </div>
                                     );
@@ -1289,7 +1289,9 @@ export default function ProductionHeadDashboard() {
                                         const flows: any = {
                                             'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
                                             'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
-                                            'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                            'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'Special Poster': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                            'Special Day Poster': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
                                         };
                                         const flow = flows[activeItem.item.content_type] || [];
                                         const currentIdx = flow.indexOf(activeItem.item.status);

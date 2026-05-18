@@ -478,7 +478,7 @@ export default function ClientCalendarPage() {
                                         <div 
                                             key={item.id}
                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
                                         >
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
                                                 {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
@@ -499,7 +499,7 @@ export default function ClientCalendarPage() {
                                     {dayContent.map(item => (
                                         <div 
                                             key={item.id}
-                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
                                         ></div>
                                     ))}
                                 </div>
@@ -520,7 +520,7 @@ export default function ClientCalendarPage() {
                             {dailyAgenda.items.map(item => (
                                 <div 
                                     key={item.id} 
-                                    className={`agenda-item ${item.content_type.toLowerCase()}`}
+                                    className={`agenda-item ${item.content_type.toLowerCase().replace(/\s+/g, '-')}`}
                                     onClick={() => {
                                         setDailyAgenda(null);
                                         handleItemClick(item);
@@ -533,7 +533,7 @@ export default function ClientCalendarPage() {
                                 >
                                     <div style={{ 
                                         width: '4px', height: '24px', borderRadius: '2px', 
-                                        background: item.content_type === 'Post' ? '#10b981' : '#6366f1' 
+                                        background: item.content_type === 'Post' ? '#10b981' : item.content_type === 'Reel' ? '#6366f1' : (item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster') ? '#ec4899' : '#f59e0b' 
                                     }}></div>
                                     <div style={{ flex: 1 }}>
                                         <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.content_type}</p>
@@ -582,7 +582,7 @@ export default function ClientCalendarPage() {
                         <div className="modal-header">
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                    <span className={`type-badge ${selectedItem.item.content_type.toLowerCase()}`}>
+                                    <span className={`type-badge ${selectedItem.item.content_type.toLowerCase().replace(/\s+/g, '-')}`}>
                                         {selectedItem.item.content_type}
                                     </span>
                                     {dayTasks.length > 1 && (
@@ -761,6 +761,14 @@ export default function ClientCalendarPage() {
                                             'Post': [
                                                 'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
                                                 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            'Special Poster': [
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            'Special Day Poster': [
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ]
                                         };
                                         const flow = flows[selectedItem.item.content_type] || [];
@@ -854,12 +862,13 @@ export default function ClientCalendarPage() {
                                 <select 
                                     className="form-input"
                                     value={formData.content_type}
-                                    onChange={(e) => setFormData({...formData, content_type: e.target.value as 'Post' | 'Reel' | 'YouTube'})}
+                                    onChange={(e) => setFormData({...formData, content_type: e.target.value as any})}
                                     disabled={!!editingItem}
                                 >
                                     <option value="Post">Post</option>
                                     <option value="Reel">Reel</option>
                                     <option value="YouTube">YouTube</option>
+                                    <option value="Special Poster">Special Poster</option>
                                 </select>
                             </div>
                             <div className="form-group">

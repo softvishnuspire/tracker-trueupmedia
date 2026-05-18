@@ -1114,6 +1114,7 @@ export default function GMDashboard() {
                                             <option value="Post">Posts</option>
                                             <option value="Reel">Reels</option>
                                             <option value="YouTube">YouTube</option>
+                                            <option value="Special Poster">Special Posters</option>
                                         </select>
                                         <ChevronDown size={14} className="dropdown-chevron" />
                                     </div>
@@ -1909,7 +1910,7 @@ export default function GMDashboard() {
                                                                     handleItemClick(item);
                                                                 }
                                                             }}
-                                                            className={isPocView ? 'content-item post' : `content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                            className={isPocView ? 'content-item post' : `content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
                                                         >
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
                                                                 {isPocView ? <FileText size={10} /> : item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
@@ -1946,7 +1947,7 @@ export default function GMDashboard() {
                                                     {dayContent.map((item: any) => (
                                                         <div
                                                             key={item.id}
-                                                            className={`mobile-dot ${isPocView ? 'post' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
+                                                            className={`mobile-dot ${isPocView ? 'post' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
                                                         ></div>
                                                     ))}
                                                 </div>
@@ -1981,6 +1982,7 @@ export default function GMDashboard() {
                                     <option value="Post">Post</option>
                                     <option value="Reel">Reel</option>
                                     <option value="YouTube">YouTube</option>
+                                    <option value="Special Poster">Special Poster</option>
                                 </select>
                             </div>
 
@@ -2082,7 +2084,7 @@ export default function GMDashboard() {
                         <div className="modal-header">
                             <div>
                                 <div className="detail-meta">
-                                    <span className={`type-badge ${activeItem.item.content_type.toLowerCase()}`}>
+                                    <span className={`type-badge ${activeItem.item.content_type.toLowerCase().replace(/\s+/g, '-')}`}>
                                         {activeItem.item.content_type}
                                     </span>
                                     <span className="meta-dot">•</span>
@@ -2277,6 +2279,14 @@ export default function GMDashboard() {
                                             'Post': [
                                                 'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
                                                 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            'Special Poster': [
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            'Special Day Poster': [
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                             ]
                                         };
                                         const flow = flows[activeItem.item.content_type];
@@ -2383,6 +2393,14 @@ export default function GMDashboard() {
                                             'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ],
                                         'Post': [
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                            'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                        ],
+                                        'Special Poster': [
+                                            'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                            'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                        ],
+                                        'Special Day Poster': [
                                             'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
                                             'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                                         ]

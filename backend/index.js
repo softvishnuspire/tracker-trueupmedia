@@ -35,6 +35,23 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Run database migrations on startup to add new content types to the PG enum
+async function runStartupMigrations() {
+    try {
+        console.log('🔄 Running startup SQL migrations...');
+        // Alter enum type to add 'Special Poster' and 'Special Day Poster'
+        const alterEnum1 = "ALTER TYPE content_type ADD VALUE IF NOT EXISTS 'Special Poster';";
+        const alterEnum2 = "ALTER TYPE content_type ADD VALUE IF NOT EXISTS 'Special Day Poster';";
+        
+        await supabase.rpc('exec_sql', { sql: alterEnum1 });
+        await supabase.rpc('exec_sql', { sql: alterEnum2 });
+        console.log('✅ Startup SQL migrations completed successfully.');
+    } catch (err) {
+        console.error('⚠️ Warning: Startup migrations failed (probably exec_sql not allowed or values already exist):', err.message);
+    }
+}
+runStartupMigrations();
+
 const NodeCache = require("node-cache");
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
@@ -281,6 +298,32 @@ const STATUS_FLOWS = {
         'APPROVED',
         'WAITING FOR POSTING',
         'POSTED'
+    ],
+    'Special Poster': [
+        'PENDING',
+        'CONTENT NOT STARTED',
+        'CONTENT READY',
+        'WAITING FOR APPROVAL',
+        'CONTENT APPROVED',
+        'DESIGNING IN PROGRESS',
+        'DESIGNING COMPLETED',
+        'WAITING FOR FINAL APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED'
+    ],
+    'Special Day Poster': [
+        'PENDING',
+        'CONTENT NOT STARTED',
+        'CONTENT READY',
+        'WAITING FOR APPROVAL',
+        'CONTENT APPROVED',
+        'DESIGNING IN PROGRESS',
+        'DESIGNING COMPLETED',
+        'WAITING FOR FINAL APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED'
     ]
 };
 
@@ -289,6 +332,16 @@ const STATUS_FLOWS = {
  * for a specific content type (Post, Reel, YouTube) within their batch period.
  */
 async function checkContentLimit(client_id, content_type, scheduled_datetime) {
+    // Special Posters are exempt from monthly content limits
+    if (content_type === 'Special Poster' || content_type === 'Special Day Poster') {
+        return {
+            allowed: true,
+            limit: Infinity,
+            count: 0,
+            period: ''
+        };
+    }
+
     // 1. Fetch client's limits and batch type
     const { data: client, error: clientError } = await supabase
         .from('clients')

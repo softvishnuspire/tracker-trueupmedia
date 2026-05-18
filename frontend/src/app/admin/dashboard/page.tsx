@@ -728,7 +728,7 @@ export default function AdminDashboard() {
           <div className="modal-content detail-modal" style={{ maxWidth: '600px' }}>
             <div className="modal-header">
               <div className="detail-header-info">
-                <span className={`type-badge ${activeItem.item.content_type.toLowerCase()}`}>
+                <span className={`type-badge ${activeItem.item.content_type.toLowerCase().replace(/\s+/g, '-')}`}>
                   {activeItem.item.content_type}
                 </span>
                 <span className="dot">•</span>
@@ -867,7 +867,9 @@ export default function AdminDashboard() {
                       const flows: Record<string, string[]> = {
                         'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
                         'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
-                        'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                        'Post': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                        'Special Poster': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                        'Special Day Poster': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
                       };
                       const flow = flows[activeItem.item.content_type] || [];
                       const currentIndex = flow.indexOf(activeItem.item.status);
@@ -965,6 +967,14 @@ export default function AdminDashboard() {
                       'Post': [
                         'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
                         'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                      ],
+                      'Special Poster': [
+                        'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                        'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                      ],
+                      'Special Day Poster': [
+                        'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                        'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
                       ]
                     };
                     const flow = flows[activeItem.item.content_type] || [];
@@ -1035,11 +1045,12 @@ export default function AdminDashboard() {
                   <select
                     className="form-input"
                     value={formData.content_type}
-                    onChange={(e) => setFormData({ ...formData, content_type: e.target.value as 'Post' | 'Reel' | 'YouTube' })}
+                    onChange={(e) => setFormData({ ...formData, content_type: e.target.value as any })}
                   >
                     <option value="Post">Post</option>
                     <option value="Reel">Reel</option>
                     <option value="YouTube">YouTube</option>
+                    <option value="Special Poster">Special Poster</option>
                   </select>
                 </div>
                 <div className="form-group">

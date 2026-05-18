@@ -1465,4 +1465,22 @@
         opacity: 1;
         bottom: 40px;
     }
+}
+
+/* ─── Special occasion poster styling ─── */
+.content-item.special-poster, .content-item.special-day-poster {
+    background: rgba(236, 72, 153, 0.08) !important;
+    border-left: 3px solid #ec4899 !important;
+    color: #ec4899 !important;
+}
+.mobile-dot.special-poster, .mobile-dot.special-day-poster {
+    background: #ec4899 !important;
+}
+.type-badge.special-poster, .type-badge.special-day-poster {
+    background: rgba(236, 72, 153, 0.1) !important;
+    color: #ec4899 !important;
+    border: 1px solid rgba(236, 72, 153, 0.2) !important;
+}
+.agenda-item.special-poster, .agenda-item.special-day-poster {
+    border-left: 3px solid #ec4899 !important;
 }

@@ -1,6 +1,29 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-18 (GM Dashboard Stats Alignment & 15-15 Cycle Synchronization)
+## Latest Changes — 2026-05-18 (Special Day Poster Feature Implementation)
+- **Goal**: Introduce the "Special Day Poster" feature allowing GMs and Admins to add on-demand special posters (for birthdays, anniversaries, etc.) that are exempt from pre-given standard poster targets, while ensuring visual premium rose theme styling and robust status/details modal flow compatibility.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`:
+        - Added "Special Poster" to the content type filters dropdown.
+        - Extended the Add Content modal form type selector with "Special Poster".
+        - Mapped both `'Special Poster'` and `'Special Day Poster'` keys to the standard `'Post'` workflow status array inside both status timeline/advancement dictionaries to prevent modal detail selection crashes.
+        - Sanitized CSS classes derived from item content type using `.toLowerCase().replace(/\s+/g, '-')` to prevent multi-word class name spacing issues (e.g., `.special-poster`).
+    - `frontend/src/app/admin/client-calendar/[id]/page.tsx`:
+        - Added "Special Poster" to the task type select dropdown field.
+        - Mapped `'Special Poster'` and `'Special Day Poster'` keys to the `'Post'` workflow status flow in details timeline.
+        - Sanitized desktop calendar cards, mobile dots, mobile agenda list item colors, and details modal type badges to use spaced-sanitized class names.
+    - `frontend/src/app/admin/dashboard/page.tsx`:
+        - Added "Special Poster" option in edit/add content form type select.
+        - Mapped `'Special Poster'` and `'Special Day Poster'` keys to the `'Post'` status flow array in both timeline flow dictionaries.
+        - Sanitized detail header type badges for safe CSS spacing.
+    - `frontend/src/app/ph/dashboard/page.tsx`:
+        - Mapped `'Special Poster'` and `'Special Day Poster'` keys to the `'Post'` workflow status flow dictionary.
+        - Sanitized calendar grid content items and mobile dot class names.
+    - `frontend/src/app/gm/dashboard/gm.css`, `frontend/src/app/ph/dashboard/ph.css`, `frontend/src/app/admin/admin.css`:
+        - Appended beautiful rose/magenta theme styles (`.special-poster`, `.special-day-poster`) with distinct hover states, premium glassmorphism gradients, type badges, mobile dots, and agenda items to achieve visual excellence.
+- **System Impact**: Perfectly integrates the Special Day Poster option across GM, PH, and Admin dashboards, allowing on-demand scheduling without target count constraints or system crashes.
+
+## Previous Changes — 2026-05-18 (GM Dashboard Stats Alignment & 15-15 Cycle Synchronization)
 - **Goal**: Align the premium statistics cards at the top of the GM Dashboard with the active client's calendar date boundary and batch cycle boundaries (standard 1-1 month vs. bi-monthly 15-15 cycle) when a client is selected, and fix the boundary-day timestamp cutoff in both GM and PH dashboards.
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`:
