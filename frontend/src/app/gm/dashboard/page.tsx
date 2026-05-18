@@ -185,7 +185,7 @@ export default function GMDashboard() {
 
     const isDayInPeriod = (day: Date): boolean => {
         if (!isBiMonthlyView) return isSameMonth(day, currentMonth);
-        return day >= periodStart && day <= periodEnd;
+        return day >= startOfDay(periodStart) && day <= endOfDay(periodEnd);
     };
 
 

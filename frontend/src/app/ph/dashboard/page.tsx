@@ -12,7 +12,9 @@ import {
     isSameDay,
     addMonths,
     subMonths,
-    parseISO
+    parseISO,
+    startOfDay,
+    endOfDay
 } from 'date-fns';
 import {
     ChevronLeft,
@@ -212,7 +214,7 @@ export default function ProductionHeadDashboard() {
 
     const isDayInPeriod = useCallback((date: Date) => {
         if (!isBiMonthlyView) return isSameMonth(date, currentMonth);
-        return date >= periodStart && date <= periodEnd;
+        return date >= startOfDay(periodStart) && date <= endOfDay(periodEnd);
     }, [currentMonth, isBiMonthlyView, periodStart, periodEnd]);
 
     const fetchClientCalendar = useCallback(async () => {
