@@ -1,5 +1,32 @@
 # GRAPH REPORT
 
+## Latest Changes — 2026-05-19 (Admin Panel Employee Tracking UI Enhancement)
+- **Goal**: Improve readability of the "RECENT TASKS" list in the Employee Tracking view within the Admin Panel.
+- **Affected Files**:
+    - `frontend/src/app/admin/employee-tracking/page.tsx`:
+        - Updated `.list-header` CSS to increase font size from `9px` to `11px`, brighten the color to `#cbd5e1`, and add letter spacing.
+        - Updated `.task-name` CSS to increase font size from `11px` to `13px` and brighten the color to pure white (`#ffffff`).
+        - Updated `.task-client` CSS to increase font size from `9px` to `11px` and brighten the color to `#e2e8f0`.
+- **System Impact**: Resolves visibility issues with the recent tasks list inside employee and team lead tracking cards, making the text significantly bigger and whiter for improved accessibility and user experience.
+
+## Latest Changes — 2026-05-19 (Date/Time Picker Icon Visibility Fix)
+- **Goal**: Fix invisible calendar and clock icons in date/time picker inputs across all dashboards (reschedule modal, edit content modal, etc.).
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/gm.css`: Added `color-scheme: dark` and `::-webkit-calendar-picker-indicator` styles to `.form-input`.
+    - `frontend/src/app/tl/dashboard/tl.css`: Same fix applied.
+    - `frontend/src/app/coo/dashboard/coo.css`: Same fix applied.
+    - `frontend/src/app/admin/admin.css`: Same fix applied, removed incorrectly duplicated `.form-input` block.
+- **System Impact**: The `color-scheme: dark` property tells the browser to render native form controls (date/time pickers) with light-colored icons suitable for dark backgrounds, making the calendar and clock icons clearly visible.
+
+## Latest Changes — 2026-05-19 (GM Dashboard UI Refinement)
+- **Goal**: Remove specific operational tracking cards ("Posted", "Content Approved", "Designing In Progress") from the premium statistics grid in the General Manager (GM) Dashboard to streamline the interface and focus on core metrics.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`:
+        - Removed the UI code blocks rendering the "Posted", "Content Approved", and "Designing In Progress" stat cards from the `.premium-stats-grid` container.
+        - Refactored `activeStats` calculation to permanently use `globalMonthCounts` instead of swapping to `monthStatusCounts` when a client is selected, ensuring the top statistics cards always display global statistics across all clients.
+        - Added 3 new client-specific progress tabs (Monthly Pipeline, Total Reels, Total Posts) to the `unified-status-list` inside the Operational Command Center to display specific client stats alongside Today, This Week, and This Month.
+- **System Impact**: Cleans up the top-level GM Dashboard view by reducing the number of premium stats cards displayed from 7 to 4, effectively utilizing the CSS auto-fit grid layout to redistribute the remaining cards seamlessly.
+
 ## Latest Changes — 2026-05-18 (Special Day Poster Feature Implementation)
 - **Goal**: Introduce the "Special Day Poster" feature allowing GMs and Admins to add on-demand special posters (for birthdays, anniversaries, etc.) that are exempt from pre-given standard poster targets, while ensuring visual premium rose theme styling and robust status/details modal flow compatibility.
 - **Affected Files**:

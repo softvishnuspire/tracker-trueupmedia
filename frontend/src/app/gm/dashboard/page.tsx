@@ -613,18 +613,7 @@ export default function GMDashboard() {
         }
     );
 
-    const activeStats = (selectedClient && selectedClient !== 'all') ? {
-        totalItems: monthStatusCounts.total,
-        totalReels: monthStatusCounts.reels,
-        totalPosts: monthStatusCounts.posts,
-        shotReels: monthStatusCounts.shootDone,
-        shotPosts: monthStatusCounts.shotPosts,
-        doneReels: monthStatusCounts.completedReels,
-        donePosts: monthStatusCounts.completedPosts,
-        posted: monthStatusCounts.posted,
-        contentApproved: monthStatusCounts.contentApprovedCount,
-        designingInProgress: monthStatusCounts.designingInProgress
-    } : {
+    const activeStats = {
         totalItems: globalMonthCounts.totalItems,
         totalReels: globalMonthCounts.totalReels,
         totalPosts: globalMonthCounts.totalPosts,
@@ -1324,98 +1313,7 @@ export default function GMDashboard() {
                         </div>
                     </div>
 
-                    {/* Posted */}
-                    <div className="premium-stat-card posted-card">
-                        <div className="card-accent-line"></div>
-                        <div className="card-top">
-                            <div className="label-group">
-                                <span className="stat-label">POSTED</span>
-                            </div>
-                            <CheckCircle2 size={20} className="stat-icon" />
-                        </div>
-                        <div className="card-main">
-                            <div className="value-group">
-                                <span className="main-value">{activeStats.posted}</span>
-                                <span className="separator">/</span>
-                                <span className="total-value">{activeStats.totalItems}</span>
-                                <span className="unit">ITEMS</span>
-                            </div>
-                        </div>
-                        <div className="card-footer">
-                            <div className="percentage-info">
-                                <span className="pct-value">{Math.round((activeStats.posted / (activeStats.totalItems || 1)) * 100)}%</span>
-                                <span className="pct-label">Posted</span>
-                            </div>
-                            <div className="progress-track">
-                                <div 
-                                    className="progress-fill" 
-                                    style={{ width: `${(activeStats.posted / (activeStats.totalItems || 1)) * 100}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Content Approved */}
-                    <div className="premium-stat-card approved-card">
-                        <div className="card-accent-line"></div>
-                        <div className="card-top">
-                            <div className="label-group">
-                                <span className="stat-label">CONTENT APPROVED</span>
-                            </div>
-                            <Activity size={20} className="stat-icon" />
-                        </div>
-                        <div className="card-main">
-                            <div className="value-group">
-                                <span className="main-value">{activeStats.contentApproved}</span>
-                                <span className="separator">/</span>
-                                <span className="total-value">{activeStats.totalItems}</span>
-                                <span className="unit">ITEMS</span>
-                            </div>
-                        </div>
-                        <div className="card-footer">
-                            <div className="percentage-info">
-                                <span className="pct-value">{Math.round((activeStats.contentApproved / (activeStats.totalItems || 1)) * 100)}%</span>
-                                <span className="pct-label">Approved</span>
-                            </div>
-                            <div className="progress-track">
-                                <div 
-                                    className="progress-fill" 
-                                    style={{ width: `${(activeStats.contentApproved / (activeStats.totalItems || 1)) * 100}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Designing In Progress */}
-                    <div className="premium-stat-card designing-card">
-                        <div className="card-accent-line"></div>
-                        <div className="card-top">
-                            <div className="label-group">
-                                <span className="stat-label">DESIGNING IN PROGRESS</span>
-                            </div>
-                            <Edit size={20} className="stat-icon" />
-                        </div>
-                        <div className="card-main">
-                            <div className="value-group">
-                                <span className="main-value">{activeStats.designingInProgress}</span>
-                                <span className="separator">/</span>
-                                <span className="total-value">{activeStats.totalPosts}</span>
-                                <span className="unit">POSTS</span>
-                            </div>
-                        </div>
-                        <div className="card-footer">
-                            <div className="percentage-info">
-                                <span className="pct-value">{Math.round((activeStats.designingInProgress / (activeStats.totalPosts || 1)) * 100)}%</span>
-                                <span className="pct-label">Designing</span>
-                            </div>
-                            <div className="progress-track">
-                                <div 
-                                    className="progress-fill" 
-                                    style={{ width: `${(activeStats.designingInProgress / (activeStats.totalPosts || 1)) * 100}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
                 )}
 
@@ -1600,6 +1498,39 @@ export default function GMDashboard() {
                                             </div>
                                             <div className="status-bar-bg">
                                                 <div className="status-bar-fill" style={{ width: `${monthStatusCounts.total > 0 ? Math.round((monthStatusCounts.completed / monthStatusCounts.total) * 100) : 0}%` }}></div>
+                                            </div>
+                                        </div>
+
+                                        {/* Monthly Pipeline */}
+                                        <div className="unified-pipeline-item">
+                                            <div className="item-meta">
+                                                <span className="status-label">MONTHLY PIPELINE</span>
+                                                <span className="status-count">{monthStatusCounts.shootDone + monthStatusCounts.shotPosts} / {monthStatusCounts.reels + monthStatusCounts.posts}</span>
+                                            </div>
+                                            <div className="status-bar-bg">
+                                                <div className="status-bar-fill" style={{ width: `${(monthStatusCounts.reels + monthStatusCounts.posts) > 0 ? Math.round(((monthStatusCounts.shootDone + monthStatusCounts.shotPosts) / (monthStatusCounts.reels + monthStatusCounts.posts)) * 100) : 0}%` }}></div>
+                                            </div>
+                                        </div>
+
+                                        {/* Total Reels */}
+                                        <div className="unified-pipeline-item">
+                                            <div className="item-meta">
+                                                <span className="status-label">TOTAL REELS</span>
+                                                <span className="status-count">{monthStatusCounts.completedReels} / {monthStatusCounts.reels}</span>
+                                            </div>
+                                            <div className="status-bar-bg">
+                                                <div className="status-bar-fill" style={{ width: `${monthStatusCounts.reels > 0 ? Math.round((monthStatusCounts.completedReels / monthStatusCounts.reels) * 100) : 0}%`, background: '#a855f7' }}></div>
+                                            </div>
+                                        </div>
+
+                                        {/* Total Posts */}
+                                        <div className="unified-pipeline-item">
+                                            <div className="item-meta">
+                                                <span className="status-label">TOTAL POSTS</span>
+                                                <span className="status-count">{monthStatusCounts.completedPosts} / {monthStatusCounts.posts}</span>
+                                            </div>
+                                            <div className="status-bar-bg">
+                                                <div className="status-bar-fill" style={{ width: `${monthStatusCounts.posts > 0 ? Math.round((monthStatusCounts.completedPosts / monthStatusCounts.posts) * 100) : 0}%`, background: '#3b82f6' }}></div>
                                             </div>
                                         </div>
                                     </div>

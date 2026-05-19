@@ -606,10 +606,11 @@ export default function EmployeeTrackingPage() {
                     display: flex;
                     align-items: center;
                     gap: 6px;
-                    font-size: 9px;
+                    font-size: 11px;
                     font-weight: 800;
-                    color: var(--text-muted);
+                    color: #cbd5e1;
                     margin-bottom: 10px;
+                    letter-spacing: 0.05em;
                 }
 
                 .tasks-container {
@@ -661,17 +662,17 @@ export default function EmployeeTrackingPage() {
                 }
 
                 .task-name {
-                    font-size: 11px;
-                    font-weight: 700;
-                    color: var(--text-primary);
+                    font-size: 13px;
+                    font-weight: 800;
+                    color: #ffffff;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
                 }
 
                 .task-client {
-                    font-size: 9px;
-                    color: var(--text-muted);
+                    font-size: 11px;
+                    color: #e2e8f0;
                 }
 
                 .more-tasks-indicator {
