@@ -16,7 +16,10 @@ async function run() {
       created_at timestamptz default now()
     );
     alter table public.poc_communications
-      add column if not exists client_id uuid references public.clients(id);
+      add column if not exists client_id uuid references public.clients(id),
+      add column if not exists updated_at timestamptz,
+      add column if not exists updated_by uuid references public.users(user_id),
+      add column if not exists history jsonb default '[]'::jsonb;
   `;
 
   const { error } = await supabase.rpc('run_sql', { sql });

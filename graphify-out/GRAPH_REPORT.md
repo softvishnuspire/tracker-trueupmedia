@@ -1,5 +1,14 @@
 # GRAPH REPORT
 
+## Latest Changes — 2026-05-19 (POC Communication Note Edit & Delete Feature)
+- **Goal**: Implement editing, deleting, and change tracking/history for POC communication notes on both Team Lead and GM dashboards.
+- **Affected Files**:
+    - `backend/index.js`: Added `PUT /api/tl/poc-notes/:id` (with edit history logging) and `DELETE /api/tl/poc-notes/:id` endpoints.
+    - `frontend/src/lib/api.ts`: Added `updatePocNote` and `deletePocNote` to `tlApi`, and added history/tracking fields to `PocNote` interface.
+    - `frontend/src/app/tl/dashboard/page.tsx`: Modified the POC details modal to make the text field editable by default, rendering Save Changes and Delete Note buttons directly along with the edit history log.
+    - `frontend/src/app/gm/dashboard/page.tsx`: Imported `tlApi`, modified the POC details modal to make the text field editable by default for GMs/Admins, rendering Save Changes and Delete Note buttons directly along with the edit history log.
+- **System Impact**: Empowers Team Leads and GMs to edit notes directly upon opening them in the calendar view, providing a robust edit history and direct delete capability to prevent communication gaps.
+
 ## Latest Changes — 2026-05-19 (Admin Panel Employee Tracking UI Enhancement)
 - **Goal**: Improve readability of the "RECENT TASKS" list in the Employee Tracking view within the Admin Panel.
 - **Affected Files**:

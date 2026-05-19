@@ -2739,6 +2739,90 @@ app.post('/api/tl/poc-notes', requireRoles(TL_ROLES), async (req, res) => {
     res.json(data);
 });
 
+app.put('/api/tl/poc-notes/:id', requireRoles(TL_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { note_text, actor_id } = req.body;
+    if (!note_text?.trim()) {
+        return res.status(400).json({ error: 'note_text is required' });
+    }
+
+    try {
+        // 1. Fetch current note to build history log
+        const { data: currentNote, error: fetchError } = await supabase
+            .from('poc_communications')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !currentNote) {
+            return res.status(404).json({ error: 'POC note not found' });
+        }
+
+        // 2. Build history payload
+        const oldHistory = Array.isArray(currentNote.history) ? currentNote.history : [];
+        const newHistoryItem = {
+            note_text: currentNote.note_text,
+            updated_at: currentNote.updated_at || currentNote.created_at,
+            updated_by: currentNote.updated_by || currentNote.team_lead_id
+        };
+        const updatedHistory = [...oldHistory, newHistoryItem];
+
+        // 3. Update the note
+        const { data, error } = await supabase
+            .from('poc_communications')
+            .update({
+                note_text: note_text.trim(),
+                updated_at: new Date().toISOString(),
+                updated_by: actor_id || currentNote.team_lead_id,
+                history: updatedHistory
+            })
+            .eq('id', id)
+            .select(POC_SELECT_WITH_CLIENT)
+            .single();
+
+        if (error) {
+            if (isMissingPocClientColumn(error)) {
+                // Try fallback select if client column select fails
+                const { data: fallbackData, error: fallbackError } = await supabase
+                    .from('poc_communications')
+                    .update({
+                        note_text: note_text.trim(),
+                        updated_at: new Date().toISOString(),
+                        updated_by: actor_id || currentNote.team_lead_id,
+                        history: updatedHistory
+                    })
+                    .eq('id', id)
+                    .select(POC_SELECT_BASE)
+                    .single();
+                if (fallbackError) return res.status(500).json({ error: fallbackError.message });
+                return res.json(fallbackData);
+            }
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/tl/poc-notes/:id', requireRoles(TL_ROLES), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { error } = await supabase
+            .from('poc_communications')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+        res.json({ message: 'POC note deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/tl/content/:id/undo-status', requireRoles(TL_ROLES), async (req, res) => {
     const { id } = req.params;
     try {

@@ -59,6 +59,7 @@ import {
     emergencyApi,
     dashboardApi,
     adminApi,
+    tlApi,
     ContentItem,
     PocNote,
     StatusHistoryItem,
@@ -103,6 +104,8 @@ export default function GMDashboard() {
     const [selectedPocClient, setSelectedPocClient] = useState<string>('all');
     const [selectedPocNote, setSelectedPocNote] = useState<PocNote | null>(null);
     const [isPocDetailsOpen, setIsPocDetailsOpen] = useState(false);
+    const [isPocEditing, setIsPocEditing] = useState(false);
+    const [pocEditNoteText, setPocEditNoteText] = useState('');
     const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
 
     const shootDoneStatuses = [
@@ -825,7 +828,41 @@ export default function GMDashboard() {
 
     const handlePocNoteClick = (note: PocNote) => {
         setSelectedPocNote(note);
+        setPocEditNoteText(note.note_text);
+        setIsPocEditing(false);
         setIsPocDetailsOpen(true);
+    };
+
+    const handleUpdatePocNote = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedPocNote || !pocEditNoteText.trim()) return;
+        try {
+            const actorId = user?.id;
+            const res = await tlApi.updatePocNote(selectedPocNote.id, {
+                note_text: pocEditNoteText.trim(),
+                actor_id: actorId
+            });
+            setIsPocEditing(false);
+            setSelectedPocNote(res.data);
+            await fetchPocNotes();
+        } catch (err) {
+            console.error('Error updating POC note:', err);
+            alert('Failed to update note');
+        }
+    };
+
+    const handleDeletePocNote = async () => {
+        if (!selectedPocNote) return;
+        if (!window.confirm('Are you sure you want to delete this POC note? This action cannot be undone.')) return;
+        try {
+            await tlApi.deletePocNote(selectedPocNote.id);
+            setIsPocDetailsOpen(false);
+            setSelectedPocNote(null);
+            await fetchPocNotes();
+        } catch (err) {
+            console.error('Error deleting POC note:', err);
+            alert('Failed to delete note');
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -2387,13 +2424,19 @@ export default function GMDashboard() {
             )}
 
             {isPocDetailsOpen && selectedPocNote && (
-                <div className="modal-overlay" onClick={() => setIsPocDetailsOpen(false)}>
+                <div className="modal-overlay" onClick={() => {
+                    setIsPocDetailsOpen(false);
+                    setIsPocEditing(false);
+                }}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h3 className="modal-title">POC Note Details</h3>
-                            <button onClick={() => setIsPocDetailsOpen(false)} className="modal-close"><X size={20} /></button>
+                            <h3 className="modal-title">{isPocEditing ? 'Edit POC Note' : 'POC Note Details'}</h3>
+                            <button onClick={() => {
+                                setIsPocDetailsOpen(false);
+                                setIsPocEditing(false);
+                            }} className="modal-close"><X size={20} /></button>
                         </div>
-                        <div className="modal-form">
+                        <form onSubmit={handleUpdatePocNote} className="modal-form">
                             <div className="form-group">
                                 <label className="form-label">Date</label>
                                 <input
@@ -2425,12 +2468,43 @@ export default function GMDashboard() {
                                 <label className="form-label">Note</label>
                                 <textarea
                                     className="form-input"
-                                    value={selectedPocNote.note_text}
+                                    value={pocEditNoteText}
+                                    onChange={(e) => setPocEditNoteText(e.target.value)}
                                     rows={5}
-                                    readOnly
+                                    required
                                 />
                             </div>
-                        </div>
+
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                                <button type="submit" className="btn-primary" style={{ flex: 1 }}>
+                                    Save Changes
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={handleDeletePocNote} 
+                                    className="btn-add"
+                                    style={{ flex: 1, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                                >
+                                    Delete Note
+                                </button>
+                            </div>
+
+                            {selectedPocNote.history && selectedPocNote.history.length > 0 && (
+                                <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                                    <label className="form-label" style={{ fontWeight: 'bold', marginBottom: '12px', display: 'block' }}>Edit History</label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {selectedPocNote.history.map((h, idx) => (
+                                            <div key={idx} style={{ padding: '10px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                                                    <span>Edited on {format(parseISO(h.updated_at), 'MMM d, yyyy h:mm a')}</span>
+                                                </div>
+                                                <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>"{h.note_text}"</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </form>
                     </div>
                 </div>
             )}

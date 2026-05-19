@@ -79,6 +79,9 @@ export interface PocNote {
     note_date: string;
     note_text: string;
     created_at: string;
+    updated_at?: string;
+    updated_by?: string;
+    history?: { note_text: string; updated_at: string; updated_by: string }[];
     users?: { name?: string; role_identifier?: string };
     clients?: { company_name?: string };
 }
@@ -296,6 +299,10 @@ export const tlApi = {
         tlBase.get<PocNote[]>(`poc-notes?month=${month}&tlId=${tlId}${clientId ? `&client_id=${clientId}` : ''}`),
     addPocNote: (data: { tlId: string; client_id: string; note_date: string; note_text: string }) =>
         tlBase.post<PocNote>('poc-notes', data),
+    updatePocNote: (id: string, data: { note_text: string; actor_id?: string }) =>
+        tlBase.put<PocNote>(`poc-notes/${id}`, data),
+    deletePocNote: (id: string) =>
+        tlBase.delete<{ message: string }>(`poc-notes/${id}`),
     undoStatus: (id: string) => tlBase.post(`content/${id}/undo-status`),
 };
 
