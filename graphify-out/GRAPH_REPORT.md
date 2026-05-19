@@ -1,5 +1,14 @@
 # GRAPH REPORT
 
+## Latest Changes — 2026-05-19 (GM Dashboard Cumulative Task Lifecycle & Production Progress Metrics)
+- **Goal**: Correct the Task Lifecycle milestone statistics to use cumulative flow calculations, remove unnecessary time-based progress bars, and add a dedicated Shoot Done metric card to the Production Progress panel.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`:
+        - Updated `shootDoneStatuses` to include `'WAITING FOR FINAL APPROVAL'` and exclude `'WAITING FOR APPROVAL'`.
+        - Refactored `TASK LIFECYCLE` rendering to calculate and display cumulative pipeline statistics based on normalized status flows (`flows.REEL`, `flows.YOUTUBE`, `flows.POST`).
+        - Replaced `TODAY`, `THIS WEEK`, and `THIS MONTH` progress cards in the `Production Progress` panel with a cumulative `SHOOT DONE` progress card.
+- **System Impact**: Aligns task lifecycle metrics and progress bars with the actual pipeline flows, ensuring that tasks at later stages (like `POSTED`) are correctly counted towards earlier milestones (like `SHOOT DONE`).
+
 ## Latest Changes — 2026-05-19 (POC Communication Note Edit & Delete Feature)
 - **Goal**: Implement editing, deleting, and change tracking/history for POC communication notes on both Team Lead and GM dashboards.
 - **Affected Files**:

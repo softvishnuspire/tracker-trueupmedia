@@ -112,7 +112,7 @@ export default function GMDashboard() {
         'SHOOT DONE',
         'EDITING IN PROGRESS',
         'EDITED',
-        'WAITING FOR APPROVAL',
+        'WAITING FOR FINAL APPROVAL',
         'APPROVED',
         'WAITING FOR POSTING',
         'POSTED'
@@ -1454,35 +1454,64 @@ export default function GMDashboard() {
                                             <h4 className="section-label">TASK LIFECYCLE</h4>
                                         </div>
                                         
-                                        <div className="lifecycle-list">
-                                            {Object.entries(monthStatusCounts.statusCounts)
-                                                .sort(([, a], [, b]) => b - a)
-                                                .slice(0, 4)
-                                                .map(([status, count]) => {
-                                                    const s = status.toUpperCase();
-                                                    let denominator = monthStatusCounts.total || 1;
-                                                    if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
-                                                        denominator = monthStatusCounts.reels + (monthStatusCounts.statusCounts['YOUTUBE'] || 0) || 1;
-                                                    } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
-                                                        denominator = monthStatusCounts.posts || 1;
-                                                    }
+                                         <div className="lifecycle-list">
+                                             {(() => {
+                                                 const periodItems = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)));
+                                                 const flows: Record<string, string[]> = {
+                                                     'REEL': [
+                                                         'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                         'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                     ],
+                                                     'YOUTUBE': [
+                                                         'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                         'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                     ],
+                                                     'POST': [
+                                                         'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                         'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                                     ]
+                                                 };
 
-                                                    return (
-                                                        <div key={status} className="lifecycle-item">
-                                                            <div className="lifecycle-info">
-                                                                <span className="lifecycle-name">{status}</span>
-                                                                <span className="lifecycle-count">{count} / {denominator}</span>
-                                                            </div>
-                                                            <div className="lifecycle-bar-bg">
-                                                                <div 
-                                                                    className="lifecycle-bar-fill" 
-                                                                    style={{ width: `${(count / denominator) * 100}%` }}
-                                                                ></div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                        </div>
+                                                 const milestones = ['SHOOT DONE', 'WAITING FOR FINAL APPROVAL', 'POSTED'];
+
+                                                 return milestones.map(milestone => {
+                                                     let numerator = 0;
+                                                     let denominator = 0;
+
+                                                     periodItems.forEach(item => {
+                                                         const type = (item.content_type || '').toUpperCase();
+                                                         const status = (item.status || '').toUpperCase();
+                                                         const flow = flows[type] || flows['REEL'];
+
+                                                         const milestoneIdx = flow.indexOf(milestone);
+                                                         if (milestoneIdx !== -1) {
+                                                             denominator += 1;
+                                                             const statusIdx = flow.indexOf(status);
+                                                             if (statusIdx >= milestoneIdx) {
+                                                                 numerator += 1;
+                                                             }
+                                                         }
+                                                     });
+
+                                                     const pct = denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
+
+                                                     return (
+                                                         <div key={milestone} className="lifecycle-item">
+                                                             <div className="lifecycle-info">
+                                                                 <span className="lifecycle-name">{milestone}</span>
+                                                                 <span className="lifecycle-count">{numerator} / {denominator}</span>
+                                                             </div>
+                                                             <div className="lifecycle-bar-bg">
+                                                                 <div 
+                                                                     className="lifecycle-bar-fill" 
+                                                                     style={{ width: `${pct}%` }}
+                                                                 ></div>
+                                                             </div>
+                                                         </div>
+                                                     );
+                                                 });
+                                             })()}
+                                         </div>
                                     </div>
 
                                     <div className="panel-actions-vertical">
@@ -1505,36 +1534,14 @@ export default function GMDashboard() {
                                     </div>
                                     
                                     <div className="unified-status-list">
-                                        {/* Today Progress */}
+                                        {/* Shoot Done Progress */}
                                         <div className="unified-pipeline-item">
                                             <div className="item-meta">
-                                                <span className="status-label">TODAY</span>
-                                                <span className="status-count">{todayStats.completed} / {todayStats.total}</span>
+                                                <span className="status-label">SHOOT DONE</span>
+                                                <span className="status-count">{monthStatusCounts.shootDone} / {monthStatusCounts.reels}</span>
                                             </div>
                                             <div className="status-bar-bg">
-                                                <div className="status-bar-fill" style={{ width: `${todayStats.percentage}%` }}></div>
-                                            </div>
-                                        </div>
-
-                                        {/* This Week Progress */}
-                                        <div className="unified-pipeline-item">
-                                            <div className="item-meta">
-                                                <span className="status-label">THIS WEEK</span>
-                                                <span className="status-count">{masterWeekStats.completed} / {masterWeekStats.total}</span>
-                                            </div>
-                                            <div className="status-bar-bg">
-                                                <div className="status-bar-fill" style={{ width: `${masterWeekStats.percentage}%` }}></div>
-                                            </div>
-                                        </div>
-
-                                        {/* This Month Progress */}
-                                        <div className="unified-pipeline-item">
-                                            <div className="item-meta">
-                                                <span className="status-label">THIS MONTH</span>
-                                                <span className="status-count">{monthStatusCounts.completed} / {monthStatusCounts.total}</span>
-                                            </div>
-                                            <div className="status-bar-bg">
-                                                <div className="status-bar-fill" style={{ width: `${monthStatusCounts.total > 0 ? Math.round((monthStatusCounts.completed / monthStatusCounts.total) * 100) : 0}%` }}></div>
+                                                <div className="status-bar-fill" style={{ width: `${monthStatusCounts.reels > 0 ? Math.round((monthStatusCounts.shootDone / monthStatusCounts.reels) * 100) : 0}%`, background: '#06b6d4' }}></div>
                                             </div>
                                         </div>
 
