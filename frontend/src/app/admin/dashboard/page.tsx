@@ -9,6 +9,7 @@ import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistory
 import { Skeleton } from '@/components/ui/skeleton';
 import { endOfWeek, format, isSameDay, isSameMonth, parseISO, startOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
+import { formatIST } from '@/lib/utils';
 
 interface Stats {
   totalClients: number;
@@ -63,7 +64,7 @@ export default function AdminDashboard() {
     title: '',
     description: '',
     time: '12:00',
-    content_type: 'Post' as 'Post' | 'Reel' | 'YouTube'
+    content_type: 'Post' as ContentItem['content_type']
   });
   
   const supabase = createClient();
@@ -814,13 +815,37 @@ export default function AdminDashboard() {
                 <div className="detail-section">
                   <label className="detail-label">Schedule Info</label>
                   <div className="info-card">
-                    <div className="info-item">
-                      <Calendar size={16} />
-                      <span>{format(parseISO(activeItem.item.scheduled_datetime), 'MMMM do, yyyy')}</span>
-                    </div>
+                    {activeItem.item.is_rescheduled && activeItem.item.original_scheduled_datetime ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                        <div className="info-item">
+                          <Calendar size={16} />
+                          <span>
+                            Actual Date: {formatIST(activeItem.item.original_scheduled_datetime, 'dd/MM/yyyy')} rescheduled to {formatIST(activeItem.item.scheduled_datetime, 'dd/MM/yy')}
+                          </span>
+                        </div>
+                        {activeItem.item.reschedule_history && activeItem.item.reschedule_history.length > 0 && (
+                          <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border)', width: '100%', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule History</span>
+                            {activeItem.item.reschedule_history.map((h: any, idx: number) => (
+                              <div key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
+                                <span>{idx + 1}.</span>
+                                <span>{formatIST(h.from, 'dd/MM/yyyy')}</span>
+                                <span>➔</span>
+                                <span>{formatIST(h.to, 'dd/MM/yy')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="info-item">
+                        <Calendar size={16} />
+                        <span>{format(parseISO(activeItem.item.scheduled_datetime), 'MMMM do, yyyy')}</span>
+                      </div>
+                    )}
                     <div className="info-item">
                       <Clock size={16} />
-                      <span>{format(parseISO(activeItem.item.scheduled_datetime), 'h:mm a')}</span>
+                      <span>{formatIST(activeItem.item.scheduled_datetime, 'h:mm a')}</span>
                     </div>
                     <div className="emergency-toggle-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

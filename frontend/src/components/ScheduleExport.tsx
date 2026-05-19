@@ -7,7 +7,7 @@ interface ContentItem {
     id: string;
     title: string;
     description: string;
-    content_type: 'Post' | 'Reel' | 'YouTube';
+    content_type: 'Post' | 'Reel' | 'YouTube' | 'Special Poster' | 'Special Day Poster';
     scheduled_datetime: string;
     status: string;
     client_id: string;

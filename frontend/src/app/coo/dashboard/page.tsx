@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { cooApi, emergencyApi } from '@/lib/api';
 import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2, Check, AlertTriangle, User as UserIcon, Phone, Mail } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatIST } from '@/lib/utils';
 import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from 'date-fns';
 
 interface Stats {
@@ -557,10 +558,34 @@ export default function CooDashboard() {
                                     )}
                                     <div className="detail-field" style={{ marginTop: '20px' }}>
                                         <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Scheduled For</label>
-                                        <div className="date-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <Calendar size={16} color="var(--text-muted)" />
-                                            <span className="date-display" style={{ fontWeight: 600 }}>{format(parseISO(activeItem.item.scheduled_datetime), 'PPP p')}</span>
-                                        </div>
+                                        {activeItem.item.is_rescheduled && activeItem.item.original_scheduled_datetime ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                                                <div className="date-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Calendar size={16} color="var(--text-muted)" />
+                                                    <span className="date-display" style={{ fontWeight: 600 }}>
+                                                        Actual Date: {formatIST(activeItem.item.original_scheduled_datetime, 'dd/MM/yyyy')} rescheduled to {formatIST(activeItem.item.scheduled_datetime, 'dd/MM/yy')}
+                                                    </span>
+                                                </div>
+                                                {activeItem.item.reschedule_history && activeItem.item.reschedule_history.length > 0 && (
+                                                    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border)', width: '100%' }}>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule History</span>
+                                                        {activeItem.item.reschedule_history.map((h: any, idx: number) => (
+                                                            <div key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
+                                                                <span>{idx + 1}.</span>
+                                                                <span>{formatIST(h.from, 'dd/MM/yyyy')}</span>
+                                                                <span>➔</span>
+                                                                <span>{formatIST(h.to, 'dd/MM/yy')}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="date-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <Calendar size={16} color="var(--text-muted)" />
+                                                <span className="date-display" style={{ fontWeight: 600 }}>{format(parseISO(activeItem.item.scheduled_datetime), 'PPP p')}</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="detail-field" style={{ marginTop: '20px' }}>
                                         <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Description</label>

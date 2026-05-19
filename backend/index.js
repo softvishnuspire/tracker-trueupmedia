@@ -588,13 +588,65 @@ app.post('/api/ph/freelancer-content', requireRoles(PH_ROLES), async (req, res) 
 app.put('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
     const { id } = req.params;
     const { title, description, scheduled_datetime, is_rescheduled } = req.body;
-    const { data, error } = await supabase
-        .from('content_items')
-        .update({ title, description, scheduled_datetime, is_rescheduled })
-        .eq('id', id)
-        .select();
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data[0]);
+    try {
+        const { data: existingItem, error: fetchError, table } = await fetchContentOrFreelancerItem(id);
+        if (fetchError || !existingItem) {
+            return res.status(404).json({ error: 'Content item not found' });
+        }
+
+        let original_scheduled_datetime = existingItem.original_scheduled_datetime;
+        let reschedule_history = existingItem.reschedule_history || [];
+
+        if (scheduled_datetime) {
+            const oldDateStr = new Date(existingItem.scheduled_datetime).toISOString();
+            const newDateStr = new Date(scheduled_datetime).toISOString();
+
+            if (is_rescheduled && oldDateStr !== newDateStr) {
+                if (!existingItem.is_rescheduled) {
+                    original_scheduled_datetime = existingItem.scheduled_datetime;
+                    reschedule_history = [
+                        {
+                            from: existingItem.scheduled_datetime,
+                            to: scheduled_datetime,
+                            rescheduled_at: new Date().toISOString()
+                        }
+                    ];
+                } else {
+                    if (!original_scheduled_datetime) {
+                        original_scheduled_datetime = existingItem.scheduled_datetime;
+                    }
+                    reschedule_history = [
+                        ...reschedule_history,
+                        {
+                            from: existingItem.scheduled_datetime,
+                            to: scheduled_datetime,
+                            rescheduled_at: new Date().toISOString()
+                        }
+                    ];
+                }
+            }
+        }
+
+        const updatePayload = {
+            title,
+            description,
+            scheduled_datetime,
+            is_rescheduled: is_rescheduled || existingItem.is_rescheduled || false,
+            original_scheduled_datetime,
+            reschedule_history
+        };
+
+        const { data, error } = await supabase
+            .from(table)
+            .update(updatePayload)
+            .eq('id', id)
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data[0]);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
 app.delete('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
@@ -1787,13 +1839,69 @@ app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
 app.put('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     const { title, description, scheduled_datetime, is_rescheduled, content_type } = req.body;
-    const { data, error } = await supabase
-        .from('content_items')
-        .update({ title, description, scheduled_datetime, is_rescheduled, content_type })
-        .eq('id', id)
-        .select();
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data[0]);
+    try {
+        const { data: existingItem, error: fetchError, table } = await fetchContentOrFreelancerItem(id);
+        if (fetchError || !existingItem) {
+            return res.status(404).json({ error: 'Content item not found' });
+        }
+
+        let original_scheduled_datetime = existingItem.original_scheduled_datetime;
+        let reschedule_history = existingItem.reschedule_history || [];
+
+        if (scheduled_datetime) {
+            const oldDateStr = new Date(existingItem.scheduled_datetime).toISOString();
+            const newDateStr = new Date(scheduled_datetime).toISOString();
+
+            if (is_rescheduled && oldDateStr !== newDateStr) {
+                if (!existingItem.is_rescheduled) {
+                    original_scheduled_datetime = existingItem.scheduled_datetime;
+                    reschedule_history = [
+                        {
+                            from: existingItem.scheduled_datetime,
+                            to: scheduled_datetime,
+                            rescheduled_at: new Date().toISOString()
+                        }
+                    ];
+                } else {
+                    if (!original_scheduled_datetime) {
+                        original_scheduled_datetime = existingItem.scheduled_datetime;
+                    }
+                    reschedule_history = [
+                        ...reschedule_history,
+                        {
+                            from: existingItem.scheduled_datetime,
+                            to: scheduled_datetime,
+                            rescheduled_at: new Date().toISOString()
+                        }
+                    ];
+                }
+            }
+        }
+
+        const updatePayload = {
+            title,
+            description,
+            scheduled_datetime,
+            is_rescheduled: is_rescheduled || existingItem.is_rescheduled || false,
+            original_scheduled_datetime,
+            reschedule_history
+        };
+
+        if (content_type) {
+            updatePayload.content_type = content_type;
+        }
+
+        const { data, error } = await supabase
+            .from(table)
+            .update(updatePayload)
+            .eq('id', id)
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data[0]);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
 app.delete('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {

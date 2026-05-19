@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
+import { formatIST } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -1244,7 +1245,34 @@ export default function ProductionHeadDashboard() {
                                     </div>
                                     <div className="detail-field">
                                         <label className="detail-label">Scheduled For</label>
-                                        <div className="date-item"><Clock size={16} /><span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'PPP p')}</span></div>
+                                        {activeItem.item.is_rescheduled && activeItem.item.original_scheduled_datetime ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                                                <div className="date-item">
+                                                    <Clock size={16} />
+                                                    <span className="date-display">
+                                                        Actual Date: {formatIST(activeItem.item.original_scheduled_datetime, 'dd/MM/yyyy')} rescheduled to {formatIST(activeItem.item.scheduled_datetime, 'dd/MM/yy')}
+                                                    </span>
+                                                </div>
+                                                {activeItem.item.reschedule_history && activeItem.item.reschedule_history.length > 0 && (
+                                                    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border)', width: '100%' }}>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule History</span>
+                                                        {activeItem.item.reschedule_history.map((h: any, idx: number) => (
+                                                            <div key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
+                                                                <span>{idx + 1}.</span>
+                                                                <span>{formatIST(h.from, 'dd/MM/yyyy')}</span>
+                                                                <span>➔</span>
+                                                                <span>{formatIST(h.to, 'dd/MM/yy')}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="date-item">
+                                                <Clock size={16} />
+                                                <span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'PPP p')}</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="detail-field">
                                         <label className="detail-label">Description</label>

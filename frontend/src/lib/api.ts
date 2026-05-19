@@ -38,11 +38,13 @@ export interface ContentItem {
     id: string;
     title: string;
     description: string;
-    content_type: 'Post' | 'Reel' | 'YouTube';
+    content_type: 'Post' | 'Reel' | 'YouTube' | 'Special Poster' | 'Special Day Poster';
     scheduled_datetime: string;
     status: string;
     client_id: string;
     is_rescheduled?: boolean;
+    original_scheduled_datetime?: string;
+    reschedule_history?: { from: string; to: string; rescheduled_at: string }[];
     is_emergency?: boolean;
     emergency_marked_at?: string;
     clients?: { company_name: string; team_lead?: { name: string; role_identifier?: string } };

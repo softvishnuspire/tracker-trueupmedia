@@ -68,7 +68,7 @@ import {
     ContentDetails,
     settingsApi
 } from '@/lib/api';
-import { getClientAbbreviation } from '@/lib/utils';
+import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -162,7 +162,7 @@ export default function GMDashboard() {
         isCompanyMode ? getDisplayDate(item.scheduled_datetime) : parseISO(item.scheduled_datetime);
 
     const [formData, setFormData] = useState({
-        content_type: 'Post' as 'Post' | 'Reel' | 'YouTube',
+        content_type: 'Post' as ContentItem['content_type'],
         time: '10:00',
         title: '',
         description: ''
@@ -1472,7 +1472,7 @@ export default function GMDashboard() {
                                                      ]
                                                  };
 
-                                                 const milestones = ['SHOOT DONE', 'WAITING FOR FINAL APPROVAL', 'POSTED'];
+                                                 const milestones = ['CONTENT APPROVED', 'WAITING FOR FINAL APPROVAL', 'POSTED'];
 
                                                  return milestones.map(milestone => {
                                                      let numerator = 0;
@@ -1549,10 +1549,10 @@ export default function GMDashboard() {
                                         <div className="unified-pipeline-item">
                                             <div className="item-meta">
                                                 <span className="status-label">MONTHLY PIPELINE</span>
-                                                <span className="status-count">{monthStatusCounts.shootDone + monthStatusCounts.shotPosts} / {monthStatusCounts.reels + monthStatusCounts.posts}</span>
+                                                <span className="status-count">{monthStatusCounts.completedReels + monthStatusCounts.completedPosts} / {monthStatusCounts.reels + monthStatusCounts.posts}</span>
                                             </div>
                                             <div className="status-bar-bg">
-                                                <div className="status-bar-fill" style={{ width: `${(monthStatusCounts.reels + monthStatusCounts.posts) > 0 ? Math.round(((monthStatusCounts.shootDone + monthStatusCounts.shotPosts) / (monthStatusCounts.reels + monthStatusCounts.posts)) * 100) : 0}%` }}></div>
+                                                <div className="status-bar-fill" style={{ width: `${(monthStatusCounts.reels + monthStatusCounts.posts) > 0 ? Math.round(((monthStatusCounts.completedReels + monthStatusCounts.completedPosts) / (monthStatusCounts.reels + monthStatusCounts.posts)) * 100) : 0}%` }}></div>
                                             </div>
                                         </div>
 
@@ -2153,13 +2153,37 @@ export default function GMDashboard() {
                                 <div className="detail-section">
                                     <label className="detail-label">Schedule Info</label>
                                     <div className="detail-dates">
-                                        <div className="date-item">
-                                            <CalendarIcon size={16} />
-                                            <span className="date-display">{format(isCompanyMode ? getDisplayDate(activeItem.item.scheduled_datetime) : parseISO(activeItem.item.scheduled_datetime), 'PPP')}</span>
-                                        </div>
+                                        {activeItem.item.is_rescheduled && activeItem.item.original_scheduled_datetime ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                                                <div className="date-item">
+                                                    <CalendarIcon size={16} />
+                                                    <span className="date-display">
+                                                        Actual Date: {formatIST(activeItem.item.original_scheduled_datetime, 'dd/MM/yyyy')} rescheduled to {formatIST(activeItem.item.scheduled_datetime, 'dd/MM/yy')}
+                                                    </span>
+                                                </div>
+                                                {activeItem.item.reschedule_history && activeItem.item.reschedule_history.length > 0 && (
+                                                    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border)', width: '100%' }}>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule History</span>
+                                                        {activeItem.item.reschedule_history.map((h: any, idx: number) => (
+                                                            <div key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
+                                                                <span>{idx + 1}.</span>
+                                                                <span>{formatIST(h.from, 'dd/MM/yyyy')}</span>
+                                                                <span>➔</span>
+                                                                <span>{formatIST(h.to, 'dd/MM/yy')}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="date-item">
+                                                <CalendarIcon size={16} />
+                                                <span className="date-display">{format(isCompanyMode ? getDisplayDate(activeItem.item.scheduled_datetime) : parseISO(activeItem.item.scheduled_datetime), 'PPP')}</span>
+                                            </div>
+                                        )}
                                         <div className="date-item">
                                             <Clock size={16} />
-                                            <span className="date-display">{format(parseISO(activeItem.item.scheduled_datetime), 'p')}</span>
+                                            <span className="date-display">{formatIST(activeItem.item.scheduled_datetime, 'p')}</span>
                                         </div>
                                     </div>
                                     <div style={{ marginTop: '16px' }}>

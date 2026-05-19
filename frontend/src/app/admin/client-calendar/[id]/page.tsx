@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import ScheduleExport from '@/components/ScheduleExport';
+import { formatIST } from '@/lib/utils';
 
 export default function ClientCalendarPage() {
     const params = useParams();
@@ -55,7 +56,7 @@ export default function ClientCalendarPage() {
     const [isRescheduling, setIsRescheduling] = useState(false);
 
     const [formData, setFormData] = useState({
-        content_type: 'Post' as 'Post' | 'Reel' | 'YouTube',
+        content_type: 'Post' as ContentItem['content_type'],
         scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         client_id: clientId,
         title: '',
@@ -266,7 +267,7 @@ export default function ClientCalendarPage() {
             setEditingItem(null);
             setIsRescheduling(false);
             setFormData({
-                content_type: 'Post' as 'Post' | 'Reel' | 'YouTube',
+                content_type: 'Post' as ContentItem['content_type'],
                 scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
                 client_id: clientId,
                 title: '',
@@ -654,12 +655,36 @@ export default function ClientCalendarPage() {
                         <div className="detail-grid" style={{ padding: '32px' }}>
                             <div className="detail-info">
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-                                    <div>
+                                    <div style={{ width: '100%' }}>
                                         <label className="detail-label">Scheduled Date</label>
-                                        <div className="date-item">
-                                            <CalendarIcon size={14} />
-                                            <span className="date-display">{format(parseISO(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}</span>
-                                        </div>
+                                        {selectedItem.item.is_rescheduled && selectedItem.item.original_scheduled_datetime ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                                                <div className="date-item">
+                                                    <CalendarIcon size={14} />
+                                                    <span className="date-display">
+                                                        Actual Date: {formatIST(selectedItem.item.original_scheduled_datetime, 'dd/MM/yyyy')} rescheduled to {formatIST(selectedItem.item.scheduled_datetime, 'dd/MM/yy')}
+                                                    </span>
+                                                </div>
+                                                {selectedItem.item.reschedule_history && selectedItem.item.reschedule_history.length > 0 && (
+                                                    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border)', width: '100%' }}>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule History</span>
+                                                        {selectedItem.item.reschedule_history.map((h: any, idx: number) => (
+                                                            <div key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
+                                                                <span>{idx + 1}.</span>
+                                                                <span>{formatIST(h.from, 'dd/MM/yyyy')}</span>
+                                                                <span>➔</span>
+                                                                <span>{formatIST(h.to, 'dd/MM/yy')}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="date-item">
+                                                <CalendarIcon size={14} />
+                                                <span className="date-display">{format(parseISO(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 {(() => {

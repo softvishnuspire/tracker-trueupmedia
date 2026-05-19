@@ -1,6 +1,33 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-19 (GM Dashboard Cumulative Task Lifecycle & Production Progress Metrics)
+## Latest Changes — 2026-05-19 (GM Dashboard Monthly Pipeline Calculation Update)
+- **Goal**: Update the "MONTHLY PIPELINE" card in the Production Progress panel to display the number of posted/completed reels and posts in x/y format instead of shot reels and posts.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`: Updated numerator of the "MONTHLY PIPELINE" calculation to sum `completedReels` and `completedPosts`.
+- **System Impact**: Ensures the Monthly Pipeline reflects real-time post completion rates across the dashboard.
+
+## Previous Changes — 2026-05-19 (GM Dashboard Task Lifecycle Milestone Update)
+- **Goal**: Replace the "SHOOT DONE" milestone tracker with "CONTENT APPROVED" in the Task Lifecycle sidebar section to monitor content approval rates rather than shoot status.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`: Updated `milestones` array configuration to track `'CONTENT APPROVED'` instead of `'SHOOT DONE'`.
+- **System Impact**: Updates the first progress indicator in the General Manager's Task Lifecycle dashboard widget to show content approval metrics.
+
+## Previous Changes — 2026-05-19 (Special Poster Type Definition Fix)
+- **Goal**: Fix TypeScript compilation errors in the admin client calendar where comparisons of `item.content_type` with `'Special Poster'` and `'Special Day Poster'` were marked as invalid due to type narrowing.
+- **Affected Files**:
+    - `frontend/src/lib/api.ts`: Extended the union type for `content_type` on `ContentItem` to include `'Special Poster'` and `'Special Day Poster'`.
+- **System Impact**: Resolves the IDE/build errors in the calendar components where custom special poster types are checked and stylized, allowing the TypeScript build to succeed without errors.
+
+## Previous Changes — 2026-05-19 (Rescheduled Task Date & History Display)
+- **Goal**: When a task has been rescheduled, show its original date and a complete list of previous reschedules in a history log inside the details modal.
+- **Affected Files**:
+    - `backend/index.js`: Updated PUT endpoints for content items and freelancer tasks to track `original_scheduled_datetime` and log all date modifications in a JSONB array `reschedule_history`.
+    - `frontend/src/lib/utils.ts`: Created timezone-aware `formatIST` helper to display dates consistently in India Standard Time (`Asia/Kolkata`).
+    - `frontend/src/lib/api.ts`: Updated frontend types to include `is_rescheduled`, `original_scheduled_datetime`, and `reschedule_history` properties.
+    - `frontend/src/app/gm/dashboard/page.tsx`, `frontend/src/app/admin/dashboard/page.tsx`, `frontend/src/app/admin/client-calendar/[id]/page.tsx`, `frontend/src/app/admin/master-calendar/page.tsx`, `frontend/src/app/admin/company-calendar/page.tsx`, `frontend/src/app/coo/dashboard/page.tsx`, `frontend/src/app/coo/master-calendar/page.tsx`, `frontend/src/app/coo/company-calendar/page.tsx`, `frontend/src/app/coo/client-calendar/[id]/page.tsx`, `frontend/src/app/tl/dashboard/page.tsx`, `frontend/src/app/posting/dashboard/page.tsx`, `frontend/src/app/ph/dashboard/page.tsx`: Updated details modals to format dates in IST using `formatIST` and display the reschedule history list (with the 7-day display offset correctly applied in company calendars).
+- **System Impact**: Provides clear traceability for task rescheduling across all user roles, ensuring transparent logs and precise date displays in IST timezone.
+
+## Previous Changes — 2026-05-19 (GM Dashboard Cumulative Task Lifecycle & Production Progress Metrics)
 - **Goal**: Correct the Task Lifecycle milestone statistics to use cumulative flow calculations, remove unnecessary time-based progress bars, and add a dedicated Shoot Done metric card to the Production Progress panel.
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`:

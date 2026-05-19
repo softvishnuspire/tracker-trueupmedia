@@ -46,7 +46,7 @@ import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
-import { getClientAbbreviation } from '@/lib/utils';
+import { getClientAbbreviation, formatIST } from '@/lib/utils';
 
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
@@ -1147,19 +1147,46 @@ export default function TLDashboard() {
 
                         <div className="detail-grid">
                             <div className="detail-info">
-                                <div style={{ display: 'flex', gap: '24px' }}>
-                                    <div>
-                                        <label className="detail-label">{isCompanyMode ? 'Calendar Date' : 'Scheduled Date'}</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
-                                            <CalendarIcon size={14} color="var(--text-muted)"/>
-                                            {format(isCompanyMode ? getDisplayDate(activeItem.item.scheduled_datetime) : parseISO(activeItem.item.scheduled_datetime), 'MMM d, yyyy')}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="detail-label">Time</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
-                                            <Clock size={14} color="var(--text-muted)"/>
-                                            {format(parseISO(activeItem.item.scheduled_datetime), 'hh:mm a')}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+                                    <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                                        {activeItem.item.is_rescheduled && activeItem.item.original_scheduled_datetime ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                                                <div>
+                                                    <label className="detail-label">{isCompanyMode ? 'Calendar Date' : 'Scheduled Date'}</label>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                                        <CalendarIcon size={14} color="var(--text-muted)"/>
+                                                        Actual Date: {formatIST(activeItem.item.original_scheduled_datetime, 'dd/MM/yyyy')} rescheduled to {formatIST(activeItem.item.scheduled_datetime, 'dd/MM/yy')}
+                                                    </div>
+                                                </div>
+                                                {activeItem.item.reschedule_history && activeItem.item.reschedule_history.length > 0 && (
+                                                    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border)', width: '100%' }}>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule History</span>
+                                                        {activeItem.item.reschedule_history.map((h: any, idx: number) => (
+                                                            <div key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
+                                                                <span>{idx + 1}.</span>
+                                                                <span>{formatIST(h.from, 'dd/MM/yyyy')}</span>
+                                                                <span>➔</span>
+                                                                <span>{formatIST(h.to, 'dd/MM/yy')}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <label className="detail-label">{isCompanyMode ? 'Calendar Date' : 'Scheduled Date'}</label>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                                    <CalendarIcon size={14} color="var(--text-muted)"/>
+                                                    {format(isCompanyMode ? getDisplayDate(activeItem.item.scheduled_datetime) : parseISO(activeItem.item.scheduled_datetime), 'MMM d, yyyy')}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label className="detail-label">Time</label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                                <Clock size={14} color="var(--text-muted)"/>
+                                                {formatIST(activeItem.item.scheduled_datetime, 'hh:mm a')}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
