@@ -577,7 +577,7 @@ export default function GMDashboard() {
             
             acc.totalItems += 1;
             if (status === 'POSTED') acc.posted += 1;
-            if (status === 'CONTENT APPROVED' || status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') acc.contentApproved += 1;
+            if (contentApprovedStatuses.includes(status)) acc.contentApproved += 1;
             if (status === 'DESIGNING IN PROGRESS') acc.designingInProgress += 1;
 
             if (type === 'REEL' || type === 'YOUTUBE') {
@@ -607,7 +607,7 @@ export default function GMDashboard() {
             acc.total += 1;
             if (isDone) acc.completed += 1;
             if (status === 'POSTED') acc.posted += 1;
-            if (status === 'CONTENT APPROVED' || status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') acc.contentApprovedCount += 1;
+            if (contentApprovedStatuses.includes(status)) acc.contentApproved += 1;
             if (status === 'DESIGNING IN PROGRESS') acc.designingInProgress += 1;
 
             // Track status distribution for the Activity Hub
@@ -620,7 +620,6 @@ export default function GMDashboard() {
             } else if (type === 'POST') {
                 acc.posts += 1;
                 if (isDone) acc.completedPosts += 1;
-                if (status === 'CONTENT APPROVED' || shootDoneStatuses.includes(status)) acc.contentApproved += 1;
                 if (isShot) acc.shotPosts += 1;
             }
 
@@ -631,7 +630,7 @@ export default function GMDashboard() {
             completedReels: 0, completedPosts: 0, 
             shootDone: 0, contentApproved: 0,
             statusCounts: {} as Record<string, number>,
-            posted: 0, contentApprovedCount: 0, designingInProgress: 0, shotPosts: 0
+            posted: 0, designingInProgress: 0, shotPosts: 0
         }
     );
 

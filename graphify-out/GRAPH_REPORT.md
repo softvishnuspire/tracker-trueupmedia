@@ -1,6 +1,12 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-19 (Bi-Monthly Dynamic Range Correction)
+## Latest Changes — 2026-05-19 (GM Dashboard Content Approved Metric Correction)
+- **Goal**: Fix the "Content Approved" pill counter in the GM Dashboard returning 0 when a client only has Reels or YouTube videos scheduled (no Posts).
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`: Updated `monthStatusCounts` and `globalMonthCounts` reduction logic to use the global `contentApprovedStatuses` array instead of artificially scoping the `acc.contentApproved` increment strictly to the `type === 'POST'` block.
+- **System Impact**: Restores accurate "Content Approved" accumulation counts for the active client calendar view, reflecting global approval status across all task types including Reels and YouTube, bringing it in line with TL and PH dashboards.
+
+## Previous Changes — 2026-05-19 (Bi-Monthly Dynamic Range Correction)
 - **Goal**: Dynamically determine the bi-monthly range (15-to-15 cycle) based on whether the current date's day of the month is before or after the 15th, resolving discrepancies in "Shoot Done" counts in the GM, PH, and TL dashboards.
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`: Updated `isBiMonthlyView` check to include the dashboard view, dynamically adjusted `periodStart`/`periodEnd` based on `currentMonth.getDate()`, and refactored client/master calendar fetches to retrieve the correct two-month window.
