@@ -150,14 +150,20 @@ export default function TLDashboard() {
             const client = clients.find(c => c.id === selectedClient);
             const is1515 = client?.batch_type === '15-15';
 
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await tlApi.getCalendar(selectedClient, currentMonthStr, user.id);
-            let data = res.data || [];
-
+            let data = [];
             if (is1515) {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const nextRes = await tlApi.getCalendar(selectedClient, nextMonthStr, user.id);
-                data = [...data, ...(nextRes.data || [])];
+                const isSecondHalf = currentMonth.getDate() >= 15;
+                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+
+                const [resStart, resEnd] = await Promise.all([
+                    tlApi.getCalendar(selectedClient, format(startMonth, 'yyyy-MM'), user.id),
+                    tlApi.getCalendar(selectedClient, format(endMonth, 'yyyy-MM'), user.id)
+                ]);
+                data = [...(resStart.data || []), ...(resEnd.data || [])];
+            } else {
+                const res = await tlApi.getCalendar(selectedClient, format(currentMonth, 'yyyy-MM'), user.id);
+                data = res.data || [];
             }
 
             setCalendarData(data);
@@ -433,12 +439,15 @@ export default function TLDashboard() {
     const isBiMonthlyView = view === 'client' && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
     const periodStart = isBiMonthlyView
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        ? (currentMonth.getDate() >= 15
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
         : startOfMonth(currentMonth);
 
-    const nextMonthDate = addMonths(currentMonth, 1);
     const periodEnd = isBiMonthlyView
-        ? new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth(), 15)
+        ? (currentMonth.getDate() >= 15
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
         : endOfMonth(currentMonth);
 
     const days = eachDayOfInterval({

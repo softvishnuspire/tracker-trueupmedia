@@ -1,6 +1,22 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-19 (Normal Task Colors & Special Day Poster Emoji Enhancements)
+## Latest Changes — 2026-05-19 (Bi-Monthly Dynamic Range Correction)
+- **Goal**: Dynamically determine the bi-monthly range (15-to-15 cycle) based on whether the current date's day of the month is before or after the 15th, resolving discrepancies in "Shoot Done" counts in the GM, PH, and TL dashboards.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`: Updated `isBiMonthlyView` check to include the dashboard view, dynamically adjusted `periodStart`/`periodEnd` based on `currentMonth.getDate()`, and refactored client/master calendar fetches to retrieve the correct two-month window.
+    - `frontend/src/app/ph/dashboard/page.tsx`: Applied the same dynamic range offsets and two-month client/master calendar fetch logic.
+    - `frontend/src/app/tl/dashboard/page.tsx`: Updated `periodStart`/`periodEnd` range calculation and `fetchClientCalendar` to calculate and load the correct two-month interval.
+- **System Impact**: Ensures that when selecting a 15-15 client, the active period dynamically aligns to the correct cycle (e.g. May 15 to June 15 if today is May 19, or April 15 to May 15 if today is May 10), reflecting accurate counts for all statistics cards and calendar items across GM, PH, and TL dashboards.
+
+## Previous Changes — 2026-05-19 (Environment Variables Configuration)
+- **Goal**: Configure environment variables for Supabase and the local API url across the frontend and backend.
+- **Affected Files**:
+    - `frontend/.env`: Added `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `NEXT_PUBLIC_API_URL`.
+    - `frontend/.env.local`: Added identical keys for local Next.js development.
+    - `backend/.env`: Added `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `PORT`.
+- **System Impact**: Enables frontend components, API clients, and backend migration/utility scripts to authenticate and communicate with the Supabase database instance and the local backend server.
+
+## Previous Changes — 2026-05-19 (Normal Task Colors & Special Day Poster Emoji Enhancements)
 - **Goal**: Align the calendar design with the rule that normal tasks should not use red (which is reserved for emergency/rescheduled/pending tasks) and globally prepend a party blaster emoji (`🎉 `) to all "Special Poster" and "Special Day Poster" calendar content items.
 - **Affected Files**:
     - `frontend/src/app/tl/dashboard/tl.css`, `frontend/src/app/ph/dashboard/ph.css`, `frontend/src/app/gm/dashboard/gm.css`, `frontend/src/app/coo/dashboard/coo.css`, `frontend/src/app/admin/admin.css`: Updated Reel colors to Pink (`#ec4899`) and YouTube to Purple (`#8b5cf6`) across calendar cards, mobile badges/dots, and status lists to completely remove normal-use Red.

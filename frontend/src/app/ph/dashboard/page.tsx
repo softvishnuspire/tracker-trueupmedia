@@ -195,15 +195,18 @@ export default function ProductionHeadDashboard() {
     }, [selectedClient]);
 
     const selectedClientData = clients.find(c => c.id === selectedClient);
-    const isBiMonthlyView = (view === 'client' || view === 'master') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+    const isBiMonthlyView = (view === 'client' || view === 'master' || view === 'dashboard') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
     const periodStart = isBiMonthlyView
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        ? (currentMonth.getDate() >= 15
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
         : startOfMonth(currentMonth);
 
-    const nextMonthDate = addMonths(currentMonth, 1);
     const periodEnd = isBiMonthlyView
-        ? new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth(), 15)
+        ? (currentMonth.getDate() >= 15
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
         : endOfMonth(currentMonth);
 
     const getPeriodLabel = useCallback(() => {
@@ -222,15 +225,23 @@ export default function ProductionHeadDashboard() {
         if (selectedClient === 'all') return;
         setLoading(true);
         try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await phApi.getCalendar(selectedClient, currentMonthStr, undefined, true);
-            let data = res.data || [];
-            
             const client = clients.find(c => c.id === selectedClient);
-            if (client?.batch_type === '15-15') {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const nextRes = await phApi.getCalendar(selectedClient, nextMonthStr, undefined, true);
-                data = [...data, ...(nextRes.data || [])];
+            const is1515 = client?.batch_type === '15-15';
+
+            let data = [];
+            if (is1515) {
+                const isSecondHalf = currentMonth.getDate() >= 15;
+                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+
+                const [resStart, resEnd] = await Promise.all([
+                    phApi.getCalendar(selectedClient, format(startMonth, 'yyyy-MM'), undefined, true),
+                    phApi.getCalendar(selectedClient, format(endMonth, 'yyyy-MM'), undefined, true)
+                ]);
+                data = [...(resStart.data || []), ...(resEnd.data || [])];
+            } else {
+                const res = await phApi.getCalendar(selectedClient, format(currentMonth, 'yyyy-MM'), undefined, true);
+                data = res.data || [];
             }
             
             setCalendarData(data);
@@ -241,21 +252,29 @@ export default function ProductionHeadDashboard() {
     const fetchMasterCalendar = useCallback(async () => {
         setLoading(true);
         try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
             let asOfDate;
             if (view === 'company') {
                 const d = new Date();
                 d.setDate(d.getDate() - 7);
                 asOfDate = d.toISOString();
             }
-            const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient, undefined, asOfDate);
-            let data = res.data || [];
-            
+
             const client = clients.find(c => c.id === selectedClient);
+            let data = [];
             if (client?.batch_type === '15-15') {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const nextRes = await phApi.getMasterCalendar(nextMonthStr, selectedClient, undefined, asOfDate);
-                data = [...data, ...(nextRes.data || [])];
+                const isSecondHalf = currentMonth.getDate() >= 15;
+                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+
+                const [resStart, resEnd] = await Promise.all([
+                    phApi.getMasterCalendar(format(startMonth, 'yyyy-MM'), selectedClient, undefined, asOfDate),
+                    phApi.getMasterCalendar(format(endMonth, 'yyyy-MM'), selectedClient, undefined, asOfDate)
+                ]);
+                data = [...(resStart.data || []), ...(resEnd.data || [])];
+            } else {
+                const currentMonthStr = format(currentMonth, 'yyyy-MM');
+                const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient, undefined, asOfDate);
+                data = res.data || [];
             }
             
             setCalendarData(data);

@@ -175,15 +175,18 @@ export default function GMDashboard() {
     };
 
     const selectedClientData = clients.find(c => c.id === selectedClient);
-    const isBiMonthlyView = (view === 'client' || view === 'master') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+    const isBiMonthlyView = (view === 'client' || view === 'master' || view === 'dashboard') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
     const periodStart = isBiMonthlyView
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        ? (currentMonth.getDate() >= 15
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
         : startOfMonth(currentMonth);
 
-    const nextMonthDate = addMonths(currentMonth, 1);
     const periodEnd = isBiMonthlyView
-        ? new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth(), 15)
+        ? (currentMonth.getDate() >= 15
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
         : endOfMonth(currentMonth);
 
     const isDayInPeriod = (day: Date): boolean => {
@@ -199,15 +202,20 @@ export default function GMDashboard() {
             const client = clients.find(c => c.id === clientId);
             const is1515 = client?.batch_type === '15-15';
 
-            const monthStr = format(currentMonth, 'yyyy-MM');
-            const res = await gmApi.getCalendar(clientId, monthStr);
-            let data = res.data;
-
+            let data = [];
             if (is1515) {
-                // Fetch next month as well for 15-15 cycle
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const nextRes = await gmApi.getCalendar(clientId, nextMonthStr);
-                data = [...data, ...(nextRes.data || [])];
+                const isSecondHalf = currentMonth.getDate() >= 15;
+                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+
+                const [resStart, resEnd] = await Promise.all([
+                    gmApi.getCalendar(clientId, format(startMonth, 'yyyy-MM')),
+                    gmApi.getCalendar(clientId, format(endMonth, 'yyyy-MM'))
+                ]);
+                data = [...(resStart.data || []), ...(resEnd.data || [])];
+            } else {
+                const res = await gmApi.getCalendar(clientId, format(currentMonth, 'yyyy-MM'));
+                data = res.data || [];
             }
 
             return data;
@@ -234,25 +242,36 @@ export default function GMDashboard() {
                 return Array.from(new Map(merged.map((item) => [item.id, item])).values());
             }
 
-            const monthStr = format(currentMonth, 'yyyy-MM');
-            const res = await gmApi.getMasterCalendar(
-                monthStr,
-                selectedClient === 'all' ? undefined : selectedClient,
-                selectedType === 'all' ? undefined : selectedType
-            );
-            
-            let data = res.data || [];
-
             // For master view with a specific client selected that is 15-15
             const client = clients.find(c => c.id === selectedClient);
+            let data = [];
+
             if (client?.batch_type === '15-15') {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const nextRes = await gmApi.getMasterCalendar(
-                    nextMonthStr,
-                    selectedClient,
+                const isSecondHalf = currentMonth.getDate() >= 15;
+                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+
+                const [resStart, resEnd] = await Promise.all([
+                    gmApi.getMasterCalendar(
+                        format(startMonth, 'yyyy-MM'),
+                        selectedClient,
+                        selectedType === 'all' ? undefined : selectedType
+                    ),
+                    gmApi.getMasterCalendar(
+                        format(endMonth, 'yyyy-MM'),
+                        selectedClient,
+                        selectedType === 'all' ? undefined : selectedType
+                    )
+                ]);
+                data = [...(resStart.data || []), ...(resEnd.data || [])];
+            } else {
+                const monthStr = format(currentMonth, 'yyyy-MM');
+                const res = await gmApi.getMasterCalendar(
+                    monthStr,
+                    selectedClient === 'all' ? undefined : selectedClient,
                     selectedType === 'all' ? undefined : selectedType
                 );
-                data = [...data, ...(nextRes.data || [])];
+                data = res.data || [];
             }
 
             return data;
