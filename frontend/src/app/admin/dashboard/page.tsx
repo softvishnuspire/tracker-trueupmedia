@@ -9,7 +9,7 @@ import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistory
 import { Skeleton } from '@/components/ui/skeleton';
 import { endOfWeek, format, isSameDay, isSameMonth, parseISO, startOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
-import { formatIST } from '@/lib/utils';
+import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
 
 interface Stats {
   totalClients: number;
@@ -148,7 +148,7 @@ export default function AdminDashboard() {
       const allData = allCalendarRes.data || [];
       setCalendarData(allData);
 
-      const allPeriodData = allData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
+      const allPeriodData = allData.filter(item => isDayInPeriod(getISTDate(item.scheduled_datetime)));
 
       const allBreakdown = allPeriodData.reduce((acc: any, item: ContentItem) => {
         acc[item.status] = (acc[item.status] || 0) + 1;
@@ -178,8 +178,8 @@ export default function AdminDashboard() {
         ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED'].includes(item.status.toUpperCase())
       ).length;
 
-      const today = new Date();
-      const todayItems = allData.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
+      const today = getISTDate(new Date());
+      const todayItems = allData.filter((item: ContentItem) => isSameDay(getISTDate(item.scheduled_datetime), today));
       const totalToday = todayItems.length;
       const completedToday = todayItems.filter((item: ContentItem) => isItemCompleted(item)).length;
       
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
         }
       }
 
-      const pPeriodData = pipelineData.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
+      const pPeriodData = pipelineData.filter(item => isDayInPeriod(getISTDate(item.scheduled_datetime)));
 
       const pBreakdown = pPeriodData.reduce((acc: any, item: ContentItem) => {
         acc[item.status] = (acc[item.status] || 0) + 1;
@@ -282,10 +282,10 @@ export default function AdminDashboard() {
       const item = res.data.item;
 
       // Find all tasks on the same day as the clicked item
-      const day = parseISO(item.scheduled_datetime);
+      const day = getISTDate(item.scheduled_datetime);
       
       // Collect tasks from available sources
-      const tasksOnDay = calendarData.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
+      const tasksOnDay = calendarData.filter(i => isSameDay(getISTDate(i.scheduled_datetime), day));
       
       // If the item itself isn't in the list (e.g. from emergency tasks and calendar not loaded), add it
       if (!tasksOnDay.some(t => t.id === item.id)) {
@@ -373,7 +373,8 @@ export default function AdminDashboard() {
   const handleSaveEdit = async () => {
     if (!activeItem) return;
     try {
-      const scheduled_datetime = `${format(parseISO(activeItem.item.scheduled_datetime), 'yyyy-MM-dd')}T${formData.time}:00`;
+      const datePart = formatISTForm(activeItem.item.scheduled_datetime, 'yyyy-MM-dd');
+      const scheduled_datetime = convertISTToUTC(datePart, formData.time);
       
       await adminApi.updateContent(activeItem.item.id, {
         title: formData.title,
@@ -395,10 +396,10 @@ export default function AdminDashboard() {
   const monthTotal = stats?.totalItemsThisMonth || 0;
   const monthCompleted = stats?.completedCount || 0;
   const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekStart = startOfWeek(getISTDate(new Date()), { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(getISTDate(new Date()), { weekStartsOn: 1 });
   const weekItems = calendarData.filter((item) => {
-    const itemDate = parseISO(item.scheduled_datetime);
+    const itemDate = getISTDate(item.scheduled_datetime);
     return itemDate >= weekStart && itemDate <= weekEnd;
   });
   const weekTotal = weekItems.length;
@@ -675,7 +676,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="emergency-card-info">
                   <p className="emergency-card-client">{task.clients?.company_name}</p>
-                  <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                  <p className="emergency-card-type">{task.content_type} • {format(getISTDate(task.scheduled_datetime), 'h:mm a')}</p>
                 </div>
                 <div className="emergency-card-arrow">
                   <ArrowRight size={18} />
@@ -708,7 +709,7 @@ export default function AdminDashboard() {
                 <div className="emergency-card-info">
                   <p className="emergency-card-client">{task.clients?.company_name}</p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                    <p className="emergency-card-type">{task.content_type} • {format(getISTDate(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
                     <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
                   </div>
                 </div>
@@ -776,7 +777,7 @@ export default function AdminDashboard() {
                   setFormData({
                     title: activeItem.item.title,
                     description: activeItem.item.description || '',
-                    time: format(parseISO(activeItem.item.scheduled_datetime), 'HH:mm'),
+                    time: formatISTForm(activeItem.item.scheduled_datetime, 'HH:mm'),
                     content_type: activeItem.item.content_type
                   });
                   setIsRescheduling(true);

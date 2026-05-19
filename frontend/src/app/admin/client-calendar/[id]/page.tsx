@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import ScheduleExport from '@/components/ScheduleExport';
-import { formatIST } from '@/lib/utils';
+import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
 
 export default function ClientCalendarPage() {
     const params = useParams();
@@ -149,8 +149,8 @@ export default function ClientCalendarPage() {
             const fetchedItem = res.data.item;
             
             // Find all tasks on the same day
-            const day = parseISO(fetchedItem.scheduled_datetime);
-            const tasksOnDay = calendarData.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
+            const day = getISTDate(fetchedItem.scheduled_datetime);
+            const tasksOnDay = calendarData.filter(i => isSameDay(getISTDate(i.scheduled_datetime), day));
             
             if (!tasksOnDay.some(t => t.id === fetchedItem.id)) {
                 tasksOnDay.push(fetchedItem);
@@ -184,7 +184,7 @@ export default function ClientCalendarPage() {
         setEditingItem(item);
         setFormData({
             content_type: item.content_type,
-            scheduled_datetime: format(parseISO(item.scheduled_datetime), "yyyy-MM-dd'T'HH:mm"),
+            scheduled_datetime: formatISTForm(item.scheduled_datetime, 'yyyy-MM-dd') + 'T' + formatISTForm(item.scheduled_datetime, 'HH:mm'),
             client_id: item.client_id,
             title: item.title || '',
             description: item.description || ''
@@ -198,7 +198,7 @@ export default function ClientCalendarPage() {
         setEditingItem(item);
         setFormData({
             content_type: item.content_type,
-            scheduled_datetime: format(parseISO(item.scheduled_datetime), "yyyy-MM-dd'T'HH:mm"),
+            scheduled_datetime: formatISTForm(item.scheduled_datetime, 'yyyy-MM-dd') + 'T' + formatISTForm(item.scheduled_datetime, 'HH:mm'),
             client_id: item.client_id,
             title: item.title || '',
             description: item.description || ''
@@ -255,20 +255,26 @@ export default function ClientCalendarPage() {
     const handleAddContent = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const [datePart, timePart] = formData.scheduled_datetime.split('T');
+            const utcScheduledDatetime = convertISTToUTC(datePart, timePart);
             if (editingItem) {
                 await adminApi.updateContent(editingItem.id, {
                     ...formData,
+                    scheduled_datetime: utcScheduledDatetime,
                     is_rescheduled: isRescheduling ? true : editingItem.is_rescheduled
                 });
             } else {
-                await adminApi.addContent(formData);
+                await adminApi.addContent({
+                    ...formData,
+                    scheduled_datetime: utcScheduledDatetime
+                });
             }
             setShowAddModal(false);
             setEditingItem(null);
             setIsRescheduling(false);
             setFormData({
                 content_type: 'Post' as ContentItem['content_type'],
-                scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+                scheduled_datetime: formatISTForm(new Date(), 'yyyy-MM-dd') + 'T' + formatISTForm(new Date(), 'HH:mm'),
                 client_id: clientId,
                 title: '',
                 description: ''
@@ -283,7 +289,7 @@ export default function ClientCalendarPage() {
 
     const monthStatusCounts = calendarData.reduce(
         (acc, item) => {
-            if (!isDayInPeriod(parseISO(item.scheduled_datetime))) return acc;
+            if (!isDayInPeriod(getISTDate(item.scheduled_datetime))) return acc;
             
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();
@@ -415,7 +421,7 @@ export default function ClientCalendarPage() {
                         const dayContent = isOutOfPeriod
                             ? []
                             : calendarData.filter(item => {
-                                const itemDate = parseISO(item.scheduled_datetime);
+                                const itemDate = getISTDate(item.scheduled_datetime);
                                 return isSameDay(itemDate, day);
                             });
 
@@ -682,13 +688,13 @@ export default function ClientCalendarPage() {
                                         ) : (
                                             <div className="date-item">
                                                 <CalendarIcon size={14} />
-                                                <span className="date-display">{format(parseISO(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}</span>
+                                                <span className="date-display">{formatIST(selectedItem.item.scheduled_datetime, 'MMM d, yyyy')}</span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
                                 {(() => {
-                                    const isOverdue = isBefore(parseISO(selectedItem.item.scheduled_datetime), new Date()) && selectedItem.item.status !== 'POSTED';
+                                    const isOverdue = isBefore(getISTDate(selectedItem.item.scheduled_datetime), getISTDate(new Date())) && selectedItem.item.status !== 'POSTED';
                                     if (isOverdue) {
                                         return (
                                             <button 

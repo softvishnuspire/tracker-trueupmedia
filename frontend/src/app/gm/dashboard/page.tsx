@@ -68,7 +68,7 @@ import {
     ContentDetails,
     settingsApi
 } from '@/lib/api';
-import { getClientAbbreviation, formatIST } from '@/lib/utils';
+import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -157,9 +157,9 @@ export default function GMDashboard() {
 
     const isMasterMode = view === 'master' || view === 'company';
     const isCompanyMode = view === 'company';
-    const getDisplayDate = (scheduledDateTime: string) => subDays(parseISO(scheduledDateTime), DISPLAY_OFFSET_DAYS);
+    const getDisplayDate = (scheduledDateTime: string) => subDays(getISTDate(scheduledDateTime), DISPLAY_OFFSET_DAYS);
     const getCalendarItemDate = (item: ContentItem) =>
-        isCompanyMode ? getDisplayDate(item.scheduled_datetime) : parseISO(item.scheduled_datetime);
+        isCompanyMode ? getDisplayDate(item.scheduled_datetime) : getISTDate(item.scheduled_datetime);
 
     const [formData, setFormData] = useState({
         content_type: 'Post' as ContentItem['content_type'],
@@ -721,11 +721,12 @@ export default function GMDashboard() {
     const handleEditClick = (item: ContentItem) => {
         setIsRescheduling(false);
         setEditingItem(item);
-        const dt = parseISO(item.scheduled_datetime);
-        setSelectedDate(dt);
+        const dateStr = formatISTForm(item.scheduled_datetime, 'yyyy-MM-dd');
+        const timeStr = formatISTForm(item.scheduled_datetime, 'HH:mm');
+        setSelectedDate(new Date(dateStr + 'T00:00:00'));
         setFormData({
             content_type: item.content_type,
-            time: format(dt, 'HH:mm'),
+            time: timeStr,
             title: item.title || '',
             description: item.description || ''
         });
@@ -736,11 +737,12 @@ export default function GMDashboard() {
     const handleRescheduleClick = (item: ContentItem) => {
         setIsRescheduling(true);
         setEditingItem(item);
-        const dt = parseISO(item.scheduled_datetime);
-        setSelectedDate(dt);
+        const dateStr = formatISTForm(item.scheduled_datetime, 'yyyy-MM-dd');
+        const timeStr = formatISTForm(item.scheduled_datetime, 'HH:mm');
+        setSelectedDate(new Date(dateStr + 'T00:00:00'));
         setFormData({
             content_type: item.content_type,
-            time: format(dt, 'HH:mm'),
+            time: timeStr,
             title: item.title || '',
             description: item.description || ''
         });
@@ -867,7 +869,7 @@ export default function GMDashboard() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const scheduled_datetime = format(selectedDate!, 'yyyy-MM-dd') + 'T' + formData.time + ':00';
+        const scheduled_datetime = convertISTToUTC(format(selectedDate!, 'yyyy-MM-dd'), formData.time);
         try {
             if (editingItem) {
                 await gmApi.updateContent(editingItem.id, {

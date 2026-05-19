@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, User, Phone, Mail, FileText, Video, Send, Loader2, Check } from 'lucide-react';
 import { phApi } from '@/lib/api';
+import { formatISTForm, convertISTToUTC } from '@/lib/utils';
 
 interface FreelancerTaskModalProps {
     isOpen: boolean;
@@ -12,9 +13,7 @@ interface FreelancerTaskModalProps {
 
 export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: FreelancerTaskModalProps) {
     const getLocalISOString = () => {
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        return now.toISOString().slice(0, 16);
+        return formatISTForm(new Date(), 'yyyy-MM-dd') + 'T' + formatISTForm(new Date(), 'HH:mm');
     };
 
     const [loading, setLoading] = useState(false);
@@ -44,7 +43,13 @@ export default function FreelancerTaskModal({ isOpen, onClose, onSuccess }: Free
 
         setLoading(true);
         try {
-            await phApi.addFreelancerContent(formData);
+            const [datePart, timePart] = formData.scheduled_datetime.split('T');
+            const utcScheduledDatetime = convertISTToUTC(datePart, timePart);
+
+            await phApi.addFreelancerContent({
+                ...formData,
+                scheduled_datetime: utcScheduledDatetime
+            });
             
             setSuccessMsg('Freelancer task created successfully!');
             onSuccess();

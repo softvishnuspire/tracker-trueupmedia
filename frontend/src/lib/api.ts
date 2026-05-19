@@ -44,6 +44,7 @@ export interface ContentItem {
     client_id: string;
     is_rescheduled?: boolean;
     original_scheduled_datetime?: string;
+    is_cross_month_rescheduled?: boolean;
     reschedule_history?: { from: string; to: string; rescheduled_at: string }[];
     is_emergency?: boolean;
     emergency_marked_at?: string;

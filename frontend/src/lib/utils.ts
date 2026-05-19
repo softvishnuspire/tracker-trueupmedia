@@ -63,3 +63,94 @@ export function formatIST(dateInput: string | Date | undefined | null, formatTyp
 
   return `${dd}/${mm}/${yyyy}`;
 }
+
+/**
+ * Formats a UTC date string/Date object into a string representation in Asia/Kolkata timezone.
+ * Useful for form inputs.
+ * 
+ * @param dateInput UTC string or Date object
+ * @param formatType 'yyyy-MM-dd' or 'HH:mm'
+ */
+export function formatISTForm(dateInput: string | Date | undefined | null, formatType: 'yyyy-MM-dd' | 'HH:mm'): string {
+  if (!dateInput) return '';
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
+  const parts = formatter.formatToParts(date);
+  const partMap: Record<string, string> = {};
+  parts.forEach(p => { partMap[p.type] = p.value; });
+  
+  if (formatType === 'yyyy-MM-dd') {
+    return `${partMap.year}-${partMap.month}-${partMap.day}`;
+  }
+  if (formatType === 'HH:mm') {
+    let hour = partMap.hour;
+    if (hour === '24') hour = '00';
+    return `${hour}:${partMap.minute}`;
+  }
+  return '';
+}
+
+/**
+ * Converts a date string and time string (inputted in Asia/Kolkata timezone)
+ * into a UTC ISO string to be sent to the backend.
+ * 
+ * @param dateStr Format: 'yyyy-MM-dd' (e.g. '2026-05-19')
+ * @param timeStr Format: 'HH:mm' (e.g. '10:00')
+ * @returns UTC ISO string (e.g. '2026-05-19T04:30:00.000Z')
+ */
+export function convertISTToUTC(dateStr: string, timeStr: string): string {
+  const localStr = `${dateStr}T${timeStr}:00`;
+  const offsetStr = '+05:30';
+  const date = new Date(`${localStr}${offsetStr}`);
+  return date.toISOString();
+}
+
+/**
+ * Returns a local Date object whose fields (year, month, date, hours, minutes)
+ * represent the corresponding instant in the Asia/Kolkata timezone (IST).
+ * 
+ * @param dateInput UTC string or Date object
+ */
+export function getISTDate(dateInput: string | Date | undefined | null): Date {
+  if (!dateInput) return new Date();
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
+  const parts = formatter.formatToParts(date);
+  const partMap: Record<string, string> = {};
+  parts.forEach(p => { partMap[p.type] = p.value; });
+  
+  let hour = partMap.hour;
+  if (hour === '24') hour = '00';
+  return new Date(
+    parseInt(partMap.year),
+    parseInt(partMap.month) - 1,
+    parseInt(partMap.day),
+    parseInt(hour),
+    parseInt(partMap.minute),
+    parseInt(partMap.second)
+  );
+}
+
+
