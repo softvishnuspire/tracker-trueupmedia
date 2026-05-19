@@ -209,7 +209,7 @@ export default function MasterProductionSchedule() {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                     {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                     <span className="truncate" style={{ flex: 1 }}>
-                                                        {`[${item.clients?.company_name?.substring(0, 3)}] `}{item.content_type}
+                                                        {`[${item.clients?.company_name?.substring(0, 3)}] `}{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                     </span>
                                                     {['SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status) ? (
                                                         <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />

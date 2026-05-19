@@ -491,7 +491,7 @@ export default function ClientCalendarPage() {
                                                 {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                 <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
                                                     {item.is_rescheduled ? '[R] ' : ''}
-                                                    {item.content_type}
+                                                    {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                 </span>
                                                 {item.status === 'POSTED' ? (
                                                     <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
@@ -543,7 +543,7 @@ export default function ClientCalendarPage() {
                                         background: item.content_type === 'Post' ? '#10b981' : item.content_type === 'Reel' ? '#6366f1' : (item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster') ? '#ec4899' : '#f59e0b' 
                                     }}></div>
                                     <div style={{ flex: 1 }}>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.content_type}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}</p>
                                     </div>
                                 </div>
                             ))}
@@ -590,7 +590,7 @@ export default function ClientCalendarPage() {
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                                     <span className={`type-badge ${selectedItem.item.content_type.toLowerCase().replace(/\s+/g, '-')}`}>
-                                        {selectedItem.item.content_type}
+                                        {selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type}
                                     </span>
                                     {dayTasks.length > 1 && (
                                         <>
@@ -601,7 +601,7 @@ export default function ClientCalendarPage() {
                                         </>
                                     )}
                                 </div>
-                                <h3 className="modal-title">{selectedItem.item.title || selectedItem.item.content_type}</h3>
+                                <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
                                 <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
                                     Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
                                 </p>

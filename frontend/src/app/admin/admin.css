@@ -536,11 +536,11 @@
 }
 
 .status-pill-reels {
-    border-color: rgba(245, 158, 11, 0.28);
+    border-color: rgba(236, 72, 153, 0.28);
 }
 
 .status-pill-posts {
-    border-color: rgba(16, 185, 129, 0.32);
+    border-color: rgba(6, 182, 212, 0.32);
 }
 
 .status-pill-shoot-done {
@@ -726,19 +726,19 @@
 }
 
 .content-item.post {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    background: rgba(6, 182, 212, 0.1);
+    color: #06b6d4;
+    border: 1px solid rgba(6, 182, 212, 0.2);
 }
 
 .content-item.post:hover {
-    background: rgba(59, 130, 246, 0.2);
+    background: rgba(6, 182, 212, 0.2);
 }
 
 .content-item.reel {
-    background: rgba(168, 85, 247, 0.1);
-    color: #a855f7;
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    background: rgba(236, 72, 153, 0.1);
+    color: #ec4899;
+    border: 1px solid rgba(236, 72, 153, 0.2);
 }
 
 .content-item.rescheduled {
@@ -748,7 +748,7 @@
 }
 
 .content-item.reel:hover {
-    background: rgba(168, 85, 247, 0.2);
+    background: rgba(236, 72, 153, 0.2);
 }
 
 /* ─── Client Table ─── */
@@ -1918,11 +1918,11 @@
     }
 
     .mobile-dot.post {
-        background: #3b82f6 !important;
+        background: #06b6d4 !important;
     }
 
     .mobile-dot.reel {
-        background: #a855f7 !important;
+        background: #ec4899 !important;
     }
 
     .mobile-dot.rescheduled {
@@ -2467,21 +2467,21 @@
 }
 
 .type-badge.post {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10B981;
-    border-color: rgba(16, 185, 129, 0.2);
+    background: rgba(6, 182, 212, 0.1);
+    color: #06b6d4;
+    border-color: rgba(6, 182, 212, 0.2);
 }
 
 .type-badge.reel {
-    background: rgba(99, 102, 241, 0.1);
-    color: #6366F1;
-    border-color: rgba(99, 102, 241, 0.2);
+    background: rgba(236, 72, 153, 0.1);
+    color: #ec4899;
+    border-color: rgba(236, 72, 153, 0.2);
 }
 
 .type-badge.youtube {
-    background: rgba(239, 68, 68, 0.1);
-    color: #EF4444;
-    border-color: rgba(239, 68, 68, 0.2);
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+    border-color: rgba(139, 92, 246, 0.2);
 }
 
 .type-badge.production-head {
@@ -2889,15 +2889,15 @@
 }
 
 .mobile-dot.post {
-    background: #3b82f6;
+    background: #06b6d4;
 }
 
 .mobile-dot.reel {
-    background: #a855f7;
+    background: #ec4899;
 }
 
 .mobile-dot.youtube {
-    background: #ef4444;
+    background: #8b5cf6;
 }
 
 .mobile-dot.emergency {

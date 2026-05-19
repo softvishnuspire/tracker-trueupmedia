@@ -478,7 +478,7 @@ export default function CooDashboard() {
                                 </div>
                                 <div className="emergency-card-info">
                                     <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                    <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
+                                    <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
                                 </div>
                                 <ArrowRight size={18} color="var(--text-muted)" />
                             </div>

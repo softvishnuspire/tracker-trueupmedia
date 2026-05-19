@@ -361,7 +361,7 @@ export default function CooMasterCalendar() {
                                                     {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                                         {item.is_rescheduled ? '[R] ' : ''}
-                                                        [{getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
+                                                        [{getClientAbbreviation(item.clients?.company_name)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                     </span>
                                                 </div>
                                             ))}
@@ -412,7 +412,7 @@ export default function CooMasterCalendar() {
                                         <p style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
                                             {item.clients?.company_name}
                                         </p>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{item.content_type}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}</p>
                                     </div>
                                 </div>
                             ))}
@@ -428,7 +428,7 @@ export default function CooMasterCalendar() {
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                                     <span className={`type-badge ${selectedItem.item.content_type.toLowerCase()}`}>
-                                        {selectedItem.item.content_type}
+                                        {selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type}
                                     </span>
                                     <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
                                     <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{selectedItem.item.clients?.company_name}</span>
@@ -441,7 +441,7 @@ export default function CooMasterCalendar() {
                                         </>
                                     )}
                                 </div>
-                                <h3 className="modal-title">{selectedItem.item.title || selectedItem.item.content_type}</h3>
+                                <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (

@@ -1,6 +1,14 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-19 (TL Dashboard Bi-Weekly Calendar Fix)
+## Latest Changes — 2026-05-19 (Normal Task Colors & Special Day Poster Emoji Enhancements)
+- **Goal**: Align the calendar design with the rule that normal tasks should not use red (which is reserved for emergency/rescheduled/pending tasks) and globally prepend a party blaster emoji (`🎉 `) to all "Special Poster" and "Special Day Poster" calendar content items.
+- **Affected Files**:
+    - `frontend/src/app/tl/dashboard/tl.css`, `frontend/src/app/ph/dashboard/ph.css`, `frontend/src/app/gm/dashboard/gm.css`, `frontend/src/app/coo/dashboard/coo.css`, `frontend/src/app/admin/admin.css`: Updated Reel colors to Pink (`#ec4899`) and YouTube to Purple (`#8b5cf6`) across calendar cards, mobile badges/dots, and status lists to completely remove normal-use Red.
+    - `frontend/src/app/admin/client-calendar/[id]/page.tsx`, `frontend/src/app/admin/master-calendar/page.tsx`, `frontend/src/app/admin/company-calendar/page.tsx`, `frontend/src/app/admin/production-schedule/page.tsx`, `frontend/src/app/coo/client-calendar/[id]/page.tsx`, `frontend/src/app/coo/master-calendar/page.tsx`, `frontend/src/app/coo/company-calendar/page.tsx`, `frontend/src/app/tl/dashboard/page.tsx`, `frontend/src/app/ph/dashboard/page.tsx`, `frontend/src/app/gm/dashboard/page.tsx`, `frontend/src/app/posting/dashboard/page.tsx`, `frontend/src/app/employee/dashboard/page.tsx`: Globally prepended `🎉 ` to `'Special Poster'` and `'Special Day Poster'` content types in day cells, agenda modals, and active detail modals.
+    - `frontend/src/app/employee/dashboard/page.tsx`: Added optional `assigned_at` field to the `Task` interface to resolve the TypeScript compiler error where `assigned_at` was referenced during date checks.
+- **System Impact**: Establishes visual consistency with the new semantic rules, preventing user confusion by preserving red for system warnings and highlighting special days with a recognizable emoji.
+
+## Previous Changes — 2026-05-19 (TL Dashboard Bi-Weekly Calendar Fix)
 - **Goal**: Resolve issue where bi-weekly (15-to-15 cycle) client calendars in the Team Lead (TL) panel behaved like standard 1-to-1 month calendars (missing range calculations and not fetching next month's items).
 - **Affected Files**:
     - `frontend/src/app/tl/dashboard/page.tsx`: 

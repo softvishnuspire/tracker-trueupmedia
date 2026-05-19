@@ -658,7 +658,7 @@ export default function PostingDashboard() {
                                     </div>
                                     <div className="emergency-card-info">
                                         <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                        <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                        <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
                                     </div>
                                     <ArrowRight size={18} color="var(--text-muted)" />
                                 </div>
@@ -687,7 +687,7 @@ export default function PostingDashboard() {
                                     <div className="emergency-card-info">
                                         <p className="emergency-card-client">{task.clients?.company_name}</p>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                            <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
                                             <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
                                         </div>
                                     </div>
@@ -741,7 +741,7 @@ export default function PostingDashboard() {
                                                 <div className="queue-item-right">
                                                     <span className={`queue-type-badge ${item.content_type.toLowerCase()}`}>
                                                         {item.content_type === 'Post' ? <FileText size={12} /> : <Video size={12} />}
-                                                        {item.content_type}
+                                                        {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                     </span>
                                                     {item.status === 'POSTED' ? (
                                                         <button

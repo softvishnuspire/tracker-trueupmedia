@@ -1599,7 +1599,7 @@ export default function GMDashboard() {
                                             </div>
                                             <div className="emergency-card-info">
                                                 <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                                <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                                <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
                                             </div>
                                             <ArrowRight size={18} color="var(--text-muted)" />
                                         </div>
@@ -1628,7 +1628,7 @@ export default function GMDashboard() {
                                             <div className="emergency-card-info">
                                                 <p className="emergency-card-client">{task.clients?.company_name}</p>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                                    <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
                                                     <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
                                                 </div>
                                             </div>
@@ -1895,7 +1895,7 @@ export default function GMDashboard() {
                                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                                                         {isPocView
                                                                             ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
-                                                                            : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${item.content_type}`}
+                                                                            : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}`}
                                                                     </span>
                                                                     {!isPocView && (
                                                                         item.assigned_to ? (
@@ -2017,7 +2017,7 @@ export default function GMDashboard() {
                                         <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                                             {item.clients?.company_name}
                                         </p>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.content_type}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}</p>
                                     </div>
                                 </div>
                             ))}
@@ -2062,7 +2062,7 @@ export default function GMDashboard() {
                             <div>
                                 <div className="detail-meta">
                                     <span className={`type-badge ${activeItem.item.content_type.toLowerCase().replace(/\s+/g, '-')}`}>
-                                        {activeItem.item.content_type}
+                                        {activeItem.item.content_type === 'Special Poster' || activeItem.item.content_type === 'Special Day Poster' ? '🎉 ' + activeItem.item.content_type : activeItem.item.content_type}
                                     </span>
                                     <span className="meta-dot">•</span>
                                     <span className="meta-client">{activeItem.item.freelancer_name || activeItem.item.clients?.company_name}</span>
@@ -2075,7 +2075,7 @@ export default function GMDashboard() {
                                         </>
                                     )}
                                 </div>
-                                <h3 className="modal-title" style={{ marginTop: '8px' }}>{activeItem.item.title || activeItem.item.content_type}</h3>
+                                <h3 className="modal-title" style={{ marginTop: '8px' }}>{activeItem.item.title || (activeItem.item.content_type === 'Special Poster' || activeItem.item.content_type === 'Special Day Poster' ? '🎉 ' + activeItem.item.content_type : activeItem.item.content_type)}</h3>
                                 <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--accent)', marginTop: '4px' }}>
                                     Team Lead: {activeItem.item.clients?.team_lead?.name || 'Not Assigned'}
                                 </p>

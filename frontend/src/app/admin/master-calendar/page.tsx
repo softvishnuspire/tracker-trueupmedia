@@ -423,7 +423,7 @@ export default function MasterCalendar() {
                                                         <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                                                             <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                                                 {item.is_rescheduled ? '[R] ' : ''}
-                                                                [{item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
+                                                                [{item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                             </span>
                                                             {item.assigned_to ? (
                                                                 <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ padding: '1px 6px', marginTop: 0 }}>
@@ -490,7 +490,7 @@ export default function MasterCalendar() {
                                         <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                                             {item.freelancer_name || item.clients?.company_name}
                                         </p>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.content_type}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}</p>
                                     </div>
                                 </div>
                             ))}
@@ -506,7 +506,7 @@ export default function MasterCalendar() {
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                                     <span className={`type-badge ${selectedItem.item.content_type.toLowerCase()}`}>
-                                        {selectedItem.item.content_type}
+                                        {selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type}
                                     </span>
                                     <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
                                     <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{selectedItem.item.freelancer_name || selectedItem.item.clients?.company_name}</span>
@@ -519,7 +519,7 @@ export default function MasterCalendar() {
                                         </>
                                     )}
                                 </div>
-                                <h3 className="modal-title">{selectedItem.item.title || selectedItem.item.content_type}</h3>
+                                <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
                                 <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
                                     Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
                                 </p>

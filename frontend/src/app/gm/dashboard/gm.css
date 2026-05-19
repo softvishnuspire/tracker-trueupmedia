@@ -627,11 +627,11 @@
     }
 
     .mobile-dot.post {
-        background: #3b82f6 !important;
+        background: #06b6d4 !important;
     }
 
     .mobile-dot.reel {
-        background: #a855f7 !important;
+        background: #ec4899 !important;
     }
 
     .mobile-dot.rescheduled {
@@ -1101,11 +1101,11 @@
 }
 
 .status-pill-reels {
-    border-color: rgba(245, 158, 11, 0.28);
+    border-color: rgba(236, 72, 153, 0.28);
 }
 
 .status-pill-posts {
-    border-color: rgba(16, 185, 129, 0.32);
+    border-color: rgba(6, 182, 212, 0.32);
 }
 
 .status-pill-shoot-done {
@@ -1231,23 +1231,23 @@
 }
 
 .content-item.post {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    background: rgba(6, 182, 212, 0.1);
+    color: #06b6d4;
+    border: 1px solid rgba(6, 182, 212, 0.2);
 }
 
 .content-item.post:hover {
-    background: rgba(59, 130, 246, 0.2);
+    background: rgba(6, 182, 212, 0.2);
 }
 
 .content-item.reel {
-    background: rgba(168, 85, 247, 0.1);
-    color: #a855f7;
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    background: rgba(236, 72, 153, 0.1);
+    color: #ec4899;
+    border: 1px solid rgba(236, 72, 153, 0.2);
 }
 
 .content-item.reel:hover {
-    background: rgba(168, 85, 247, 0.2);
+    background: rgba(236, 72, 153, 0.2);
 }
 
 .content-item.rescheduled {
@@ -1468,15 +1468,15 @@
 }
 
 .type-badge.post {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-    /* Blue */
+    background: rgba(6, 182, 212, 0.1);
+    color: #06b6d4;
+    /* Cyan */
 }
 
 .type-badge.reel {
-    background: rgba(168, 85, 247, 0.1);
-    color: #a855f7;
-    /* Purple */
+    background: rgba(236, 72, 153, 0.1);
+    color: #ec4899;
+    /* Pink */
 }
 
 .meta-dot {
@@ -3343,8 +3343,8 @@
 }
 
 .premium-stat-card.pipeline { --accent-start: #06b6d4; --accent-end: #3b82f6; }
-.premium-stat-card.reels { --accent-start: #a855f7; --accent-end: #6366f1; }
-.premium-stat-card.posts { --accent-start: #3b82f6; --accent-end: #8b5cf6; }
+.premium-stat-card.reels { --accent-start: #ec4899; --accent-end: #db2777; }
+.premium-stat-card.posts { --accent-start: #06b6d4; --accent-end: #0891b2; }
 .premium-stat-card.shoots { --accent-start: #f59e0b; --accent-end: #ef4444; }
 .premium-stat-card.posted-card { --accent-start: #10b981; --accent-end: #059669; }
 .premium-stat-card.approved-card { --accent-start: #6366f1; --accent-end: #4f46e5; }
@@ -3404,8 +3404,8 @@
     margin-left: 4px;
 }
 
-.premium-stat-card.reels .main-value { color: #a855f7; }
-.premium-stat-card.posts .main-value { color: #3b82f6; }
+.premium-stat-card.reels .main-value { color: #ec4899; }
+.premium-stat-card.posts .main-value { color: #06b6d4; }
 .premium-stat-card.shoots .main-value { color: #f59e0b; }
 .premium-stat-card.posted-card .main-value { color: #10b981; }
 .premium-stat-card.approved-card .main-value { color: #6366f1; }

@@ -827,7 +827,7 @@ export default function ProductionHeadDashboard() {
                                         </div>
                                         <div className="emergency-card-info">
                                             <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                            <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                            <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
                                         </div>
                                         <ArrowRight size={18} color="var(--text-muted)" />
                                     </div>
@@ -860,7 +860,7 @@ export default function ProductionHeadDashboard() {
                                         <div className="emergency-card-info">
                                             <p className="emergency-card-client">{task.clients?.company_name}</p>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <p className="emergency-card-type">{task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                                <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
                                                 <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
                                             </div>
                                         </div>
@@ -930,7 +930,7 @@ export default function ProductionHeadDashboard() {
                                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                             <span className="truncate" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                                 {(view === 'master' || view === 'company') ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : item.clients?.company_name?.substring(0, 3)}] ` : ''}
-                                                                {item.content_type}
+                                                                {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                                 {item.assigned_to ? (
                                                                     <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ transform: 'scale(0.8)', padding: '2px 6px' }}>
                                                                         <span className="assignment-dot"></span>

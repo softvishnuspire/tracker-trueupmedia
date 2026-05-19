@@ -333,7 +333,7 @@ export default function CooClientCalendarPage() {
                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                             <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                                 {item.is_rescheduled ? '[R] ' : ''}
-                                                {item.content_type}
+                                                {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                             </span>
                                         </div>
                                     ))}
@@ -379,7 +379,7 @@ export default function CooClientCalendarPage() {
                                         background: item.content_type === 'Post' ? '#10b981' : '#6366f1'
                                     }}></div>
                                     <div style={{ flex: 1 }}>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{item.content_type}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}</p>
                                     </div>
                                 </div>
                             ))}
@@ -395,7 +395,7 @@ export default function CooClientCalendarPage() {
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                                     <span className={`type-badge ${selectedItem.item.content_type.toLowerCase()}`}>
-                                        {selectedItem.item.content_type}
+                                        {selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type}
                                     </span>
                                     {dayTasks.length > 1 && (
                                         <>
@@ -406,7 +406,7 @@ export default function CooClientCalendarPage() {
                                         </>
                                     )}
                                 </div>
-                                <h3 className="modal-title">{selectedItem.item.title || selectedItem.item.content_type}</h3>
+                                <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (

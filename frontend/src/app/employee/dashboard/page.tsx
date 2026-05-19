@@ -33,6 +33,7 @@ interface Task {
     description: string;
     content_type: string;
     scheduled_datetime: string;
+    assigned_at?: string;
     employee_task_status: 'PENDING' | 'COMPLETED';
     clients: { company_name: string };
 }
@@ -318,7 +319,7 @@ function TaskCard({ task, onToggle, isUpdating }: { task: Task, onToggle: () => 
                 <span className="task-client-badge">{task.clients.company_name}</span>
                 <div className="task-type-badge">
                     {task.content_type === 'Reel' || task.content_type === 'YouTube' ? <Video size={14} /> : <FileText size={14} />}
-                    {task.content_type}
+                    {(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type}
                 </div>
             </div>
 
