@@ -1,6 +1,16 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-19 (GM Dashboard Monthly Pipeline Calculation Update)
+## Latest Changes — 2026-05-19 (TL Dashboard Bi-Weekly Calendar Fix)
+- **Goal**: Resolve issue where bi-weekly (15-to-15 cycle) client calendars in the Team Lead (TL) panel behaved like standard 1-to-1 month calendars (missing range calculations and not fetching next month's items).
+- **Affected Files**:
+    - `frontend/src/app/tl/dashboard/page.tsx`: 
+        - Updated date utility imports to include `startOfDay` and `endOfDay`.
+        - Added `isBiMonthlyView` check, and updated `periodStart`, `periodEnd`, and `days` interval ranges to reflect 15th-to-15th logic for `'15-15'` batch type.
+        - Updated `fetchClientCalendar` to query next month's data and merge calendar items when client uses `'15-15'` cycle.
+        - Filtered `filteredCalendarData` to the active bi-weekly range so stats match the active window.
+- **System Impact**: Establishes correct bi-weekly calendar calculations and rendering in the TL dashboard panel, matching GM and Admin dashboard cycles.
+
+## Previous Changes — 2026-05-19 (GM Dashboard Monthly Pipeline Calculation Update)
 - **Goal**: Update the "MONTHLY PIPELINE" card in the Production Progress panel to display the number of posted/completed reels and posts in x/y format instead of shot reels and posts.
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`: Updated numerator of the "MONTHLY PIPELINE" calculation to sum `completedReels` and `completedPosts`.

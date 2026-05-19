@@ -13,7 +13,9 @@ import {
     addMonths, 
     subMonths,
     parseISO,
-    subDays
+    subDays,
+    startOfDay,
+    endOfDay
 } from 'date-fns';
 import { 
     ChevronLeft, 
@@ -145,15 +147,26 @@ export default function TLDashboard() {
         if (!user || !selectedClient || selectedClient === 'all') return;
         setLoading(true);
         try {
+            const client = clients.find(c => c.id === selectedClient);
+            const is1515 = client?.batch_type === '15-15';
+
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await tlApi.getCalendar(selectedClient, currentMonthStr, user.id);
-            setCalendarData(res.data || []);
+            let data = res.data || [];
+
+            if (is1515) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await tlApi.getCalendar(selectedClient, nextMonthStr, user.id);
+                data = [...data, ...(nextRes.data || [])];
+            }
+
+            setCalendarData(data);
         } catch (err) { 
             console.error('Error fetching calendar:', err);
         } finally { 
             setLoading(false); 
         }
-    }, [user, selectedClient, currentMonth]);
+    }, [user, selectedClient, currentMonth, clients]);
 
 
     const fetchMasterCalendar = useCallback(async () => {
@@ -416,8 +429,17 @@ export default function TLDashboard() {
     };
 
 
-    const periodStart = startOfMonth(currentMonth);
-    const periodEnd = endOfMonth(currentMonth);
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const isBiMonthlyView = view === 'client' && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+
+    const periodStart = isBiMonthlyView
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+
+    const nextMonthDate = addMonths(currentMonth, 1);
+    const periodEnd = isBiMonthlyView
+        ? new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth(), 15)
+        : endOfMonth(currentMonth);
 
     const days = eachDayOfInterval({
         start: startOfWeek(periodStart, { weekStartsOn: 1 }),
@@ -425,14 +447,16 @@ export default function TLDashboard() {
     });
 
     const isDayInPeriod = (day: Date): boolean => {
-        return isSameMonth(day, currentMonth);
+        if (!isBiMonthlyView) return isSameMonth(day, currentMonth);
+        return day >= startOfDay(periodStart) && day <= endOfDay(periodEnd);
     };
 
     const getPeriodLabel = (): string => {
-        return format(currentMonth, 'MMMM yyyy');
+        if (!isBiMonthlyView) return format(currentMonth, 'MMMM yyyy');
+        return `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`;
     };
 
-    const filteredCalendarData = calendarData;
+    const filteredCalendarData = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)));
 
     const isItemCompleted = (status: string) => {
         const s = (status || '').toUpperCase();
