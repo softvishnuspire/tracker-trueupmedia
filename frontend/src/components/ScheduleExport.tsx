@@ -107,7 +107,8 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
     const gridDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
     const totalWeeks = gridDays.length / 7;
-    const cellMinHeight = totalWeeks > 5 ? '68px' : '88px';
+    // Compact, balanced cell height for a neat and professional grid layout
+    const cellMinHeight = totalWeeks > 5 ? '88px' : '108px';
 
     return (
         <>
@@ -149,7 +150,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     top: '-9999px',
                     width: '1000px',
                     height: '1414px',
-                    padding: '80px',
+                    padding: '60px 70px',
                     background: '#ffffff',
                     color: '#0f172a',
                     fontFamily: "'Inter', 'Helvetica', sans-serif",
@@ -157,31 +158,31 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 }}
             >
                 {/* Header Section */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                     <div>
-                        <h1 style={{ fontSize: '38px', fontWeight: 900, margin: 0, color: '#0f172a', lineHeight: '1.1' }}>{clientName.toUpperCase()}</h1>
-                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#64748b', margin: '4px 0 0 0', letterSpacing: '0.05em' }}>CONTENT STRATEGY & POSTING SCHEDULE</p>
+                        <h1 style={{ fontSize: '36px', fontWeight: 800, margin: 0, color: '#0f172a', lineHeight: '1.1', letterSpacing: '-0.02em' }}>{clientName.toUpperCase()}</h1>
+                        <p style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', margin: '6px 0 0 0', letterSpacing: '0.08em' }}>CONTENT STRATEGY & EDITORIAL CALENDAR</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                        <img src="/logo.png" alt="TrueUp Media" style={{ height: '60px', objectFit: 'contain' }} />
+                        <img src="/logo.png" alt="TrueUp Media" style={{ height: '55px', objectFit: 'contain' }} />
                     </div>
                 </div>
 
-                <div style={{ width: '100%', height: '3px', background: '#10b981', marginBottom: '16px', borderRadius: '2px' }}></div>
+                <div style={{ width: '100%', height: '3px', background: 'linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%)', marginBottom: '24px', borderRadius: '2px' }}></div>
 
                 {/* Summary Info Bar */}
-                <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '12px 30px', display: 'flex', justifyContent: 'space-between', marginBottom: '20px', border: '1.2px solid #94a3b8' }}>
+                <div style={{ background: '#f8fafc', borderRadius: '14px', padding: '16px 30px', display: 'flex', justifyContent: 'space-between', marginBottom: '30px', border: '1px solid #e2e8f0' }}>
                     <div>
-                        <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>PERIOD</p>
-                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#475569', margin: 0 }}>{periodLabel.toUpperCase()}</p>
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', margin: 0, marginBottom: '4px', letterSpacing: '0.05em' }}>PERIOD</p>
+                        <p style={{ fontSize: '16px', fontWeight: 800, color: '#1e293b', margin: 0 }}>{periodLabel.toUpperCase()}</p>
                     </div>
                     <div>
-                        <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>SCHEDULE TYPE</p>
-                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#475569', margin: 0 }}>{batchType === '15-15' ? '15/15 BATCHING' : 'MONTHLY EXECUTION'}</p>
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', margin: 0, marginBottom: '4px', letterSpacing: '0.05em' }}>SCHEDULE TYPE</p>
+                        <p style={{ fontSize: '16px', fontWeight: 800, color: '#1e293b', margin: 0 }}>{batchType === '15-15' ? '15/15 BATCHING' : 'MONTHLY EXECUTION'}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', margin: 0, marginBottom: '4px' }}>TOTAL CONTENT</p>
-                        <p style={{ fontSize: '18px', fontWeight: 800, color: '#10b981', margin: 0 }}>
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', margin: 0, marginBottom: '4px', letterSpacing: '0.05em' }}>TOTAL CONTENT</p>
+                        <p style={{ fontSize: '16px', fontWeight: 800, color: '#4f46e5', margin: 0 }}>
                             {data.filter(item => {
                                 const d = parseISO(item.scheduled_datetime);
                                 return d >= periodStart && d <= periodEnd;
@@ -190,49 +191,15 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     </div>
                 </div>
 
-                {/* Weekly Analysis Table */}
-                <div style={{ marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-                        <div style={{ width: '4px', height: '20px', background: '#ef4444', borderRadius: '3px' }}></div>
-                        <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>WEEKLY ANALYSIS</h3>
-                    </div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1.2px solid #94a3b8', background: '#f8fafc' }}>
-                                <th style={{ padding: '8px 20px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569' }}>DAY OF WEEK</th>
-                                <th style={{ padding: '8px 20px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#475569' }}>POSTERS</th>
-                                <th style={{ padding: '8px 20px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#475569' }}>REELS</th>
-                                <th style={{ padding: '8px 20px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#475569' }}>YOUTUBE</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {weeklyStats.map((row, i) => (
-                                <tr key={i} style={{ borderBottom: '1px solid #cbd5e1' }}>
-                                    <td style={{ padding: '6px 20px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>{row.day}</td>
-                                    <td style={{ padding: '6px 20px', textAlign: 'center', fontSize: '13px', fontWeight: 800, color: '#10b981' }}>
-                                        {row.posterCount > 0 ? row.posterCount : '-'}
-                                    </td>
-                                    <td style={{ padding: '6px 20px', textAlign: 'center', fontSize: '13px', fontWeight: 800, color: '#0891b2' }}>
-                                        {row.reelCount > 0 ? row.reelCount : '-'}
-                                    </td>
-                                    <td style={{ padding: '6px 20px', textAlign: 'center', fontSize: '13px', fontWeight: 800, color: '#d97706' }}>
-                                        {row.youtubeCount > 0 ? row.youtubeCount : '-'}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
                 {/* Monthly Calendar View */}
                 <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-                        <div style={{ width: '4px', height: '20px', background: '#10b981', borderRadius: '3px' }}></div>
-                        <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>CALENDAR VIEW</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                        <div style={{ width: '4px', height: '18px', background: '#4f46e5', borderRadius: '3px' }}></div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '0.03em' }}>EDITORIAL SCHEDULE</h3>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', border: '1.2px solid #94a3b8', borderRadius: '12px', overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)' }}>
                         {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
-                            <div key={day} style={{ padding: '6px', fontSize: '10px', fontWeight: 800, color: '#475569', textAlign: 'center', background: '#f8fafc', borderBottom: '1.2px solid #94a3b8' }}>
+                            <div key={day} style={{ padding: '12px 10px', fontSize: '10px', fontWeight: 700, color: '#64748b', textAlign: 'center', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', letterSpacing: '0.05em' }}>
                                 {day}
                             </div>
                         ))}
@@ -245,19 +212,19 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                             return (
                                 <div key={idx} style={{
                                     minHeight: cellMinHeight,
-                                    padding: '6px 8px',
-                                    borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #cbd5e1',
-                                    borderBottom: '1px solid #cbd5e1',
-                                    background: isInPeriod ? '#fff' : '#fcfdfe',
+                                    padding: '10px',
+                                    borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid #e2e8f0',
+                                    borderBottom: '1px solid #e2e8f0',
+                                    background: isInPeriod ? '#fff' : '#f8fafc',
                                     position: 'relative'
                                 }}>
                                     <div style={{
-                                        fontSize: '14px',
+                                        fontSize: '12px',
                                         fontWeight: 800,
-                                        color: isInPeriod ? '#475569' : '#e2e8f0',
-                                        marginBottom: '10px'
+                                        color: isInPeriod ? '#1e293b' : '#cbd5e1',
+                                        marginBottom: '6px'
                                     }}>
-                                        {format(day, 'dd')}
+                                        {format(day, 'd')}
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {summaryOnly ? (
@@ -271,24 +238,24 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                                         <>
                                                             {reelCount > 0 && (
                                                                 <div style={{
-                                                                    fontSize: '10px', fontWeight: 900, padding: '3px 6px', borderRadius: '5px',
-                                                                    background: 'rgba(34, 211, 238, 0.1)', color: '#0891b2', textAlign: 'center', border: '1px solid rgba(34, 211, 238, 0.2)'
+                                                                    fontSize: '9px', fontWeight: 800, padding: '3px 6px', borderRadius: '6px',
+                                                                    background: '#ecfeff', color: '#0891b2', textAlign: 'center', border: '1px solid #cffafe'
                                                                 }}>
                                                                     {reelCount} REEL{reelCount > 1 ? 'S' : ''}
                                                                 </div>
                                                             )}
                                                             {postCount > 0 && (
                                                                 <div style={{
-                                                                    fontSize: '10px', fontWeight: 900, padding: '3px 6px', borderRadius: '5px',
-                                                                    background: 'rgba(99, 102, 241, 0.1)', color: '#4f46e5', textAlign: 'center', border: '1px solid rgba(99, 102, 241, 0.2)'
+                                                                    fontSize: '9px', fontWeight: 800, padding: '3px 6px', borderRadius: '6px',
+                                                                    background: '#e0e7ff', color: '#4338ca', textAlign: 'center', border: '1px solid #c7d2fe'
                                                                 }}>
                                                                     {postCount} POST{postCount > 1 ? 'S' : ''}
                                                                 </div>
                                                             )}
                                                             {youtubeCount > 0 && (
                                                                 <div style={{
-                                                                    fontSize: '10px', fontWeight: 900, padding: '3px 6px', borderRadius: '5px',
-                                                                    background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)'
+                                                                    fontSize: '9px', fontWeight: 800, padding: '3px 6px', borderRadius: '6px',
+                                                                    background: '#fef2f2', color: '#dc2626', textAlign: 'center', border: '1px solid #fee2e2'
                                                                 }}>
                                                                     {youtubeCount} YT
                                                                 </div>
@@ -298,20 +265,51 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                                 })()}
                                             </div>
                                         ) : (
-                                            dayItems.map((item, i) => (
-                                                <div key={i} style={{
-                                                    fontSize: '10px',
-                                                    fontWeight: 800,
-                                                    padding: '4px 8px',
-                                                    borderRadius: '6px',
-                                                    background: item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.1)' : item.content_type === 'Reel' ? 'rgba(34, 211, 238, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                                                    color: item.content_type === 'Post' ? '#4f46e5' : item.content_type === 'Reel' ? '#0891b2' : '#d97706',
-                                                    textAlign: 'center',
-                                                    border: `1px solid ${item.content_type === 'Post' ? 'rgba(99, 102, 241, 0.2)' : item.content_type === 'Reel' ? 'rgba(34, 211, 238, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
-                                                }}>
-                                                    {item.content_type.toUpperCase()}
-                                                </div>
-                                            ))
+                                            dayItems.map((item, i) => {
+                                                let typeBg = '#4f46e5'; // default Post (Indigo)
+                                                if (item.content_type === 'Reel') {
+                                                    typeBg = '#0891b2'; // Cyan
+                                                } else if (item.content_type === 'YouTube') {
+                                                    typeBg = '#dc2626'; // Red
+                                                } else if (item.content_type === 'Special Day Poster' || item.content_type === 'Special Poster') {
+                                                    typeBg = '#d97706'; // Amber
+                                                }
+
+                                                return (
+                                                    <div key={i} style={{
+                                                        padding: '6px 10px',
+                                                        background: typeBg,
+                                                        color: '#ffffff',
+                                                        borderRadius: '6px',
+                                                        fontSize: '10px',
+                                                        fontWeight: 800,
+                                                        textAlign: 'left',
+                                                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                        letterSpacing: '0.02em',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '5px'
+                                                    }}>
+                                                        <span style={{ fontSize: '7px', opacity: 0.85 }}>●</span>
+                                                        <span style={{ textTransform: 'uppercase' }}>{item.content_type}</span>
+                                                        {item.title && (
+                                                            <span style={{ 
+                                                                fontWeight: 600, 
+                                                                opacity: 0.95, 
+                                                                marginLeft: '4px',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
+                                                                whiteSpace: 'nowrap'
+                                                            }}>
+                                                                - {item.title}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </div>
@@ -323,18 +321,18 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 {/* Footer Section */}
                 <div style={{
                     position: 'absolute',
-                    bottom: '80px',
-                    left: '80px',
-                    right: '80px',
-                    borderTop: '1px solid #cbd5e1',
+                    bottom: '50px',
+                    left: '70px',
+                    right: '70px',
+                    borderTop: '1px solid #e2e8f0',
                     paddingTop: '30px',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center'
                 }}>
-                    <p style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', margin: 0 }}>© {new Date().getFullYear()} TRUEUP MEDIA SOLUTIONS</p>
-                    <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0, letterSpacing: '0.05em' }}>PRECISION IN DIGITAL MARKETING</p>
-                    <p style={{ fontSize: '12px', fontWeight: 700, color: '#10b981', margin: 0 }}>TRUEUPMEDIA.COM</p>
+                    <p style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', margin: 0 }}>© {new Date().getFullYear()} TRUEUP MEDIA SOLUTIONS</p>
+                    <p style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', margin: 0, letterSpacing: '0.05em' }}>PRECISION IN DIGITAL MARKETING</p>
+                    <p style={{ fontSize: '11px', fontWeight: 700, color: '#4f46e5', margin: 0 }}>TRUEUPMEDIA.COM</p>
                 </div>
             </div>
         </>
