@@ -1,6 +1,19 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-19 (GM Dashboard Content Approved Metric Correction)
+## Latest Changes — 2026-05-21 (TL Dashboard Client Tasks Status Overview)
+- **Goal**: Add client-wise task status breakdown grid/table to the TL Dashboard overview displaying progress according to each client's specific batch cycle (standard 1-1 vs bi-monthly 15-15).
+- **Affected Files**:
+    - `frontend/src/app/tl/dashboard/page.tsx`:
+        - Updated `fetchMasterCalendar` to load adjacent months if `view === 'dashboard'` to support cross-month boundaries for bi-monthly clients.
+        - Overrode the `clientId` query filter to be `undefined` (all clients) when `view === 'dashboard'` to prevent task counts from incorrectly dropping to 0 when navigating back from a single client calendar.
+        - Reset `selectedClient` state to `'all'` when clicking "Dashboard Overview" in the sidebar navigation.
+        - Calculated client-specific MTD task statistics (Reels, Posts, Shoot Done, Content Approved) using their specific date range boundaries.
+        - Rendered a premium responsive table displaying client status metrics and a visual progress bar.
+    - `frontend/src/app/tl/dashboard/tl.css`:
+        - Added layout and theme-aware CSS styles for the overview table, client badges, metric badges, progress bars, and hover states.
+- **System Impact**: Provides Team Leads with a client-by-client visual breakdown of scheduled tasks, approval rates, and posting completion directly on their dashboard overview, with robust navigation and state consistency.
+
+## Previous Changes — 2026-05-19 (GM Dashboard Content Approved Metric Correction)
 - **Goal**: Fix the "Content Approved" pill counter in the GM Dashboard returning 0 when a client only has Reels or YouTube videos scheduled (no Posts).
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`: Updated `monthStatusCounts` and `globalMonthCounts` reduction logic to use the global `contentApprovedStatuses` array instead of artificially scoping the `acc.contentApproved` increment strictly to the `type === 'POST'` block.

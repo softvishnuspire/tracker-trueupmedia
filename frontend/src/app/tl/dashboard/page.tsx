@@ -179,7 +179,7 @@ export default function TLDashboard() {
         if (!user) return;
         setLoading(true);
         try {
-            const clientId = selectedClient === 'all' ? undefined : selectedClient;
+            const clientId = view === 'dashboard' ? undefined : (selectedClient === 'all' ? undefined : selectedClient);
             if (view === 'company') {
                 const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
                 const responses = await Promise.all(
@@ -187,6 +187,17 @@ export default function TLDashboard() {
                         tlApi.getMasterCalendar(format(monthDate, 'yyyy-MM'), user.id, clientId)
                     )
                 );
+                const merged = responses.flatMap((response) => response.data || []);
+                const deduped = Array.from(new Map(merged.map((item) => [item.id, item])).values());
+                setCalendarData(deduped);
+            } else if (view === 'dashboard') {
+                const isSecondHalf = currentMonth.getDate() >= 15;
+                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+                const responses = await Promise.all([
+                    tlApi.getMasterCalendar(format(startMonth, 'yyyy-MM'), user.id, clientId),
+                    tlApi.getMasterCalendar(format(endMonth, 'yyyy-MM'), user.id, clientId)
+                ]);
                 const merged = responses.flatMap((response) => response.data || []);
                 const deduped = Array.from(new Map(merged.map((item) => [item.id, item])).values());
                 setCalendarData(deduped);
@@ -534,6 +545,86 @@ export default function TLDashboard() {
         c.company_name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const clientStatuses = clients.map(client => {
+        const is1515 = client.batch_type === '15-15';
+        const isSecondHalf = currentMonth.getDate() >= 15;
+        
+        const clientPeriodStart = is1515
+            ? (isSecondHalf
+                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+                : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
+            : startOfMonth(currentMonth);
+
+        const clientPeriodEnd = is1515
+            ? (isSecondHalf
+                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
+                : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
+            : endOfMonth(currentMonth);
+
+        const clientItems = calendarData.filter(item => {
+            if (item.client_id !== client.id) return false;
+            const itemDate = parseISO(item.scheduled_datetime);
+            return itemDate >= startOfDay(clientPeriodStart) && itemDate <= endOfDay(clientPeriodEnd);
+        });
+
+        const totalTasks = clientItems.length;
+
+        let reelsCount = 0;
+        let reelsCompleted = 0;
+        let postsCount = 0;
+        let postsCompleted = 0;
+        let shootDoneCount = 0;
+        let contentApprovedCount = 0;
+        let completedCount = 0;
+
+        clientItems.forEach(item => {
+            const normalizedStatus = (item.status || '').toUpperCase();
+            const normalizedType = (item.content_type || '').toUpperCase();
+            const isCompleted = isItemCompleted(item.status);
+
+            if (normalizedType === 'REEL') {
+                reelsCount += 1;
+                if (isCompleted) reelsCompleted += 1;
+            } else if (normalizedType === 'POST') {
+                postsCount += 1;
+                if (isCompleted) postsCompleted += 1;
+            }
+
+            if (isCompleted) {
+                completedCount += 1;
+            }
+
+            if (contentApprovedStatuses.includes(normalizedStatus)) {
+                contentApprovedCount += 1;
+            }
+
+            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
+                if (shootDoneStatuses.includes(normalizedStatus)) shootDoneCount += 1;
+            } else if (normalizedType === 'POST') {
+                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
+                    shootDoneCount += 1;
+                }
+            }
+        });
+
+        const completionPercentage = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+
+        return {
+            client,
+            periodStart: clientPeriodStart,
+            periodEnd: clientPeriodEnd,
+            totalTasks,
+            completedCount,
+            reelsCount,
+            reelsCompleted,
+            postsCount,
+            postsCompleted,
+            shootDoneCount,
+            contentApprovedCount,
+            completionPercentage
+        };
+    });
+
     return (
         <div className="dashboard-container">
             <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
@@ -559,7 +650,10 @@ export default function TLDashboard() {
                 <nav className="sidebar-nav">
                     <p className="sidebar-label">Navigation</p>
                     <div 
-                        onClick={() => setView('dashboard')}
+                        onClick={() => {
+                            setView('dashboard');
+                            setSelectedClient('all');
+                        }}
                         className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
                     >
                         <LayoutDashboard size={18} />
@@ -898,6 +992,86 @@ export default function TLDashboard() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Client Tasks Status Overview */}
+                        <div className="client-tasks-overview-panel" style={{ marginTop: '24px' }}>
+                             <div className="client-tasks-overview-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                                 <Users size={22} color="var(--accent)" />
+                                 <h2 style={{ fontSize: '18px', fontWeight: 800 }}>Client Tasks Status Overview</h2>
+                             </div>
+                             <div className="client-tasks-table-container">
+                                 <table className="client-tasks-table">
+                                     <thead>
+                                         <tr>
+                                             <th>Client</th>
+                                             <th>Period</th>
+                                             <th>Reels</th>
+                                             <th>Posts</th>
+                                             <th>Shoot Done</th>
+                                             <th>Content Approved</th>
+                                             <th>MTD Progress</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody>
+                                         {clientStatuses.map(({ client, periodStart, periodEnd, totalTasks, completedCount, reelsCount, reelsCompleted, postsCount, postsCompleted, shootDoneCount, contentApprovedCount, completionPercentage }) => (
+                                             <tr key={client.id}>
+                                                 <td className="client-cell">
+                                                     <div className="client-badge">
+                                                         {getClientAbbreviation(client.company_name)}
+                                                     </div>
+                                                     <span className="client-name">{client.company_name}</span>
+                                                 </td>
+                                                 <td className="period-cell">
+                                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                         <span className="period-label">
+                                                             {client.batch_type === '15-15' ? '15-15 Cycle' : 'Monthly'}
+                                                         </span>
+                                                         <span className="period-dates">
+                                                             {format(periodStart, 'd MMM')} – {format(periodEnd, 'd MMM yyyy')}
+                                                         </span>
+                                                     </div>
+                                                 </td>
+                                                 <td className="metric-cell">
+                                                     <span className="metric-badge reels">
+                                                         {reelsCompleted}/{reelsCount}
+                                                     </span>
+                                                 </td>
+                                                 <td className="metric-cell">
+                                                     <span className="metric-badge posts">
+                                                         {postsCompleted}/{postsCount}
+                                                     </span>
+                                                 </td>
+                                                 <td className="metric-cell text-center">
+                                                     <span className="metric-count">
+                                                         {shootDoneCount}
+                                                     </span>
+                                                 </td>
+                                                 <td className="metric-cell text-center">
+                                                     <span className="metric-count">
+                                                         {contentApprovedCount}
+                                                     </span>
+                                                 </td>
+                                                 <td className="progress-cell">
+                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+                                                         <div className="progress-bar-container" style={{ flex: 1 }}>
+                                                             <div className="progress-bar-fill" style={{ width: `${completionPercentage}%` }}></div>
+                                                         </div>
+                                                         <span className="progress-text">{completionPercentage}% ({completedCount}/{totalTasks})</span>
+                                                     </div>
+                                                 </td>
+                                             </tr>
+                                         ))}
+                                         {clientStatuses.length === 0 && (
+                                             <tr>
+                                                 <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                                                     No clients assigned to this Team Lead.
+                                                 </td>
+                                             </tr>
+                                         )}
+                                     </tbody>
+                                 </table>
+                             </div>
+                         </div>
                     </div>
                 )}
 
