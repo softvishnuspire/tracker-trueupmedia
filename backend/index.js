@@ -701,7 +701,8 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
     const currentIndex = flow.indexOf(item.status);
     const newIndex = flow.indexOf(new_status);
 
-    if (newIndex !== currentIndex + 1) {
+    const isManager = ['ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD'].includes(req.resolvedRole);
+    if (!isManager && newIndex !== currentIndex + 1) {
         return res.status(400).json({
             error: `Invalid status transition. Next status should be: ${flow[currentIndex + 1] || 'None'}`
         });
@@ -1041,7 +1042,7 @@ app.get('/api/admin/team', async (req, res) => {
 
     const teamMembers = (data || []).filter(u => {
         const normalizedRole = (u.role || '').toUpperCase().trim().replace(/_/g, ' ');
-        const isMatch = ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE', 'GM', 'GENERAL MANAGER', 'COO', 'ADMIN'].includes(normalizedRole);
+        const isMatch = ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE', 'GM', 'GENERAL MANAGER', 'COO', 'ADMIN', 'CONTENT HEAD'].includes(normalizedRole);
         if (isMatch) console.log(`    MATCH: ${u.email} | Role: ${normalizedRole}`);
         return isMatch;
     });

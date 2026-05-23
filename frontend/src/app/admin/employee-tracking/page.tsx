@@ -30,7 +30,7 @@ const RadialProgress = ({ progress, size = 60, strokeWidth = 6, color = "var(--a
         <div className="radial-progress-container" style={{ position: 'relative', width: size, height: size }}>
             <svg width={size} height={size}>
                 <circle
-                    stroke="rgba(255,255,255,0.05)"
+                    stroke="var(--border)"
                     strokeWidth={strokeWidth}
                     fill="transparent"
                     r={radius}
@@ -498,6 +498,13 @@ export default function EmployeeTrackingPage() {
                     align-items: center;
                 }
 
+                .card-body {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    flex: 1;
+                }
+
                 .user-info-group {
                     display: flex;
                     align-items: center;
@@ -539,7 +546,7 @@ export default function EmployeeTrackingPage() {
                 .metric-box {
                     padding: 12px;
                     border-radius: 14px;
-                    background: rgba(255, 255, 255, 0.02);
+                    background: var(--bg-elevated);
                     border: 1px solid var(--border);
                     display: flex;
                     flex-direction: column;
@@ -580,7 +587,7 @@ export default function EmployeeTrackingPage() {
 
                 .mini-progress .bar {
                     height: 4px;
-                    background: rgba(255, 255, 255, 0.05);
+                    background: var(--border);
                     border-radius: 10px;
                     overflow: hidden;
                 }
@@ -596,10 +603,13 @@ export default function EmployeeTrackingPage() {
                 }
 
                 .compact-task-list {
-                    background: rgba(0, 0, 0, 0.1);
+                    background: var(--bg-elevated);
                     border-radius: 14px;
                     padding: 12px;
                     border: 1px solid var(--border);
+                    margin-top: auto;
+                    display: flex;
+                    flex-direction: column;
                 }
 
                 .list-header {
@@ -608,7 +618,7 @@ export default function EmployeeTrackingPage() {
                     gap: 6px;
                     font-size: 11px;
                     font-weight: 800;
-                    color: #cbd5e1;
+                    color: var(--text-secondary);
                     margin-bottom: 10px;
                     letter-spacing: 0.05em;
                 }
@@ -664,7 +674,7 @@ export default function EmployeeTrackingPage() {
                 .task-name {
                     font-size: 13px;
                     font-weight: 800;
-                    color: #ffffff;
+                    color: var(--text-primary);
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -672,7 +682,7 @@ export default function EmployeeTrackingPage() {
 
                 .task-client {
                     font-size: 11px;
-                    color: #e2e8f0;
+                    color: var(--text-secondary);
                 }
 
                 .more-tasks-indicator {

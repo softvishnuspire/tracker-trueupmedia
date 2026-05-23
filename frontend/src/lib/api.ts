@@ -394,23 +394,11 @@ export const settingsApi = {
 };
 
 // ─── Emergency Tasks API ───
-const emergencyBase = axios.create({
-    baseURL: `${API_BASE_URL}/api/emergency`,
-});
-
-emergencyBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
-
 export const emergencyApi = {
-    getToday: () => emergencyBase.get<ContentItem[]>('/today'),
-    getAll: () => emergencyBase.get<ContentItem[]>('/all'),
-    getMonth: (month: string) => emergencyBase.get<ContentItem[]>(`/month?month=${month}`),
-    toggle: (id: string) => emergencyBase.post(`/${id}/toggle`),
+    getToday: () => api.get<ContentItem[]>('/api/emergency/today'),
+    getAll: () => api.get<ContentItem[]>('/api/emergency/all'),
+    getMonth: (month: string) => api.get<ContentItem[]>(`/api/emergency/month?month=${month}`),
+    toggle: (id: string) => api.post(`/api/emergency/${id}/toggle`),
 };
 
 const ROLE_PATHS: Record<string, string[]> = {
@@ -421,6 +409,7 @@ const ROLE_PATHS: Record<string, string[]> = {
     '/tl/': ['tl', 'team lead', 'admin'],
     '/posting/': ['posting', 'posting team', 'admin'],
     '/employee/': ['employee', 'admin'],
+    '/content-head/': ['content head', 'admin'],
 };
 
 const handleAuthError = (error: any) => {
@@ -456,7 +445,6 @@ employeeBase.interceptors.response.use((r) => r, handleAuthError);
 tlBase.interceptors.response.use((r) => r, handleAuthError);
 postingBase.interceptors.response.use((r) => r, handleAuthError);
 notificationBase.interceptors.response.use((r) => r, handleAuthError);
-emergencyBase.interceptors.response.use((r) => r, handleAuthError);
 
 // ─── Dashboard APIs (Role-Aware) ───
 export const dashboardApi = {

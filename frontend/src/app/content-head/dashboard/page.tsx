@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     format,
     startOfMonth,
@@ -91,19 +91,25 @@ export default function ContentHeadDashboard() {
     };
 
     const selectedClientData = clients.find(c => c.id === selectedClient);
-    const isBiMonthlyView = selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+    const isBiMonthlyView = useMemo(() => {
+        return Boolean(selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15');
+    }, [selectedClient, selectedClientData]);
 
-    const periodStart = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
-        : startOfMonth(currentMonth);
+    const periodStart = useMemo(() => {
+        return isBiMonthlyView
+            ? (currentMonth.getDate() >= 15
+                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+                : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
+            : startOfMonth(currentMonth);
+    }, [currentMonth, isBiMonthlyView]);
 
-    const periodEnd = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 14)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 14))
-        : endOfMonth(currentMonth);
+    const periodEnd = useMemo(() => {
+        return isBiMonthlyView
+            ? (currentMonth.getDate() >= 15
+                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 14)
+                : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 14))
+            : endOfMonth(currentMonth);
+    }, [currentMonth, isBiMonthlyView]);
 
     const getPeriodLabel = useCallback(() => {
         if (isBiMonthlyView) {
@@ -158,8 +164,8 @@ export default function ContentHeadDashboard() {
             // Filter out items for Queue (only showing tasks within the active period window)
             const filteredItems = items.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
             
-            // Queue items needing approval (WAITING FOR APPROVAL)
-            setPendingTasks(filteredItems.filter(item => (item.status || '').toUpperCase() === 'WAITING FOR APPROVAL'));
+            // Queue items needing approval (All tasks that are not yet approved by Content Head)
+            setPendingTasks(filteredItems.filter(item => !isApprovedByContentHead(item.status)));
             
             // Queue items already approved (CONTENT APPROVED)
             setApprovedTasks(filteredItems.filter(item => (item.status || '').toUpperCase() === 'CONTENT APPROVED'));
@@ -569,6 +575,19 @@ export default function ContentHeadDashboard() {
                                                     {item.content_type === 'Post' ? <FileText size={12} /> : <Video size={12} />}
                                                     {item.content_type}
                                                 </span>
+                                                <span className="status-badge" style={{ 
+                                                    fontSize: '11px', 
+                                                    color: 'var(--text-muted)', 
+                                                    background: 'var(--bg-elevated)', 
+                                                    padding: '3px 8px', 
+                                                    borderRadius: '6px', 
+                                                    border: '1px solid var(--border)',
+                                                    fontWeight: 600,
+                                                    textTransform: 'uppercase',
+                                                    marginRight: '8px'
+                                                }}>
+                                                    {item.status}
+                                                </span>
                                                 <button
                                                     className="btn-mark-posted"
                                                     onClick={() => handleApproveContent(item.id)}
@@ -777,7 +796,7 @@ export default function ContentHeadDashboard() {
 
                                     {/* Action Buttons for Content Head */}
                                     <div className="workflow-actions-section">
-                                        {activeItem.item.status === 'WAITING FOR APPROVAL' ? (
+                                        {!isApprovedByContentHead(activeItem.item.status) ? (
                                             <>
                                                 <textarea
                                                     className="status-note-input"
