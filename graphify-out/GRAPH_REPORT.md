@@ -1,6 +1,24 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-21 (TL Dashboard Client Tasks Status Overview)
+## Latest Changes — 2026-05-23 (Content Head Role Implementation)
+- **Goal**: Implement the "Content Head" role to handle content review and approval (transitioning tasks from WAITING FOR APPROVAL to CONTENT APPROVED) along with a dedicated dashboard, client calendar, and master calendar.
+- **Affected Files**:
+    - `backend/index.js`:
+        - Added `'CONTENT HEAD'` to `GM_ROLES` and `TL_ROLES` constants.
+        - Updated `getRequesterRole` to normalize and resolve `'CONTENT HEAD'` role requests from token metadata or DB profile record.
+    - `frontend/src/app/page.tsx`:
+        - Added the `'content-head'` workspace role card to the login page roles list.
+        - Mapped `'content_head'`, `'content-head'`, and `'content head'` variants to return `'content-head'` in `canonicalizeRole`.
+    - `frontend/src/app/content-head/dashboard/page.tsx` [NEW]:
+        - Created the main workspace dashboard component for the Content Head, supporting queue filtering (WAITING FOR APPROVAL & CONTENT APPROVED), client calendars, and master calendars.
+        - Calculated dynamic period boundaries (standard monthly 1-1 vs bi-monthly 15-15) based on client batch cycles.
+        - Implemented the top metrics grid cards for Monthly Pipeline, Reels, and Posts with `x/y` completion indicators based on Content Head approvals.
+        - Designed task detail modals supporting inline approval (advancing status to `CONTENT APPROVED`) and undoing approval (reverting status to `WAITING FOR APPROVAL`).
+    - `frontend/src/app/content-head/dashboard/content-head.css` [NEW]:
+        - Added premium dark-theme layout, sidebar navigation, statistics ribbons, calendar grid, queue cards, and details dialog style definitions.
+- **System Impact**: Integrates the Content Head approval step into the task lifecycle, allowing specialized review of posts and reels before they proceed to scheduling and production, complete with real-time statistics and historical logging.
+
+## Previous Changes — 2026-05-21 (TL Dashboard Client Tasks Status Overview)
 - **Goal**: Add client-wise task status breakdown grid/table to the TL Dashboard overview displaying progress according to each client's specific batch cycle (standard 1-1 vs bi-monthly 15-15).
 - **Affected Files**:
     - `frontend/src/app/tl/dashboard/page.tsx`:

@@ -209,6 +209,7 @@ const getRequesterRole = async (user) => {
     else if (upperId === 'POSTING TEAM' || upperId === 'POSTING') resolvedRole = 'POSTING TEAM';
     else if (upperId === 'CLIENT') resolvedRole = 'CLIENT';
     else if (upperId === 'EMPLOYEE') resolvedRole = 'EMPLOYEE';
+    else if (upperId === 'CONTENT HEAD' || upperId === 'CONTENT_HEAD' || resolvedRole === 'CONTENT HEAD' || resolvedRole === 'CONTENT_HEAD') resolvedRole = 'CONTENT HEAD';
 
     console.log(`[RoleResolver] Final resolved role for ${userId}: "${resolvedRole}"`);
 
@@ -221,10 +222,10 @@ const getRequesterRole = async (user) => {
 };
 
 const ADMIN_ROLES = ['ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'PH', 'PRODUCTION HEAD', 'TEAM LEAD', 'TL'];
-const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN'];
+const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD'];
 const COO_ROLES = ['COO', 'ADMIN'];
 const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER'];
-const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD'];
 const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER'];
 const CLIENT_ROLES = ['CLIENT', 'ADMIN'];
 const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN'];
