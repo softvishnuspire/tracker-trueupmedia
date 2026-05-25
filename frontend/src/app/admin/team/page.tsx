@@ -304,6 +304,7 @@ export default function TeamManagement() {
                     <option value="" disabled>Select specialization...</option>
                     <option value="REEL">Reel Editor</option>
                     <option value="POST">Poster Editor</option>
+                    <option value="WRITER">Content Writer</option>
                   </select>
                 </div>
               )}

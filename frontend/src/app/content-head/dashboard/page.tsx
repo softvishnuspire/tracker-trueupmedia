@@ -19,9 +19,10 @@ import {
 import { 
     ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Globe, Calendar as CalendarIcon, 
     FileText, Video, CheckCircle2, X, LogOut, Filter, Menu, Clock, ShieldAlert, Check, 
-    AlertTriangle, ArrowRight, CalendarClock, Undo2, Lock, ListFilter, Play
+    AlertTriangle, ArrowRight, CalendarClock, Undo2, Lock, ListFilter, Play,
+    Users, Plus, Search, Mail, User as UserIcon, Trophy, Target, Briefcase, Trash2
 } from 'lucide-react';
-import { gmApi, emergencyApi, settingsApi } from '@/lib/api';
+import { gmApi, emergencyApi, settingsApi, adminApi, contentHeadApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,10 +43,12 @@ interface ContentItem {
     is_rescheduled?: boolean;
     clients?: { company_name: string; team_lead?: { name: string } };
     assigned_to?: string;
+    freelancer_name?: string;
+    assigned_employee?: { name: string; role_identifier?: string } | null;
 }
 
 export default function ContentHeadDashboard() {
-    const [view, setView] = useState<'dashboard' | 'client' | 'master'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'employees'>('dashboard');
     const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [approvedTasks, setApprovedTasks] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
@@ -62,6 +65,17 @@ export default function ContentHeadDashboard() {
     const [user, setUser] = useState<any>(null);
     const [userRole, setUserRole] = useState<string | null>(null);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
+
+    // Writer Management State
+    const [writers, setWriters] = useState<any[]>([]);
+    const [searchWriterQuery, setSearchWriterQuery] = useState('');
+    const [showCreateWriterModal, setShowCreateWriterModal] = useState(false);
+    const [writerForm, setWriterForm] = useState({ name: '', email: '', password: '' });
+    const [showAssignClientModal, setShowAssignClientModal] = useState(false);
+    const [selectedWriterForAssignment, setSelectedWriterForAssignment] = useState<any>(null);
+    const [assignClientSearchQuery, setAssignClientSearchQuery] = useState('');
+    const [writerProductivity, setWriterProductivity] = useState<any[]>([]);
+    const [loadingWriters, setLoadingWriters] = useState(false);
 
     const router = useRouter();
     const supabase = createClient();
@@ -128,6 +142,28 @@ export default function ContentHeadDashboard() {
             const res = await gmApi.getClients();
             setClients(res.data || []);
         } catch (err) { console.error('Error fetching clients:', err); }
+    }, []);
+
+    const fetchWritersData = useCallback(async () => {
+        setLoadingWriters(true);
+        try {
+            const [writersRes, statsRes] = await Promise.all([
+                contentHeadApi.getWriters(),
+                adminApi.getTrackingStats()
+            ]);
+            setWriters(writersRes.data || []);
+            
+            if (statsRes.data?.employees) {
+                const stats = statsRes.data.employees.filter((emp: any) => 
+                    (emp.role || '').toUpperCase() === 'WRITER'
+                );
+                setWriterProductivity(stats);
+            }
+        } catch (err) {
+            console.error('Error fetching writers:', err);
+        } finally {
+            setLoadingWriters(false);
+        }
     }, []);
 
     const fetchData = useCallback(async () => {
@@ -214,6 +250,12 @@ export default function ContentHeadDashboard() {
         fetchData();
     }, [view, selectedClient, currentMonth, fetchData]);
 
+    useEffect(() => {
+        if (view === 'employees') {
+            fetchWritersData();
+        }
+    }, [view, fetchWritersData]);
+
     const handleApproveContent = async (id: string) => {
         setActionId(id);
         try {
@@ -290,6 +332,85 @@ export default function ContentHeadDashboard() {
     const handleLogout = async () => {
         await supabase.auth.signOut();
         router.push('/');
+    };
+
+    const handleCreateWriter = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await contentHeadApi.createWriter(writerForm);
+            setToast('Content Writer created successfully!');
+            setWriterForm({ name: '', email: '', password: '' });
+            setShowCreateWriterModal(false);
+            await fetchWritersData();
+            setTimeout(() => setToast(null), 3000);
+        } catch (err: any) {
+            alert(err.response?.data?.error || err.message || 'Failed to create writer');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAssignClient = async (clientId: string, writerId: string) => {
+        setLoading(true);
+        try {
+            await contentHeadApi.assignWriterToClient(clientId, writerId, null);
+            setToast('Client assigned to writer successfully!');
+            setShowAssignClientModal(false);
+            setSelectedWriterForAssignment(null);
+            await Promise.all([fetchClients(), fetchWritersData()]);
+            setTimeout(() => setToast(null), 3000);
+        } catch (err: any) {
+            alert(err.response?.data?.error || err.message || 'Failed to assign client');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUnassignClient = async (clientId: string, writerId: string) => {
+        if (!confirm('Are you sure you want to unassign this client? Tasks currently in the writing phase will also be unassigned.')) {
+            return;
+        }
+        setLoading(true);
+        try {
+            await contentHeadApi.assignWriterToClient(clientId, null, writerId);
+            setToast('Client unassigned from writer.');
+            await Promise.all([fetchClients(), fetchWritersData()]);
+            setTimeout(() => setToast(null), 3000);
+        } catch (err: any) {
+            alert(err.response?.data?.error || err.message || 'Failed to unassign client');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getWriterStats = (writerId: string) => {
+        return writerProductivity.find(p => p.id === writerId) || {
+            assignedTasks: 0,
+            completedTasks: 0,
+            completionRate: 0,
+            monthlyTotal: 0,
+            monthlyCompleted: 0,
+            monthlyRate: 0,
+            tasks: []
+        };
+    };
+
+    const handleDeleteWriter = async (writerId: string, name: string) => {
+        if (!confirm(`Are you sure you want to delete Content Writer "${name}"? This action cannot be undone.`)) {
+            return;
+        }
+        setLoading(true);
+        try {
+            await contentHeadApi.deleteWriter(writerId);
+            setToast('Content Writer deleted successfully.');
+            await fetchWritersData();
+            setTimeout(() => setToast(null), 3000);
+        } catch (err: any) {
+            alert(err.response?.data?.error || err.message || 'Failed to delete writer');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const getDays = () => {
@@ -382,6 +503,10 @@ export default function ContentHeadDashboard() {
                         <Globe size={20} />
                         <span>Master Calendar</span>
                     </div>
+                    <div onClick={() => setView('employees')} className={`nav-item ${view === 'employees' ? 'active' : ''}`}>
+                        <Users size={20} />
+                        <span>Writer Management</span>
+                    </div>
 
                     {view === 'client' && (
                         <>
@@ -437,11 +562,13 @@ export default function ContentHeadDashboard() {
                                 {view === 'dashboard' && "Approval Queue"}
                                 {view === 'client' && 'Client Calendar'}
                                 {view === 'master' && 'Master Calendar'}
+                                {view === 'employees' && 'Writer Management'}
                             </h1>
                             <p className="page-subtitle">
                                 {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Review copy & scripts`}
                                 {view === 'client' && 'Review status timeline for individual clients'}
                                 {view === 'master' && 'Overview of total pipeline schedule'}
+                                {view === 'employees' && 'Create content writer accounts, assign clients, and track daily/monthly task progress'}
                             </p>
                         </div>
 
@@ -468,7 +595,7 @@ export default function ContentHeadDashboard() {
                                 </div>
                             )}
 
-                            {view !== 'dashboard' && (
+                            {(view !== 'dashboard' && view !== 'employees') && (
                                 <div className="month-nav">
                                     <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn"><ChevronLeft size={20} /></button>
                                     <span className="month-label">{getPeriodLabel()}</span>
@@ -711,6 +838,13 @@ export default function ContentHeadDashboard() {
                                                     let statusBorderClass = '';
                                                     if (isWaiting) statusBorderClass = 'waiting-for-approval';
                                                     else if (isApproved) statusBorderClass = 'content-approved';
+                                                    const assigneeName = item.assigned_employee?.name || 'Unassigned';
+                                                    const isAssigned = !!item.assigned_to;
+                                                    const clientPrefix = item.clients?.company_name 
+                                                        ? `[${getClientAbbreviation(item.clients.company_name)}] `
+                                                        : item.freelancer_name 
+                                                            ? `[${item.freelancer_name.substring(0, 3).toUpperCase()}] `
+                                                            : '';
 
                                                     return (
                                                         <div 
@@ -722,10 +856,25 @@ export default function ContentHeadDashboard() {
                                                             }}
                                                             title={`${item.title} (${item.status})`}
                                                         >
-                                                            <span>
-                                                                {item.clients?.company_name ? `${getClientAbbreviation(item.clients.company_name)}: ` : ''}
-                                                                {item.title}
-                                                            </span>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '4px', minWidth: 0 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flex: 1 }}>
+                                                                    {item.content_type === 'Post' ? <FileText size={10} style={{ flexShrink: 0 }} /> : <Video size={10} style={{ flexShrink: 0 }} />}
+                                                                    <span className="truncate" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1, minWidth: 0 }}>
+                                                                        {clientPrefix}
+                                                                        {item.content_type}
+                                                                    </span>
+                                                                    <span className={`assignment-badge ${isAssigned ? 'assigned' : 'unassigned'}`} style={{ transform: 'scale(0.8)', transformOrigin: 'left center', padding: '1px 6px', fontSize: '9px', display: 'inline-flex', alignItems: 'center', height: '16px', borderRadius: '10px', verticalAlign: 'middle', marginLeft: '2px', flexShrink: 0 }}>
+                                                                        <span className="assignment-name">{assigneeName}</span>
+                                                                    </span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                                                    {isApproved ? (
+                                                                        <Check size={10} style={{ color: '#10b981' }} />
+                                                                    ) : (
+                                                                        <AlertTriangle size={10} style={{ color: '#f59e0b' }} />
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     );
                                                 })}
@@ -735,6 +884,239 @@ export default function ContentHeadDashboard() {
                                 })
                             )}
                         </div>
+                    </div>
+                )}
+
+                {/* Writer Management View */}
+                {view === 'employees' && (
+                    <div className="dashboard-view-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        {/* Writer Management Stats */}
+                        <div className="posting-stats-grid">
+                            {/* Card 1: Total Writers */}
+                            <div className="progress-meter-card">
+                                <h3 className="stat-label">Total Writers</h3>
+                                <div className="progress-values">
+                                    <span className="current">{writers.length}</span>
+                                    <span className="unit">Registered Writers</span>
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, marginTop: '8px' }}>
+                                    Content Creation Team
+                                </div>
+                            </div>
+
+                            {/* Card 2: Active Assignments */}
+                            <div className="progress-meter-card reels">
+                                <h3 className="stat-label" style={{ color: '#a855f7' }}>Client Assignments</h3>
+                                <div className="progress-values">
+                                    <span className="current" style={{ color: '#a855f7' }}>
+                                        {clients.filter(c => c.writer_employee_id).length}
+                                    </span>
+                                    <span className="separator">/</span>
+                                    <span className="total">{clients.length}</span>
+                                    <span className="unit">Clients Assigned</span>
+                                </div>
+                                <div className="progress-bar-container">
+                                    <div className="progress-bar-fill reels-fill" style={{ 
+                                        width: `${clients.length > 0 ? (clients.filter(c => c.writer_employee_id).length / clients.length) * 100 : 0}%` 
+                                    }}></div>
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                                    {clients.length > 0 ? Math.round((clients.filter(c => c.writer_employee_id).length / clients.length) * 100) : 0}% Coverage
+                                </div>
+                            </div>
+
+                            {/* Card 3: Writing Task Completion Today */}
+                            <div className="progress-meter-card posts">
+                                <h3 className="stat-label" style={{ color: '#ec4899' }}>Today's Progress</h3>
+                                <div className="progress-values">
+                                    <span className="current" style={{ color: '#ec4899' }}>
+                                        {writerProductivity.reduce((acc, curr) => acc + (curr.completedTasks || 0), 0)}
+                                    </span>
+                                    <span className="separator">/</span>
+                                    <span className="total">
+                                        {writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0)}
+                                    </span>
+                                    <span className="unit">Tasks Completed</span>
+                                </div>
+                                <div className="progress-bar-container">
+                                    <div className="progress-bar-fill posts-fill" style={{ 
+                                        width: `${writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0) > 0 
+                                            ? (writerProductivity.reduce((acc, curr) => acc + (curr.completedTasks || 0), 0) / writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0)) * 100 
+                                            : 0}%` 
+                                    }}></div>
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                                    {writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0) > 0 
+                                        ? Math.round((writerProductivity.reduce((acc, curr) => acc + (curr.completedTasks || 0), 0) / writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0)) * 100) 
+                                        : 0}% Completion Rate
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Bar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', background: 'var(--bg-surface)', padding: '16px 24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                            <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
+                                <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search writers by name or email..."
+                                    value={searchWriterQuery}
+                                    onChange={(e) => setSearchWriterQuery(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        background: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '10px',
+                                        padding: '10px 16px 10px 42px',
+                                        fontSize: '14px',
+                                        color: 'var(--text-primary)',
+                                        outline: 'none'
+                                    }}
+                                />
+                            </div>
+                            <button className="btn-mark-posted" onClick={() => setShowCreateWriterModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Plus size={16} />
+                                Add Content Writer
+                            </button>
+                        </div>
+
+                        {/* Writers Grid */}
+                        {loadingWriters ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                                <Skeleton className="h-64 w-full rounded-2xl" />
+                                <Skeleton className="h-64 w-full rounded-2xl" />
+                            </div>
+                        ) : writers.length === 0 ? (
+                            <div className="posting-empty-state">
+                                <div className="empty-icon"><Users size={36} /></div>
+                                <h3>No Content Writers Found</h3>
+                                <p>Create a writer account to start assigning clients and tracking tasks.</p>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                                {writers
+                                    .filter(w => 
+                                        w.name?.toLowerCase().includes(searchWriterQuery.toLowerCase()) ||
+                                        w.email?.toLowerCase().includes(searchWriterQuery.toLowerCase())
+                                    )
+                                    .map(writer => {
+                                        const stats = getWriterStats(writer.user_id);
+                                        const assignedClients = clients.filter(c => c.writer_employee_id === writer.user_id);
+
+                                        return (
+                                            <div key={writer.user_id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)' }}>
+                                                {/* Writer Profile Header */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
+                                                        <div className="user-avatar" style={{ width: '44px', height: '44px', fontSize: '16px', flexShrink: 0 }}>
+                                                            {writer.name?.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div style={{ minWidth: 0 }}>
+                                                            <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{writer.name}</h4>
+                                                            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{writer.email}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleDeleteWriter(writer.user_id, writer.name)}
+                                                        className="btn-icon delete"
+                                                        style={{ flexShrink: 0 }}
+                                                        title="Delete Writer"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {/* Assigned Clients */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                        <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>Assigned Clients</span>
+                                                        <span style={{ fontSize: '11px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>{assignedClients.length}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', minHeight: '34px', alignItems: 'center' }}>
+                                                        {assignedClients.length === 0 ? (
+                                                            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No clients assigned</span>
+                                                        ) : (
+                                                            assignedClients.map(client => (
+                                                                <div key={client.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(13, 148, 136, 0.08)', border: '1px solid rgba(13, 148, 136, 0.2)', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, color: '#0d9488' }}>
+                                                                    <span>{client.company_name}</span>
+                                                                    <button 
+                                                                        onClick={() => handleUnassignClient(client.id, writer.user_id)}
+                                                                        style={{ background: 'transparent', border: 'none', color: '#0d9488', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center', fontSize: '14px', fontWeight: 800 }}
+                                                                        title="Unassign Client"
+                                                                    >
+                                                                        &times;
+                                                                    </button>
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setSelectedWriterForAssignment(writer);
+                                                            setShowAssignClientModal(true);
+                                                        }}
+                                                        style={{ marginTop: '10px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '8px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s' }}
+                                                    >
+                                                        <Plus size={14} />
+                                                        Assign Client
+                                                    </button>
+                                                </div>
+
+                                                {/* Productivity / Stats */}
+                                                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                    {/* Today's completion */}
+                                                    <div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                                            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Today's Tasks</span>
+                                                            <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{stats.completedTasks}/{stats.assignedTasks}</span>
+                                                        </div>
+                                                        <div className="progress-bar-container" style={{ height: '4px' }}>
+                                                            <div className="progress-bar-fill" style={{ 
+                                                                width: `${stats.assignedTasks > 0 ? (stats.completedTasks / stats.assignedTasks) * 100 : 0}%`,
+                                                                background: '#0d9488'
+                                                            }}></div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Monthly completion */}
+                                                    <div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                                            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Monthly Tasks</span>
+                                                            <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{stats.monthlyCompleted}/{stats.monthlyTotal}</span>
+                                                        </div>
+                                                        <div className="progress-bar-container" style={{ height: '4px' }}>
+                                                            <div className="progress-bar-fill" style={{ 
+                                                                width: `${stats.monthlyTotal > 0 ? (stats.monthlyCompleted / stats.monthlyTotal) * 100 : 0}%`,
+                                                                background: '#a855f7'
+                                                            }}></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Today's Tasks List */}
+                                                {stats.tasks && stats.tasks.length > 0 && (
+                                                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                                                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>Today's Schedule</span>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '120px', overflowY: 'auto' }}>
+                                                            {stats.tasks.map((task: any) => (
+                                                                <div key={task.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elevated)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                                                    <div style={{ minWidth: 0, flex: 1, paddingRight: '8px' }}>
+                                                                        <span style={{ fontSize: '10px', color: '#0d9488', fontWeight: 800, display: 'block' }}>{task.clientName}</span>
+                                                                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+                                                                    </div>
+                                                                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: task.employeeStatus === 'COMPLETED' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: task.employeeStatus === 'COMPLETED' ? '#10b981' : '#f59e0b' }}>
+                                                                        {task.employeeStatus || 'PENDING'}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        )}
                     </div>
                 )}
             </main>
@@ -876,6 +1258,144 @@ export default function ContentHeadDashboard() {
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* Create Writer Modal */}
+            {showCreateWriterModal && (
+                <div className="modal-overlay" onClick={() => setShowCreateWriterModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Create Content Writer</h3>
+                            <button onClick={() => setShowCreateWriterModal(false)} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleCreateWriter}>
+                            <div className="form-group">
+                                <label className="form-label">Full Name *</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    required
+                                    value={writerForm.name}
+                                    onChange={(e) => setWriterForm({ ...writerForm, name: e.target.value })}
+                                    placeholder="Enter full name"
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Email Address *</label>
+                                <input
+                                    type="email"
+                                    className="form-input"
+                                    required
+                                    value={writerForm.email}
+                                    onChange={(e) => setWriterForm({ ...writerForm, email: e.target.value })}
+                                    placeholder="writer@trueupmedia.com"
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Password *</label>
+                                <input
+                                    type="password"
+                                    className="form-input"
+                                    required
+                                    value={writerForm.password}
+                                    onChange={(e) => setWriterForm({ ...writerForm, password: e.target.value })}
+                                    placeholder="Minimum 6 characters"
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn-secondary" onClick={() => setShowCreateWriterModal(false)}>Cancel</button>
+                                <button type="submit" className="btn-primary" disabled={loading} style={{ width: 'auto', padding: '10px 24px' }}>
+                                    {loading ? 'Creating...' : 'Create Account'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Assign Client Modal */}
+            {showAssignClientModal && selectedWriterForAssignment && (
+                <div className="modal-overlay" onClick={() => {
+                    setShowAssignClientModal(false);
+                    setSelectedWriterForAssignment(null);
+                }}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+                        <div className="modal-header">
+                            <div>
+                                <h3 className="modal-title">Assign Client</h3>
+                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Assign client to <strong style={{ color: 'var(--text-primary)' }}>{selectedWriterForAssignment.name}</strong></p>
+                            </div>
+                            <button onClick={() => {
+                                setShowAssignClientModal(false);
+                                setSelectedWriterForAssignment(null);
+                            }} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div style={{ position: 'relative' }}>
+                                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search clients..."
+                                    value={assignClientSearchQuery}
+                                    onChange={(e) => setAssignClientSearchQuery(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        background: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '8px',
+                                        padding: '8px 12px 8px 36px',
+                                        fontSize: '13px',
+                                        color: 'var(--text-primary)',
+                                        outline: 'none'
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                                {clients
+                                    .filter(c => c.company_name?.toLowerCase().includes(assignClientSearchQuery.toLowerCase()))
+                                    .map(client => {
+                                        const isAlreadyAssignedToThisWriter = client.writer_employee_id === selectedWriterForAssignment.user_id;
+                                        const currentWriterAssigned = writers.find(w => w.user_id === client.writer_employee_id);
+
+                                        return (
+                                            <div key={client.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                                                <div>
+                                                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>{client.company_name}</span>
+                                                    {currentWriterAssigned && (
+                                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                            Currently: {currentWriterAssigned.name}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {isAlreadyAssignedToThisWriter ? (
+                                                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#0d9488' }}>Assigned</span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleAssignClient(client.id, selectedWriterForAssignment.user_id)}
+                                                        className="btn-mark-posted"
+                                                        style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '6px' }}
+                                                    >
+                                                        Assign
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Toast Notifications */}
+            {toast && (
+                <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#0d9488', color: 'white', padding: '12px 24px', borderRadius: '10px', boxShadow: '0 8px 32px rgba(13, 148, 136, 0.3)', zIndex: 3000, fontWeight: 700 }}>
+                    {toast}
                 </div>
             )}
         </div>

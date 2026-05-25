@@ -15,7 +15,7 @@ interface Client {
     is_active?: boolean;
     posts_per_month?: number;
     reels_per_month?: number;
-    created_at: string;
+    created_at?: string;
 }
 
 export default function CooClientManagement() {
@@ -111,7 +111,7 @@ export default function CooClientManagement() {
                                                 <td data-label="Address" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span>{client.address || '-'}</span></td>
                                                 <td data-label="Posts/mo"><span>{client.posts_per_month || '0'}</span></td>
                                                 <td data-label="Reels/mo"><span>{client.reels_per_month || '0'}</span></td>
-                                                <td data-label="Date Added"><span>{new Date(client.created_at).toLocaleDateString()}</span></td>
+                                                <td data-label="Date Added"><span>{client.created_at ? new Date(client.created_at).toLocaleDateString() : '-'}</span></td>
                                                 <td data-label="Actions" style={{ textAlign: 'right' }}>
                                                     <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
                                                         <Link href={`/coo/client-calendar/${client.id}`} className="btn-icon" title="View calendar">

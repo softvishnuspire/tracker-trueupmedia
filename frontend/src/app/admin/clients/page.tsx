@@ -210,7 +210,7 @@ export default function ClientManagement() {
                         <td data-label="Posts/mo"><span>{client.posts_per_month || '0'}</span></td>
                         <td data-label="Reels/mo"><span>{client.reels_per_month || '0'}</span></td>
                         <td data-label="YTvid/mo"><span>{client.youtube_per_month || '0'}</span></td>
-                        <td data-label="Date Added"><span>{new Date(client.created_at).toLocaleDateString()}</span></td>
+                        <td data-label="Date Added"><span>{client.created_at ? new Date(client.created_at).toLocaleDateString() : '-'}</span></td>
                         <td data-label="Actions" style={{ textAlign: 'right' }}>
                           <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
                             <Link href={`/admin/client-calendar/${client.id}`} className="btn-icon">

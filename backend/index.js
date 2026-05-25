@@ -422,7 +422,7 @@ app.get('/api/gm/clients', requireRoles(GM_ROLES), async (req, res) => {
 
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name, batch_type, posts_per_month, reels_per_month, team_lead:team_lead_id (name)')
+        .select('id, company_name, batch_type, posts_per_month, reels_per_month, writer_employee_id, team_lead:team_lead_id (name)')
         .eq('is_active', true)
         .eq('is_deleted', false);
 
@@ -489,13 +489,15 @@ app.post('/api/gm/content', requireRoles(GM_ROLES), async (req, res) => {
         // Get client's assigned employee
         const { data: clientData } = await supabase
             .from('clients')
-            .select('employee_id, reel_employee_id, post_employee_id')
+            .select('employee_id, reel_employee_id, post_employee_id, writer_employee_id')
             .eq('id', client_id)
             .single();
 
         let employeeId = null;
         if (clientData) {
-            if (['Reel', 'YouTube'].includes(content_type)) {
+            if (clientData.writer_employee_id) {
+                employeeId = clientData.writer_employee_id;
+            } else if (['Reel', 'YouTube'].includes(content_type)) {
                 employeeId = clientData.reel_employee_id || clientData.employee_id;
             } else if (content_type === 'Post') {
                 employeeId = clientData.post_employee_id || clientData.employee_id;
@@ -688,7 +690,7 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
 
     const { data: item, error: fetchError } = await supabase
         .from('content_items')
-        .select('status, content_type')
+        .select('status, content_type, client_id, assigned_to')
         .eq('id', id)
         .single();
 
@@ -708,10 +710,44 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
         });
     }
 
+    // Auto-assign employee if transitioning to production work
+    let autoAssignedId = null;
+    const employeeThresholds = { 'Reel': 'SHOOT DONE', 'YouTube': 'SHOOT DONE', 'Post': 'CONTENT APPROVED' };
+    const threshold = employeeThresholds[item.content_type];
+    
+    if (threshold && new_status === threshold) {
+        const { data: client } = await supabase
+            .from('clients')
+            .select('employee_id, reel_employee_id, post_employee_id')
+            .eq('id', item.client_id)
+            .single();
+        let employeeId = null;
+        if (client) {
+            if (['Reel', 'YouTube'].includes(item.content_type)) {
+                employeeId = client.reel_employee_id || client.employee_id;
+            } else if (item.content_type === 'Post') {
+                employeeId = client.post_employee_id || client.employee_id;
+            } else {
+                employeeId = client.employee_id;
+            }
+        }
+        if (employeeId) {
+            autoAssignedId = employeeId;
+            console.log(`[StatusUpdate] Auto-assigning item ${id} to employee ${autoAssignedId}`);
+        }
+    }
+
+    const updatePayload = { status: new_status, updated_at: new Date().toISOString() };
+    if (autoAssignedId) {
+        updatePayload.assigned_to = autoAssignedId;
+        updatePayload.assigned_at = new Date().toISOString();
+        updatePayload.employee_task_status = 'PENDING';
+    }
+
     // Update status
     const { error: updateError } = await supabase
         .from('content_items')
-        .update({ status: new_status, updated_at: new Date().toISOString() })
+        .update(updatePayload)
         .eq('id', id);
 
     if (updateError) {
@@ -1237,7 +1273,7 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
 });
 
 // ─── Admin: Employee & TL Tracking ───
-app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLOYEE', 'POSTING TEAM', 'POSTING']), async (req, res) => {
+app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLOYEE', 'POSTING TEAM', 'POSTING', 'CONTENT HEAD']), async (req, res) => {
     try {
         const today = req.query.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
@@ -1550,7 +1586,7 @@ async function fetchContentOrFreelancerItem(id) {
     // 1. Try content_items first
     const { data: item, error } = await supabase
         .from('content_items')
-        .select(`*, clients (company_name, employee_id, reel_employee_id, post_employee_id, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+        .select(`*, clients (company_name, employee_id, reel_employee_id, post_employee_id, writer_employee_id, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
         .eq('id', id)
         .single();
         
@@ -1801,13 +1837,15 @@ app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
         // Get client's assigned employee
         const { data: clientData } = await supabase
             .from('clients')
-            .select('employee_id, reel_employee_id, post_employee_id')
+            .select('employee_id, reel_employee_id, post_employee_id, writer_employee_id')
             .eq('id', client_id)
             .single();
 
         let employeeId = null;
         if (clientData) {
-            if (['Reel', 'YouTube'].includes(content_type)) {
+            if (clientData.writer_employee_id) {
+                employeeId = clientData.writer_employee_id;
+            } else if (['Reel', 'YouTube'].includes(content_type)) {
                 employeeId = clientData.reel_employee_id || clientData.employee_id;
             } else if (content_type === 'Post') {
                 employeeId = clientData.post_employee_id || clientData.employee_id;
@@ -2102,7 +2140,7 @@ app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('clients')
-            .select('id, company_name, employee_id, reel_employee_id, post_employee_id, batch_type, team_lead:team_lead_id (name)')
+            .select('id, company_name, employee_id, reel_employee_id, post_employee_id, writer_employee_id, batch_type, team_lead:team_lead_id (name)')
             .eq('is_active', true)
             .eq('is_deleted', false)
             .order('company_name');
@@ -2196,7 +2234,7 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
         const employeeThresholds = { 'Reel': 'SHOOT DONE', 'YouTube': 'SHOOT DONE', 'Post': 'CONTENT APPROVED' };
         const threshold = employeeThresholds[item.content_type];
         
-        if (threshold && finalStatus === threshold && !item.assigned_to) {
+        if (threshold && finalStatus === threshold) {
             const { data: client } = await supabase
                 .from('clients')
                 .select('employee_id, reel_employee_id, post_employee_id')
@@ -2435,6 +2473,208 @@ app.patch('/api/ph/clients/:id/assign-employee', requireRoles(PH_ROLES), async (
     }
 });
 
+// ─── Content Head Endpoints ───
+const CONTENT_HEAD_ROLES = ['CONTENT HEAD', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+
+// CH: Get Content Writers
+app.get('/api/content-head/writers', requireRoles(CONTENT_HEAD_ROLES), async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('user_id, name, email, role_identifier')
+            .eq('role', 'EMPLOYEE')
+            .eq('role_identifier', 'WRITER')
+            .order('name');
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// CH: Create Content Writer
+app.post('/api/content-head/writers', requireRoles(CONTENT_HEAD_ROLES), async (req, res) => {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
+
+    console.log(`[Content Head] Creating new Content Writer: ${email}`);
+
+    try {
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+            email, password, email_confirm: true, user_metadata: { role: 'EMPLOYEE', name, role_identifier: 'WRITER' }
+        });
+        if (authError) {
+            console.error(`[Content Head] Auth creation error for ${email}:`, authError.message);
+            return res.status(500).json({ error: authError.message });
+        }
+
+        const { data, error } = await supabase.from('users').insert([{
+            user_id: authUser.user.id,
+            name,
+            email,
+            password_hash: password,
+            role: 'EMPLOYEE',
+            role_identifier: 'WRITER'
+        }]).select();
+
+        if (error) {
+            console.error(`[Content Head] DB insertion error for ${email}:`, error.message);
+            await supabase.auth.admin.deleteUser(authUser.user.id);
+            return res.status(500).json({ error: error.message });
+        }
+
+        myCache.del(["admin_team", "writers_list"]);
+        res.json(data[0]);
+    } catch (error) {
+        console.error(`[Content Head] Crash during creation of ${email}:`, error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// CH: Assign Content Writer to Client (and cascade tasks in writing phase)
+app.patch('/api/content-head/clients/:id/assign-writer', requireRoles(CONTENT_HEAD_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { employee_id, unassign_id } = req.body;
+
+    console.log(`[Content Head ClientAssign] Client: ${id}, assign: ${employee_id}, unassign: ${unassign_id}`);
+
+    try {
+        let updatePayload = {};
+        let targetEmployeeId = null;
+
+        if (unassign_id) {
+            updatePayload = { writer_employee_id: null };
+            targetEmployeeId = null;
+        } else if (employee_id) {
+            updatePayload = { writer_employee_id: employee_id };
+            targetEmployeeId = employee_id;
+        } else {
+            return res.status(400).json({ error: 'Either employee_id or unassign_id is required' });
+        }
+
+        // 1. Update the client
+        const { data, error } = await supabase
+            .from('clients')
+            .update(updatePayload)
+            .eq('id', id)
+            .select();
+
+        if (error) {
+            console.error('[Content Head ClientAssign] Supabase Error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'Client not found' });
+        }
+
+        // 2. Cascade assignment to content_items in writing phase
+        const writingStatuses = ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL'];
+        const cascadePayload = {
+            assigned_to: targetEmployeeId,
+            assigned_at: targetEmployeeId ? new Date().toISOString() : null,
+            employee_task_status: targetEmployeeId ? 'PENDING' : null
+        };
+
+        const { error: cascadeError } = await supabase
+            .from('content_items')
+            .update(cascadePayload)
+            .eq('client_id', id)
+            .in('status', writingStatuses);
+
+        if (cascadeError) {
+            console.error('[Content Head ClientAssign] Cascade task assignment error:', cascadeError.message);
+        } else {
+            console.log(`[Content Head ClientAssign] Cascaded assignments to tasks for client ${id} in writing phase`);
+        }
+
+        myCache.del(["gm_clients", "admin_clients", "ph_clients"]);
+        res.json(data[0]);
+    } catch (err) {
+        console.error('[Content Head ClientAssign] Exception:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// CH: Delete Content Writer
+app.delete('/api/content-head/writers/:id', requireRoles(CONTENT_HEAD_ROLES), async (req, res) => {
+    const { id } = req.params;
+    console.log(`[Content Head] Delete request for content writer: ${id}`);
+
+    try {
+        // 1. Check if the user is indeed a WRITER to avoid arbitrary deletion
+        const { data: userToCheck, error: checkError } = await supabase
+            .from('users')
+            .select('role, role_identifier')
+            .eq('user_id', id)
+            .single();
+
+        if (checkError || !userToCheck) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (userToCheck.role !== 'EMPLOYEE' || userToCheck.role_identifier !== 'WRITER') {
+            return res.status(403).json({ error: 'Content Head can only delete Content Writers' });
+        }
+
+        // 2. Unassign writer from clients
+        const { error: unassignWriterError } = await supabase
+            .from('clients')
+            .update({ writer_employee_id: null })
+            .eq('writer_employee_id', id);
+        if (unassignWriterError) console.warn('[Content Head] Client writer unassign warning:', unassignWriterError.message);
+
+        // 3. Clear assigned_to in content_items for this writer
+        const { error: contentAssignError } = await supabase
+            .from('content_items')
+            .update({ assigned_to: null, assigned_at: null })
+            .eq('assigned_to', id);
+        if (contentAssignError) console.warn('[Content Head] Content items assigned_to cleanup warning:', contentAssignError.message);
+
+        // 4. Clear references in status_logs (set to null so history is preserved)
+        const { error: logError } = await supabase
+            .from('status_logs')
+            .update({ changed_by: null })
+            .eq('changed_by', id);
+        if (logError) console.warn('[Content Head] Status logs cleanup warning:', logError.message);
+
+        // 5. Clear references in notifications
+        const { error: notifError } = await supabase
+            .from('notifications')
+            .update({ sender_id: null })
+            .eq('sender_id', id);
+        if (notifError) console.warn('[Content Head] Notifications cleanup warning:', notifError.message);
+
+        // 6. Delete user notifications (recipient entries)
+        const { error: userNotifError } = await supabase
+            .from('user_notifications')
+            .delete()
+            .eq('user_id', id);
+        if (userNotifError) console.warn('[Content Head] User notifications deletion warning:', userNotifError.message);
+
+        // 7. Delete from Auth (prevents future logins)
+        const { error: authError } = await supabase.auth.admin.deleteUser(id);
+        if (authError && authError.message !== 'User not found') {
+            console.error(`[Content Head] Auth deletion error for ${id}:`, authError.message);
+        }
+
+        // 8. Finally delete from users table
+        const { error: dbError } = await supabase.from('users').delete().eq('user_id', id);
+        if (dbError) {
+            console.error(`[Content Head] DB deletion error for ${id}:`, dbError.message);
+            return res.status(500).json({ error: `Database error: ${dbError.message}` });
+        }
+
+        console.log(`[Content Head] Successfully deleted writer ${id}`);
+        myCache.del(["admin_team", "writers_list", "gm_clients", "admin_clients", "ph_clients"]);
+        res.json({ message: 'Content Writer deleted successfully' });
+    } catch (error) {
+        console.error(`[Content Head] Crash during deletion of ${id}:`, error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ─── Employee Endpoints ───
 app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) => {
     const userId = req.user.id;
@@ -2455,13 +2695,6 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
             endDate = null; // For dashboard, we want current month + pending
         }
 
-        const employeeTriggerStatuses = [
-            'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 
-            'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
-            'WAITING FOR FINAL APPROVAL', 'APPROVED', 
-            'WAITING FOR POSTING', 'POSTED'
-        ];
-
         // Get employee's specialization
         const { data: user } = await supabase
             .from('users')
@@ -2471,14 +2704,25 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
 
         const role_identifier = user?.role_identifier;
 
+        const employeeTriggerStatuses = (role_identifier === 'WRITER') 
+            ? ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL']
+            : [
+                'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 
+                'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                'WAITING FOR FINAL APPROVAL', 'APPROVED', 
+                'WAITING FOR POSTING', 'POSTED'
+            ];
+
         // Step 1: Fetch clients assigned to this employee
         let clientQuery = supabase.from('clients').select('id');
         if (role_identifier === 'REEL') {
             clientQuery = clientQuery.eq('reel_employee_id', userId);
         } else if (role_identifier === 'POST') {
             clientQuery = clientQuery.eq('post_employee_id', userId);
+        } else if (role_identifier === 'WRITER') {
+            clientQuery = clientQuery.eq('writer_employee_id', userId);
         } else {
-            clientQuery = clientQuery.or(`employee_id.eq.${userId},reel_employee_id.eq.${userId},post_employee_id.eq.${userId}`);
+            clientQuery = clientQuery.or(`employee_id.eq.${userId},reel_employee_id.eq.${userId},post_employee_id.eq.${userId},writer_employee_id.eq.${userId}`);
         }
 
         const { data: clients, error: clientsError } = await clientQuery;
@@ -2493,7 +2737,7 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
         // Step 2: Fetch Content Items
         let contentQuery = supabase
             .from('content_items')
-            .select(`*, clients!inner(company_name, employee_id, reel_employee_id, post_employee_id)`)
+            .select(`*, clients!inner(company_name, employee_id, reel_employee_id, post_employee_id, writer_employee_id)`)
             .in('status', employeeTriggerStatuses);
 
         if (role_identifier === 'REEL') {
@@ -2559,17 +2803,18 @@ app.patch('/api/employee/tasks/:id/status', requireRoles(EMPLOYEE_ROLES), async 
         if (fetchError || !item) return res.status(404).json({ error: 'Task not found' });
         
         // Authorization check
-        // Allow if: directly assigned, OR client-level assignment matches (reel/post employee), OR admin
+        // Allow if: directly assigned, OR client-level assignment matches (reel/post/writer employee), OR admin
         const isDirectlyAssigned = item.assigned_to === userId;
         const clientData = item.clients;
         const contentType = (item.content_type || '').toUpperCase();
         const isReelEmployee = clientData?.reel_employee_id === userId && (contentType === 'REEL' || contentType === 'YOUTUBE');
         const isPostEmployee = clientData?.post_employee_id === userId && contentType === 'POST';
+        const isWriterEmployee = clientData?.writer_employee_id === userId;
         const isClientEmployee = clientData?.employee_id === userId;
         const isAdmin = req.resolvedRole === 'ADMIN';
 
-        if (!isDirectlyAssigned && !isReelEmployee && !isPostEmployee && !isClientEmployee && !isAdmin) {
-            console.warn(`[EmployeeTasks] Auth denied: user ${userId} tried to update task ${id} (assigned_to: ${item.assigned_to}, reel_emp: ${clientData?.reel_employee_id}, post_emp: ${clientData?.post_employee_id})`);
+        if (!isDirectlyAssigned && !isReelEmployee && !isPostEmployee && !isWriterEmployee && !isClientEmployee && !isAdmin) {
+            console.warn(`[EmployeeTasks] Auth denied: user ${userId} tried to update task ${id} (assigned_to: ${item.assigned_to}, reel_emp: ${clientData?.reel_employee_id}, post_emp: ${clientData?.post_employee_id}, writer_emp: ${clientData?.writer_employee_id})`);
             return res.status(403).json({ error: 'Unauthorized' });
         }
 

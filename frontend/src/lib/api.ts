@@ -32,6 +32,8 @@ export interface Client {
     password?: string; // For adding/updating clients
     team_lead?: { name: string; role_identifier?: string };
     employee_id?: string;
+    writer_employee_id?: string;
+    created_at?: string;
 }
 
 export interface ContentItem {
@@ -339,6 +341,28 @@ export const postingApi = {
         postingBase.post(`content/${id}/undo`),
 };
 
+// ─── Content Head API ───
+const contentHeadBase = axios.create({
+    baseURL: API_BASE_URL,
+});
+
+contentHeadBase.interceptors.request.use(async (config) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    return config;
+});
+
+export const contentHeadApi = {
+    getWriters: () => contentHeadBase.get<TeamMember[]>('/api/content-head/writers'),
+    createWriter: (data: any) => contentHeadBase.post('/api/content-head/writers', data),
+    deleteWriter: (id: string) => contentHeadBase.delete(`/api/content-head/writers/${id}`),
+    assignWriterToClient: (clientId: string, employeeId: string | null, unassignId?: string | null) =>
+        contentHeadBase.patch(`/api/content-head/clients/${clientId}/assign-writer`, { employee_id: employeeId, unassign_id: unassignId }),
+};
+
+
 const notificationBase = axios.create({
     baseURL: API_BASE_URL,
 });
@@ -444,6 +468,7 @@ phBase.interceptors.response.use((r) => r, handleAuthError);
 employeeBase.interceptors.response.use((r) => r, handleAuthError);
 tlBase.interceptors.response.use((r) => r, handleAuthError);
 postingBase.interceptors.response.use((r) => r, handleAuthError);
+contentHeadBase.interceptors.response.use((r) => r, handleAuthError);
 notificationBase.interceptors.response.use((r) => r, handleAuthError);
 
 // ─── Dashboard APIs (Role-Aware) ───

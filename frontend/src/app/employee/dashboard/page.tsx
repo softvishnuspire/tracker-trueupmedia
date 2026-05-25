@@ -107,13 +107,13 @@ export default function EmployeeDashboard() {
         }
     };
 
-    const todayTasks = tasks.filter(t => isToday(parseISO(t.scheduled_datetime || t.assigned_at)));
+    const todayTasks = tasks.filter(t => isToday(parseISO(t.scheduled_datetime || t.assigned_at || '')));
     const pendingTasks = tasks.filter(t => 
-        isBefore(parseISO(t.scheduled_datetime || t.assigned_at), startOfToday()) && 
+        isBefore(parseISO(t.scheduled_datetime || t.assigned_at || ''), startOfToday()) && 
         t.employee_task_status === 'PENDING'
     );
     const upcomingTasks = tasks.filter(t => 
-        isAfter(parseISO(t.scheduled_datetime || t.assigned_at), endOfToday()) && 
+        isAfter(parseISO(t.scheduled_datetime || t.assigned_at || ''), endOfToday()) && 
         t.employee_task_status === 'PENDING'
     );
 
