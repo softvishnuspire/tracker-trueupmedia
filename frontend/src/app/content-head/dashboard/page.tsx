@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import {
     format,
     startOfMonth,
@@ -20,7 +20,7 @@ import {
     ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Globe, Calendar as CalendarIcon, 
     FileText, Video, CheckCircle2, X, LogOut, Filter, Menu, Clock, ShieldAlert, Check, 
     AlertTriangle, ArrowRight, CalendarClock, Undo2, Lock, ListFilter, Play,
-    Users, Plus, Search, Mail, User as UserIcon, Trophy, Target, Briefcase, Trash2
+    Users, Plus, Search, Mail, User as UserIcon, Trophy, Target, Briefcase, Trash2, TrendingUp, Building2
 } from 'lucide-react';
 import { gmApi, emergencyApi, settingsApi, adminApi, contentHeadApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -467,6 +467,70 @@ export default function ContentHeadDashboard() {
         ? Math.round(((stats.reelsApproved + stats.postsApproved) / (stats.reelsTotal + stats.postsTotal)) * 100) 
         : 0;
 
+    // ─── Per-Client Approval Stats ───
+    const clientStats = useMemo(() => {
+        const map: Record<string, {
+            clientId: string;
+            clientName: string;
+            reelsTotal: number;
+            reelsApproved: number;
+            postsTotal: number;
+            postsApproved: number;
+            total: number;
+            approved: number;
+        }> = {};
+
+        calendarData.forEach(item => {
+            const d = parseISO(item.scheduled_datetime);
+            if (!isDayInPeriod(d)) return;
+            if (!item.client_id) return; // Skip freelancer items with no client
+
+            const clientId = item.client_id;
+            const clientName = item.clients?.company_name || 'Unknown Client';
+
+            if (!map[clientId]) {
+                map[clientId] = {
+                    clientId,
+                    clientName,
+                    reelsTotal: 0,
+                    reelsApproved: 0,
+                    postsTotal: 0,
+                    postsApproved: 0,
+                    total: 0,
+                    approved: 0,
+                };
+            }
+
+            const entry = map[clientId];
+            const type = (item.content_type || '').toUpperCase();
+            const statusUpper = (item.status || '').toUpperCase();
+            const approved = isApprovedByContentHead(statusUpper);
+
+            entry.total += 1;
+            if (approved) entry.approved += 1;
+
+            if (type === 'REEL') {
+                entry.reelsTotal += 1;
+                if (approved) entry.reelsApproved += 1;
+            }
+
+            if (type === 'POST' || type === 'SPECIAL POSTER' || type === 'SPECIAL DAY POSTER') {
+                entry.postsTotal += 1;
+                if (approved) entry.postsApproved += 1;
+            }
+        });
+
+        return Object.values(map).sort((a, b) => {
+            // Sort by completion % ascending (least done first), then alphabetically
+            const pctA = a.total > 0 ? a.approved / a.total : 1;
+            const pctB = b.total > 0 ? b.approved / b.total : 1;
+            if (pctA !== pctB) return pctA - pctB;
+            return a.clientName.localeCompare(b.clientName);
+        });
+    }, [calendarData, isDayInPeriod]);
+
+    const [isClientStatsExpanded, setIsClientStatsExpanded] = useState(true);
+
     return (
         <div className="dashboard-container">
             <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
@@ -661,6 +725,97 @@ export default function ContentHeadDashboard() {
                                     {postsPercentage}% Completed
                                 </div>
                             </div>
+                        </div>
+
+                        {/* ─── Client-wise Approval Progress ─── */}
+                        <div className="emergency-panel client-stats-panel">
+                            <div className="emergency-panel-header" style={{ cursor: 'pointer' }} onClick={() => setIsClientStatsExpanded(!isClientStatsExpanded)}>
+                                <Building2 size={24} color="#6366f1" />
+                                <h2 className="emergency-panel-title">Client-wise Approval Progress</h2>
+                                <span className="card-badge" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', borderColor: 'rgba(99, 102, 241, 0.2)' }}>
+                                    {clientStats.length} Clients
+                                </span>
+                                <ChevronDown
+                                    size={18}
+                                    style={{
+                                        marginLeft: 'auto',
+                                        color: 'var(--text-muted)',
+                                        transition: 'transform 0.25s ease',
+                                        transform: isClientStatsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    }}
+                                />
+                            </div>
+
+                            {isClientStatsExpanded && (
+                                loading ? (
+                                    <div className="posting-queue">
+                                        <Skeleton className="h-14 w-full" />
+                                        <Skeleton className="h-14 w-full" />
+                                    </div>
+                                ) : clientStats.length === 0 ? (
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', padding: '12px' }}>
+                                        No client data available for this period.
+                                    </p>
+                                ) : (
+                                    <div className="client-stats-grid">
+                                        {clientStats.map(cs => {
+                                            const pct = cs.total > 0 ? Math.round((cs.approved / cs.total) * 100) : 0;
+                                            const isComplete = pct === 100;
+                                            const reelPct = cs.reelsTotal > 0 ? Math.round((cs.reelsApproved / cs.reelsTotal) * 100) : -1;
+                                            const postPct = cs.postsTotal > 0 ? Math.round((cs.postsApproved / cs.postsTotal) * 100) : -1;
+
+                                            return (
+                                                <div key={cs.clientId} className={`client-stat-card ${isComplete ? 'complete' : ''}`}>
+                                                    <div className="client-stat-header">
+                                                        <div className="client-stat-avatar">
+                                                            {cs.clientName.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div className="client-stat-name-block">
+                                                            <span className="client-stat-name">{cs.clientName}</span>
+                                                            <span className="client-stat-overall">
+                                                                {cs.approved}/{cs.total} Approved
+                                                                {isComplete && <CheckCircle2 size={14} style={{ color: 'var(--success)', marginLeft: '4px' }} />}
+                                                            </span>
+                                                        </div>
+                                                        <span className={`client-stat-pct ${isComplete ? 'done' : pct >= 50 ? 'mid' : 'low'}`}>
+                                                            {pct}%
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="client-stat-bar-wrapper">
+                                                        <div className="client-stat-bar">
+                                                            <div className="client-stat-bar-fill" style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="client-stat-breakdown">
+                                                        {cs.reelsTotal > 0 && (
+                                                            <div className="client-stat-type">
+                                                                <Video size={12} />
+                                                                <span>Reels</span>
+                                                                <span className="client-stat-type-count">{cs.reelsApproved}/{cs.reelsTotal}</span>
+                                                                <div className="client-stat-mini-bar">
+                                                                    <div className="client-stat-mini-fill reels" style={{ width: `${reelPct}%` }} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {cs.postsTotal > 0 && (
+                                                            <div className="client-stat-type">
+                                                                <FileText size={12} />
+                                                                <span>Posts</span>
+                                                                <span className="client-stat-type-count">{cs.postsApproved}/{cs.postsTotal}</span>
+                                                                <div className="client-stat-mini-bar">
+                                                                    <div className="client-stat-mini-fill posts" style={{ width: `${postPct}%` }} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )
+                            )}
                         </div>
 
                         {/* WAITING FOR APPROVAL - Action Required List */}

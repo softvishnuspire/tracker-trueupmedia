@@ -43,7 +43,8 @@ import {
     Phone,
     Mail,
     Search,
-    Plus
+    Plus,
+    Eye
 } from 'lucide-react';
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -58,9 +59,10 @@ import './ph.css';
 // Using imported ContentItem from @/lib/api
 
 export default function ProductionHeadDashboard() {
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'employees'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'viewTaskClient' | 'master' | 'company' | 'employees'>('dashboard');
     const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
+    const [viewTaskCalendarData, setViewTaskCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
     const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
     const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
@@ -195,7 +197,7 @@ export default function ProductionHeadDashboard() {
     }, [selectedClient]);
 
     const selectedClientData = clients.find(c => c.id === selectedClient);
-    const isBiMonthlyView = (view === 'client' || view === 'master' || view === 'dashboard') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+    const isBiMonthlyView = (view === 'client' || view === 'viewTaskClient' || view === 'master' || view === 'dashboard') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
     const periodStart = isBiMonthlyView
         ? (currentMonth.getDate() >= 15
@@ -245,6 +247,34 @@ export default function ProductionHeadDashboard() {
             }
             
             setCalendarData(data);
+        } catch (err) { console.error(err); }
+        finally { setLoading(false); }
+    }, [selectedClient, currentMonth, clients]);
+
+    const fetchViewTaskClientCalendar = useCallback(async () => {
+        if (selectedClient === 'all') return;
+        setLoading(true);
+        try {
+            const client = clients.find(c => c.id === selectedClient);
+            const is1515 = client?.batch_type === '15-15';
+
+            let data = [];
+            if (is1515) {
+                const isSecondHalf = currentMonth.getDate() >= 15;
+                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+
+                const [resStart, resEnd] = await Promise.all([
+                    phApi.getViewAllClientCalendar(selectedClient, format(startMonth, 'yyyy-MM')),
+                    phApi.getViewAllClientCalendar(selectedClient, format(endMonth, 'yyyy-MM'))
+                ]);
+                data = [...(resStart.data || []), ...(resEnd.data || [])];
+            } else {
+                const res = await phApi.getViewAllClientCalendar(selectedClient, format(currentMonth, 'yyyy-MM'));
+                data = res.data || [];
+            }
+
+            setViewTaskCalendarData(data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     }, [selectedClient, currentMonth, clients]);
@@ -348,10 +378,12 @@ export default function ProductionHeadDashboard() {
             fetchTodayStats();
         } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
             fetchClientCalendar();
+        } else if (view === 'viewTaskClient' && selectedClient && selectedClient !== 'all') {
+            fetchViewTaskClientCalendar();
         } else if (view === 'master' || view === 'company') {
             fetchMasterCalendar();
         }
-    }, [view, selectedClient, currentMonth, fetchTodayStats, fetchClientCalendar, fetchMasterCalendar]);
+    }, [view, selectedClient, currentMonth, fetchTodayStats, fetchClientCalendar, fetchViewTaskClientCalendar, fetchMasterCalendar]);
 
     const getEmployeeName = (id: string) => {
         if (!id) return 'Unassigned';
@@ -438,16 +470,25 @@ export default function ProductionHeadDashboard() {
     const handleItemClick = async (item: ContentItem) => {
         try {
             const day = parseISO(item.scheduled_datetime);
-            const sourceList = calendarData.length > 0 ? calendarData : [];
+            const sourceList = view === 'viewTaskClient'
+                ? viewTaskCalendarData
+                : (calendarData.length > 0 ? calendarData : []);
             const tasksOnDay = sourceList.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
-            
+
             if (!tasksOnDay.some(t => t.id === item.id)) {
                 tasksOnDay.push(item);
             }
 
             tasksOnDay.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
-            
+
             setDayTasks(tasksOnDay);
+
+            if (view === 'viewTaskClient') {
+                const res = await phApi.getContentDetails(item.id, undefined, true);
+                setActiveItem(res.data);
+                setIsDetailsOpen(true);
+                return;
+            }
 
             let asOfDate;
             if (view === 'company') {
@@ -464,14 +505,23 @@ export default function ProductionHeadDashboard() {
 
     const navigateToTask = async (direction: 'next' | 'prev') => {
         if (!activeItem || dayTasks.length <= 1) return;
-        
+
         const currentIndex = dayTasks.findIndex(t => t.id === activeItem.item.id);
         let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-        
+
         if (nextIndex < 0) nextIndex = dayTasks.length - 1;
         if (nextIndex >= dayTasks.length) nextIndex = 0;
-        
+
         const nextTask = dayTasks[nextIndex];
+
+        if (view === 'viewTaskClient') {
+            try {
+                const res = await phApi.getContentDetails(nextTask.id, undefined, true);
+                setActiveItem(res.data);
+            } catch (err) { console.error(err); }
+            return;
+        }
+
         try {
             let asOfDate;
             if (view === 'company') {
@@ -549,6 +599,48 @@ export default function ProductionHeadDashboard() {
     const postsPercentage = monthStatusCounts.postsTotal > 0 ? Math.round((monthStatusCounts.postsCompleted / monthStatusCounts.postsTotal) * 100) : 0;
     const shootsPercentage = monthStatusCounts.shootsTotal > 0 ? Math.round((monthStatusCounts.shootsCompleted / monthStatusCounts.shootsTotal) * 100) : 0;
 
+    const activeCalendarData = view === 'viewTaskClient' ? viewTaskCalendarData : calendarData;
+
+    const viewTaskMonthStatusCounts = viewTaskCalendarData
+        .filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)))
+        .reduce(
+            (acc, item) => {
+                const normalizedStatus = (item.status || '').toUpperCase();
+                const normalizedType = (item.content_type || '').toUpperCase();
+
+                acc.overallTotal += 1;
+                if (shootDoneStatuses.includes(normalizedStatus)) acc.overallCompleted += 1;
+
+                if (normalizedType === 'REEL') {
+                    acc.reelsTotal += 1;
+                    if (shootDoneStatuses.includes(normalizedStatus)) acc.reelsCompleted += 1;
+                }
+                if (normalizedType === 'POST') {
+                    acc.postsTotal += 1;
+                    if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
+                        acc.postsCompleted += 1;
+                    }
+                }
+                if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
+                    acc.shootsTotal += 1;
+                    if (shootDoneStatuses.includes(normalizedStatus)) acc.shootsCompleted += 1;
+                }
+                if (contentApprovedStatuses.includes(normalizedStatus)) acc.contentApproved += 1;
+                if (normalizedStatus === 'POSTED') acc.posted += 1;
+
+                return acc;
+            },
+            {
+                overallTotal: 0, overallCompleted: 0,
+                reelsTotal: 0, reelsCompleted: 0,
+                postsTotal: 0, postsCompleted: 0,
+                shootsTotal: 0, shootsCompleted: 0,
+                contentApproved: 0, posted: 0
+            }
+        );
+
+    const isReadOnlyCalendarView = view === 'viewTaskClient';
+
     return (
         <div className="dashboard-container">
             <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
@@ -580,6 +672,10 @@ export default function ProductionHeadDashboard() {
                         <CalendarIcon size={20} />
                         <span>Client Production</span>
                     </div>
+                    <div onClick={() => { setView('viewTaskClient'); if (selectedClient === 'all' && clients.length > 0) setSelectedClient(clients[0].id); }} className={`nav-item ${view === 'viewTaskClient' ? 'active' : ''}`}>
+                        <Eye size={20} />
+                        <span>View Task Client Calendar</span>
+                    </div>
                     <div onClick={() => setView('master')} className={`nav-item ${view === 'master' ? 'active' : ''}`}>
                         <Globe size={20} />
                         <span>Master Schedule</span>
@@ -595,7 +691,7 @@ export default function ProductionHeadDashboard() {
                         <span>Employee Management</span>
                     </div>
 
-                    {view === 'client' && (
+                    {(view === 'client' || view === 'viewTaskClient') && (
                         <>
                             <div className="sidebar-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span>Clients</span>
@@ -661,6 +757,24 @@ export default function ProductionHeadDashboard() {
                                         )}
                                     </>
                                 )}
+                                {view === 'viewTaskClient' && (
+                                    <>
+                                        <span>View Task Client Calendar</span>
+                                        {selectedClient && selectedClient !== 'all' && (
+                                            <span style={{
+                                                fontSize: '14px',
+                                                background: 'rgba(245, 158, 11, 0.1)',
+                                                color: '#f59e0b',
+                                                padding: '4px 12px',
+                                                borderRadius: '20px',
+                                                fontWeight: 700,
+                                                border: '1px solid rgba(245, 158, 11, 0.2)'
+                                            }}>
+                                                View Only
+                                            </span>
+                                        )}
+                                    </>
+                                )}
                                 {view === 'master' && 'Master Production Schedule'}
                                 {view === 'company' && 'Company Calendar'}
                                 {view === 'employees' && 'Employee Management'}
@@ -673,6 +787,7 @@ export default function ProductionHeadDashboard() {
                                     </span>
                                 )}
                                 {view === 'client' && 'Manage shoot schedule for individual clients'}
+                                {view === 'viewTaskClient' && 'View all client tasks (same as Admin/GM client calendar) — read-only'}
                                 {view === 'master' && 'Review company-wide production pipeline'}
                                 {view === 'company' && 'Historical view of production schedule (-7 days)'}
                                 {view === 'employees' && 'Assign and manage clients for individual employees'}
@@ -692,6 +807,16 @@ export default function ProductionHeadDashboard() {
                             )}
 
                             {view === 'client' && (
+                                <div className="client-dropdown-wrapper">
+                                    <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
+                                        <option value="all">Select a client</option>
+                                        {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                                    </select>
+                                    <ChevronDown size={16} className="dropdown-chevron" />
+                                </div>
+                            )}
+
+                            {view === 'viewTaskClient' && (
                                 <div className="client-dropdown-wrapper">
                                     <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
                                         <option value="all">Select a client</option>
@@ -895,6 +1020,31 @@ export default function ProductionHeadDashboard() {
 
 
 
+                {view === 'viewTaskClient' && selectedClient !== 'all' && (
+                    <div className="status-summary-row">
+                        <div className="status-pill status-pill-reels">
+                            <span className="status-pill-label">Reels</span>
+                            <span className="status-pill-count">{viewTaskMonthStatusCounts.reelsTotal}</span>
+                        </div>
+                        <div className="status-pill status-pill-posts">
+                            <span className="status-pill-label">Posts</span>
+                            <span className="status-pill-count">{viewTaskMonthStatusCounts.postsTotal}</span>
+                        </div>
+                        <div className="status-pill status-pill-content-approved">
+                            <span className="status-pill-label">Content Approved</span>
+                            <span className="status-pill-count">{viewTaskMonthStatusCounts.contentApproved}</span>
+                        </div>
+                        <div className="status-pill status-pill-shoot-done">
+                            <span className="status-pill-label">Shoot Done</span>
+                            <span className="status-pill-count">{viewTaskMonthStatusCounts.shootsCompleted}</span>
+                        </div>
+                        <div className="status-pill status-pill-posted">
+                            <span className="status-pill-label">Posted</span>
+                            <span className="status-pill-count">{viewTaskMonthStatusCounts.posted}</span>
+                        </div>
+                    </div>
+                )}
+
                 {(view === 'client' || view === 'master' || view === 'company') && (
                     <div className="status-summary-row">
                         <div className="status-pill status-pill-reels">
@@ -920,7 +1070,22 @@ export default function ProductionHeadDashboard() {
                     </div>
                 )}
 
-                {(view === 'client' || view === 'master' || view === 'company') && (
+                {view === 'viewTaskClient' && selectedClient === 'all' && (
+                    <div style={{
+                        padding: '48px 24px',
+                        textAlign: 'center',
+                        background: 'var(--bg-surface)',
+                        borderRadius: '16px',
+                        border: '1px dashed var(--border)',
+                        color: 'var(--text-muted)'
+                    }}>
+                        <Eye size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+                        <p style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>Select a client to view tasks</p>
+                        <p style={{ fontSize: '13px', marginTop: '8px' }}>Shows every task for the client (all statuses). View only — no edits or status changes.</p>
+                    </div>
+                )}
+
+                {(view === 'client' || view === 'viewTaskClient' || view === 'master' || view === 'company') && (view !== 'viewTaskClient' || selectedClient !== 'all') && (
                     <div className="calendar-card">
                         <div className="calendar-grid">
                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -938,9 +1103,9 @@ export default function ProductionHeadDashboard() {
                                 ))
                             ) : (
                                 days.map((day, idx) => {
-                                    const dayContent = calendarData.filter(item => isSameDay(parseISO(item.scheduled_datetime), day));
+                                    const dayContent = activeCalendarData.filter(item => isSameDay(parseISO(item.scheduled_datetime), day));
                                     return (
-                                        <div key={idx} onClick={() => { if (dayContent.length > 0) handleItemClick(dayContent[0]); }} className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`} style={{ minHeight: '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}>
+                                        <div key={idx} onClick={() => { if (dayContent.length > 0) handleItemClick(dayContent[0]); }} className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''} ${isReadOnlyCalendarView ? 'view-only-day' : ''}`} style={{ minHeight: '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}>
                                             <span className="day-number">{format(day, 'd')}</span>
                                             <div className="day-items desktop-only">
                                                 {dayContent.map(item => (
@@ -962,7 +1127,9 @@ export default function ProductionHeadDashboard() {
                                                                     </span>
                                                                 )}
                                                             </span>
-                                                            {['CONTENT READY', 'WAITING FOR APPROVAL', 'SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status) ? (
+                                                            {isReadOnlyCalendarView ? (
+                                                                <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>{item.status}</span>
+                                                            ) : ['CONTENT READY', 'WAITING FOR APPROVAL', 'SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status) ? (
                                                                 <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
                                                             ) : (
                                                                 <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
@@ -1256,7 +1423,22 @@ export default function ProductionHeadDashboard() {
                         </div>
                         
                         <div className="modal-body" style={{ padding: '32px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                            {view === 'viewTaskClient' && (
+                                <div style={{
+                                    marginBottom: '20px',
+                                    padding: '12px 16px',
+                                    background: 'rgba(245, 158, 11, 0.08)',
+                                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                                    borderRadius: '12px',
+                                    fontSize: '13px',
+                                    color: '#f59e0b',
+                                    fontWeight: 600
+                                }}>
+                                    <Eye size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
+                                    View-only mode — you can see every task like Admin/GM client calendar, but cannot update status, assign employees, or edit tasks.
+                                </div>
+                            )}
+                            <div style={{ display: 'grid', gridTemplateColumns: view === 'viewTaskClient' ? '1fr' : '1fr 1fr', gap: '32px' }}>
                                 <div className="detail-section">
                                     <div className="detail-field">
                                         <label className="detail-label">Client</label>
@@ -1297,7 +1479,16 @@ export default function ProductionHeadDashboard() {
                                         <label className="detail-label">Description</label>
                                         <p className="detail-text">{activeItem.item.description || 'No description provided.'}</p>
                                     </div>
+                                    {view === 'viewTaskClient' && (
+                                        <div className="detail-field">
+                                            <label className="detail-label">Status</label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+                                                <span className={`status-badge ${activeItem.item.status.toLowerCase().replace(/ /g, '-')}`}>{activeItem.item.status}</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
+                                {view !== 'viewTaskClient' && (
                                 <div className="detail-section">
                                     <div className="detail-field">
                                         <label className="detail-label">Status</label>
@@ -1388,11 +1579,13 @@ export default function ProductionHeadDashboard() {
                                         );
                                     })()}
                                 </div>
+                                )}
                             </div>
 
                             <div style={{ marginTop: '32px', borderTop: '1px solid var(--border)', paddingTop: '24px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                    <label className="detail-label" style={{ marginBottom: 0 }}>Production History</label>
+                                    <label className="detail-label" style={{ marginBottom: 0 }}>{view === 'viewTaskClient' ? 'Status History' : 'Production History'}</label>
+                                    {view !== 'viewTaskClient' && (
                                     <button 
                                         onClick={() => handleUndo(activeItem.item.id)}
                                         style={{ 
@@ -1405,10 +1598,27 @@ export default function ProductionHeadDashboard() {
                                         <Undo2 size={12} />
                                         Undo Last Step
                                     </button>
+                                    )}
                                 </div>
                                 <div className="timeline-container" style={{ marginTop: '16px' }}>
                                     <div className="timeline-line"></div>
-                                    {(() => {
+                                    {view === 'viewTaskClient' && activeItem.history?.length > 0 ? (
+                                        activeItem.history.map((entry: any) => (
+                                            <div key={entry.id || entry.changed_at} className="timeline-step completed">
+                                                <div className="step-indicator"><Check size={14} /></div>
+                                                <div className="step-content">
+                                                    <span className="step-title">{entry.new_status}</span>
+                                                    <div className="step-meta">
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                            <span className="step-user">{entry.users?.role_identifier || entry.users?.name || 'System'}</span>
+                                                            <span className="step-time">{format(parseISO(entry.changed_at), 'MMM d, HH:mm')}</span>
+                                                        </div>
+                                                        {entry.note && <p className="step-note">&quot;{entry.note}&quot;</p>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (() => {
                                         const flows: any = {
                                             'Reel': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
                                             'YouTube': ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],

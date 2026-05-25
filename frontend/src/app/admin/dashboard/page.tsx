@@ -1,34 +1,18 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { 
   Calendar, ShieldAlert, FileText, Video, ArrowRight, 
-  X, Undo2, Edit2, Trash2, ChevronDown, Filter, ChevronLeft, ChevronRight, Clock, Check
+  X, Undo2, Edit2, Trash2, ChevronDown, Filter, ChevronLeft, ChevronRight, Clock, Check,
+  Layers, Film, MessageSquare, Activity, Users, Globe
 } from 'lucide-react';
-import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistoryItem } from '@/lib/api';
+import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistoryItem, PocNote } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { endOfWeek, format, isSameDay, isSameMonth, parseISO, startOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
+import { endOfWeek, format, isSameDay, isSameMonth, parseISO, startOfWeek, startOfMonth, endOfMonth, subMonths, addMonths, startOfDay, endOfDay } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
 import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
-
-interface Stats {
-  totalClients: number;
-  totalItemsThisMonth: number;
-  statusSummary: Record<string, number>;
-  reelsCount: number;
-  postsCount: number;
-  youtubeCount: number;
-  videoCount: number;
-  pendingCount: number;
-  completedCount: number;
-  pendingReels: number;
-  pendingPosts: number;
-  completedReels: number;
-  completedPosts: number;
-  assignedReels: number;
-  assignedPosts: number;
-  shootPendingReels: number;
-}
+import '../../gm/dashboard/gm.css';
 
 interface ContentDetails {
   item: ContentItem;
@@ -36,25 +20,15 @@ interface ContentDetails {
 }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [pipelineStats, setPipelineStats] = useState<{
-    totalItems: number;
-    completed: number;
-    pending: number;
-    statusSummary: Record<string, number>;
-    videoCount: number;
-    postsCount: number;
-    completedReels: number;
-    completedPosts: number;
-  } | null>(null);
-  const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
   const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
+  const [globalCalendarData, setGlobalCalendarData] = useState<ContentItem[]>([]);
+  const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
   const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
   const [clients, setClients] = useState<any[]>([]);
-  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [selectedClient, setSelectedClient] = useState<string>('');
   const [activeItem, setActiveItem] = useState<ContentDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [statusNote, setStatusNote] = useState('');
@@ -70,17 +44,11 @@ export default function AdminDashboard() {
   const supabase = createClient();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  const getClientBatchType = useCallback((clientId: string) => {
-    if (clientId === 'all') return '1-1';
-    const client = clients.find(c => c.id === clientId);
-    return client?.batch_type || '1-1';
-  }, [clients]);
-
   const shootDoneStatuses = [
     'SHOOT DONE',
     'EDITING IN PROGRESS',
     'EDITED',
-    'WAITING FOR APPROVAL',
+    'WAITING FOR FINAL APPROVAL',
     'APPROVED',
     'WAITING FOR POSTING',
     'POSTED'
@@ -102,12 +70,39 @@ export default function AdminDashboard() {
   ];
 
   const getPeriodLabel = () => {
+    if (isBiMonthlyView) {
+      return `${format(periodStart, 'MMM d')} – ${format(periodEnd, 'MMM d, yyyy')}`;
+    }
     return `Current Month (${format(startOfMonth(currentMonth), 'MMM d')} - ${format(endOfMonth(currentMonth), 'MMM d')})`;
   };
 
+  const selectedClientData = clients.find(c => c.id === selectedClient);
+  const isBiMonthlyView = !!selectedClient && selectedClientData?.batch_type === '15-15';
+
+  const periodStart = isBiMonthlyView
+    ? (currentMonth.getDate() >= 15
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
+    : startOfMonth(currentMonth);
+
+  const periodEnd = isBiMonthlyView
+    ? (currentMonth.getDate() >= 15
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
+        : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
+    : endOfMonth(currentMonth);
+
   const isDayInPeriod = useCallback((date: Date) => {
-    return isSameMonth(date, currentMonth);
-  }, [currentMonth]);
+    if (!isBiMonthlyView) return isSameMonth(date, currentMonth);
+    return date >= startOfDay(periodStart) && date <= endOfDay(periodEnd);
+  }, [currentMonth, isBiMonthlyView, periodStart, periodEnd]);
+
+  const getCalendarItemDate = (item: ContentItem) => getISTDate(item.scheduled_datetime);
+
+  useEffect(() => {
+    if (clients.length > 0 && !selectedClient) {
+      setSelectedClient(clients[0].id);
+    }
+  }, [clients, selectedClient]);
 
   const fetchDashboardLists = useCallback(async () => {
     try {
@@ -122,155 +117,67 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const isItemCompleted = (item: ContentItem) => {
-    const s = (item.status || '').toUpperCase();
-    const type = (item.content_type || '').toUpperCase();
-    if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(s)) return true;
-    if (type === 'POST' && (s === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(s))) return true;
-    return s === 'WAITING FOR POSTING' || s === 'POSTED';
-  };
+  const fetchClientCalendarData = useCallback(async (clientId: string) => {
+    if (!clientId) return [];
+    try {
+      const client = clients.find(c => c.id === clientId);
+      const is1515 = client?.batch_type === '15-15';
+
+      if (is1515) {
+        const isSecondHalf = currentMonth.getDate() >= 15;
+        const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+        const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+        const [resStart, resEnd] = await Promise.all([
+          gmApi.getCalendar(clientId, format(startMonth, 'yyyy-MM')),
+          gmApi.getCalendar(clientId, format(endMonth, 'yyyy-MM')),
+        ]);
+        return [...(resStart.data || []), ...(resEnd.data || [])];
+      }
+
+      const res = await gmApi.getCalendar(clientId, format(currentMonth, 'yyyy-MM'));
+      return res.data || [];
+    } catch (error) {
+      console.error('Error fetching client calendar:', error);
+      return [];
+    }
+  }, [currentMonth, clients]);
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch clients if not already loaded
       let currentClients = clients;
       if (currentClients.length === 0) {
-        const clientsRes = await adminApi.getClients();
+        const clientsRes = await gmApi.getClients();
         currentClients = clientsRes.data;
         setClients(currentClients);
       }
 
       const currentMonthStr = format(currentMonth, 'yyyy-MM');
-      
-      // 1. ALL CLIENTS DATA (for overall dashboard stats)
-      const allCalendarRes = await adminApi.getMasterCalendar(currentMonthStr);
-      const allData = allCalendarRes.data || [];
-      setCalendarData(allData);
+      const globalRes = await gmApi.getMasterCalendar(currentMonthStr);
+      setGlobalCalendarData(globalRes.data || []);
 
-      const allPeriodData = allData.filter(item => isDayInPeriod(getISTDate(item.scheduled_datetime)));
+      const activeClientId = selectedClient || currentClients[0]?.id;
+      if (activeClientId) {
+        const clientData = await fetchClientCalendarData(activeClientId);
+        setCalendarData(clientData);
 
-      const allBreakdown = allPeriodData.reduce((acc: any, item: ContentItem) => {
-        acc[item.status] = (acc[item.status] || 0) + 1;
-        return acc;
-      }, {});
-
-      const allReelsCount = allPeriodData.filter(item => item.content_type === 'Reel').length;
-      const allPostsCount = allPeriodData.filter(item => item.content_type === 'Post').length;
-      const allYoutubeCount = allPeriodData.filter(item => item.content_type === 'YouTube').length;
-      const allVideoCount = allReelsCount + allYoutubeCount;
-
-
-      const allCompletedItems = allPeriodData.filter(item => isItemCompleted(item));
-      const allPendingItems = allPeriodData.filter(item => !isItemCompleted(item));
-
-      const allCompletedCount = allCompletedItems.length;
-      const allPendingCount = allPendingItems.length;
-
-      const allCompletedReels = allCompletedItems.filter(item => item.content_type === 'Reel').length;
-      const allCompletedPosts = allCompletedItems.filter(item => item.content_type === 'Post').length;
-
-      const allPendingReels = allPendingItems.filter(item => item.content_type === 'Reel').length;
-      const allPendingPosts = allPendingItems.filter(item => item.content_type === 'Post').length;
-
-      const allShootPendingReels = allPeriodData.filter(item => 
-        (item.content_type === 'Reel' || item.content_type === 'YouTube') && 
-        ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED'].includes(item.status.toUpperCase())
-      ).length;
-
-      const today = getISTDate(new Date());
-      const todayItems = allData.filter((item: ContentItem) => isSameDay(getISTDate(item.scheduled_datetime), today));
-      const totalToday = todayItems.length;
-      const completedToday = todayItems.filter((item: ContentItem) => isItemCompleted(item)).length;
-      
-      setTodayStats({
-        total: totalToday,
-        completed: completedToday,
-        remaining: totalToday - completedToday,
-        percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
-      });
-
-      const assignedTotals = currentClients.reduce((acc, c) => ({
-        reels: acc.reels + (c.reels_per_month || 0),
-        posts: acc.posts + (c.posts_per_month || 0)
-      }), { reels: 0, posts: 0 });
-
-      const statsRes = await adminApi.getStats();
-      setStats({
-        ...statsRes.data,
-        totalClients: currentClients.length,
-        totalItemsThisMonth: allPeriodData.length,
-        statusSummary: allBreakdown,
-        reelsCount: allReelsCount,
-        postsCount: allPostsCount,
-        youtubeCount: allYoutubeCount,
-        videoCount: allVideoCount,
-        completedCount: allCompletedCount,
-        pendingCount: allPendingCount,
-        completedReels: allCompletedReels,
-        completedPosts: allCompletedPosts,
-        assignedReels: assignedTotals.reels,
-        assignedPosts: assignedTotals.posts,
-        pendingReels: allPendingReels,
-        pendingPosts: allPendingPosts,
-        shootPendingReels: allShootPendingReels
-      });
-
-      // 2. SELECTED CLIENT DATA (for Production Pipeline)
-      let pipelineData: ContentItem[] = [];
-      if (selectedClient === 'all') {
-        pipelineData = allData;
-      } else {
-        const isBiMonthly = getClientBatchType(selectedClient) === '15-15';
-        if (isBiMonthly) {
-          const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-          const resCurr = await adminApi.getMasterCalendar(currentMonthStr, selectedClient);
-          const resNext = await adminApi.getMasterCalendar(nextMonthStr, selectedClient);
-          pipelineData = [...(resCurr.data || []), ...(resNext.data || [])];
-        } else {
-          const resCurr = await adminApi.getMasterCalendar(currentMonthStr, selectedClient);
-          pipelineData = resCurr.data || [];
+        try {
+          const pocRes = await gmApi.getPocNotes(currentMonthStr, undefined, activeClientId);
+          setPocNotes(pocRes.data || []);
+        } catch (pocErr) {
+          console.error('Failed to load POC notes:', pocErr);
+          setPocNotes([]);
         }
       }
 
-      const pPeriodData = pipelineData.filter(item => isDayInPeriod(getISTDate(item.scheduled_datetime)));
-
-      const pBreakdown = pPeriodData.reduce((acc: any, item: ContentItem) => {
-        acc[item.status] = (acc[item.status] || 0) + 1;
-        return acc;
-      }, {});
-
-      const pReelsCount = pPeriodData.filter(item => item.content_type === 'Reel').length;
-      const pPostsCount = pPeriodData.filter(item => item.content_type === 'Post').length;
-      const pYoutubeCount = pPeriodData.filter(item => item.content_type === 'YouTube').length;
-      const pVideoCount = pReelsCount + pYoutubeCount;
-
-      const pCompletedCount = pPeriodData.filter(item => isItemCompleted(item)).length;
-      const pPendingCount = pPeriodData.filter(item => !isItemCompleted(item)).length;
-
-      const pCompletedReels = pPeriodData.filter(item => (item.content_type === 'Reel' || item.content_type === 'YouTube') && isItemCompleted(item)).length;
-      const pCompletedPosts = pPeriodData.filter(item => item.content_type === 'Post' && isItemCompleted(item)).length;
-
-      setPipelineStats({
-        totalItems: pPeriodData.length,
-        completed: pCompletedCount,
-        pending: pPendingCount,
-        statusSummary: pBreakdown,
-        videoCount: pVideoCount,
-        postsCount: pPostsCount,
-        completedReels: pCompletedReels,
-        completedPosts: pCompletedPosts
-      });
-
       await fetchDashboardLists();
-
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load dashboard data:', err instanceof Error ? err.message : String(err));
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [selectedClient, currentMonth, clients, getClientBatchType, isDayInPeriod, fetchDashboardLists]);
+  }, [selectedClient, currentMonth, clients, fetchClientCalendarData, fetchDashboardLists]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -393,25 +300,96 @@ export default function AdminDashboard() {
     }
   };
 
-  const monthTotal = stats?.totalItemsThisMonth || 0;
-  const monthCompleted = stats?.completedCount || 0;
-  const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
-  const weekStart = startOfWeek(getISTDate(new Date()), { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(getISTDate(new Date()), { weekStartsOn: 1 });
-  const weekItems = calendarData.filter((item) => {
-    const itemDate = getISTDate(item.scheduled_datetime);
-    return itemDate >= weekStart && itemDate <= weekEnd;
-  });
-  const weekTotal = weekItems.length;
-  const weekCompleted = weekItems.filter((item) => isItemCompleted(item)).length;
-  const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
+  const globalMonthCounts = globalCalendarData.filter(item => {
+    const itemDate = parseISO(item.scheduled_datetime);
+    return isSameMonth(itemDate, currentMonth);
+  }).reduce(
+    (acc, item) => {
+      const status = (item.status || '').toUpperCase();
+      const type = (item.content_type || '').toUpperCase();
+      const isShot = shootDoneStatuses.includes(status);
+      const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
+
+      acc.totalItems += 1;
+      if (status === 'POSTED') acc.posted += 1;
+      if (contentApprovedStatuses.includes(status)) acc.contentApproved += 1;
+      if (status === 'DESIGNING IN PROGRESS') acc.designingInProgress += 1;
+
+      if (type === 'REEL' || type === 'YOUTUBE') {
+        acc.totalReels += 1;
+        if (isShot) acc.shotReels += 1;
+        if (isDone) acc.doneReels += 1;
+      } else if (type === 'POST') {
+        acc.totalPosts += 1;
+        if (isShot) acc.shotPosts += 1;
+        if (isDone) acc.donePosts += 1;
+      }
+      return acc;
+    },
+    {
+      totalReels: 0, totalPosts: 0, shotReels: 0, shotPosts: 0, doneReels: 0, donePosts: 0,
+      totalItems: 0, posted: 0, contentApproved: 0, designingInProgress: 0
+    }
+  );
+
+  const activeStats = {
+    totalItems: globalMonthCounts.totalItems,
+    totalReels: globalMonthCounts.totalReels,
+    totalPosts: globalMonthCounts.totalPosts,
+    shotReels: globalMonthCounts.shotReels,
+    shotPosts: globalMonthCounts.shotPosts,
+    doneReels: globalMonthCounts.doneReels,
+    donePosts: globalMonthCounts.donePosts,
+    posted: globalMonthCounts.posted,
+    contentApproved: globalMonthCounts.contentApproved,
+    designingInProgress: globalMonthCounts.designingInProgress
+  };
+
+  const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
+    (acc, item) => {
+      const status = (item.status || '').toUpperCase();
+      const type = (item.content_type || '').toUpperCase();
+      const isShot = shootDoneStatuses.includes(status);
+      const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
+
+      acc.total += 1;
+      if (isDone) acc.completed += 1;
+      if (status === 'POSTED') acc.posted += 1;
+      if (contentApprovedStatuses.includes(status)) acc.contentApproved += 1;
+      if (status === 'DESIGNING IN PROGRESS') acc.designingInProgress += 1;
+
+      if (type === 'REEL' || type === 'YOUTUBE') {
+        acc.reels += 1;
+        if (isDone) acc.completedReels += 1;
+        if (isShot) acc.shootDone += 1;
+      } else if (type === 'POST') {
+        acc.posts += 1;
+        if (isDone) acc.completedPosts += 1;
+        if (isShot) acc.shotPosts += 1;
+      }
+
+      return acc;
+    },
+    {
+      total: 0, completed: 0, reels: 0, posts: 0,
+      completedReels: 0, completedPosts: 0,
+      shootDone: 0, contentApproved: 0,
+      posted: 0, designingInProgress: 0, shotPosts: 0,
+    }
+  );
+
+  const activeClientPocNotes = pocNotes
+    .sort((a, b) => new Date(b.note_date).getTime() - new Date(a.note_date).getTime())
+    .slice(0, 5);
+
+  const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 100) : 0);
 
   return (
     <div className="dashboard-view">
       <header className="page-header" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 className="page-title">Admin Dashboard</h1>
-          <p className="page-subtitle">Overview of system activity and client pipelines</p>
+          <h1 className="page-title">Dashboard Overview</h1>
+          <p className="page-subtitle">Monitor operational health and pipeline metrics</p>
         </div>
         <div className="month-nav" style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'var(--bg-surface)', padding: '8px 16px', borderRadius: '16px', border: '1px solid var(--border)' }}>
             <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}><ChevronLeft size={20} /></button>
@@ -427,236 +405,274 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="stats-grid" style={{ marginBottom: '32px' }}>
-        {loading ? (
-          <>
-            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-              <div key={i} className="stat-card">
-                <Skeleton className="h-12 w-12 rounded-xl" />
-                <div className="space-y-2 flex-1">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-8 w-12" />
-                </div>
-              </div>
-            ))}
-          </>
-        ) : (
-          <>
-            <div className="stat-card">
-              <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)' }}>
-                <Calendar size={28} />
-              </div>
-              <div className="stat-info">
-                <h3>Monthly Pipeline</h3>
-                <p className="stat-value">{stats?.totalItemsThisMonth || 0}</p>
+      {loading ? (
+        <div className="premium-stats-grid" style={{ marginTop: '12px' }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="premium-stat-card">
+              <Skeleton className="h-8 w-32" />
+              <Skeleton className="h-12 w-24 mt-4" />
+              <Skeleton className="h-2 w-full mt-4" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="premium-stats-grid" style={{ marginTop: '12px' }}>
+          <div className="premium-stat-card pipeline">
+            <div className="card-accent-line"></div>
+            <div className="card-top">
+              <div className="label-group"><span className="stat-label">MONTHLY PIPELINE</span></div>
+              <Layers size={20} className="stat-icon" />
+            </div>
+            <div className="card-main">
+              <div className="value-group">
+                <span className="main-value">{activeStats.shotReels + activeStats.shotPosts}</span>
+                <span className="separator">/</span>
+                <span className="total-value">{activeStats.totalReels + activeStats.totalPosts}</span>
+                <span className="unit">ITEMS</span>
               </div>
             </div>
-            <div className="stat-card">
-              <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)' }}>
-                <Video size={28} />
+            <div className="card-footer">
+              <div className="percentage-info">
+                <span className="pct-value">{pct(activeStats.shotReels + activeStats.shotPosts, activeStats.totalReels + activeStats.totalPosts)}%</span>
+                <span className="pct-label">Shot</span>
               </div>
-              <div className="stat-info">
-                <h3>Reels Progress</h3>
-                <p className="stat-value">
-                  {stats?.completedReels || 0}
-                  <span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.reelsCount || 0}</span>
-                </p>
+              <div className="progress-track">
+                <div className="progress-fill" style={{ width: `${pct(activeStats.shotReels + activeStats.shotPosts, activeStats.totalReels + activeStats.totalPosts)}%` }}></div>
               </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--accent-secondary)' }}>
-                <FileText size={28} />
-              </div>
-              <div className="stat-info">
-                <h3>Posts Progress</h3>
-                <p className="stat-value">
-                  {stats?.completedPosts || 0}
-                  <span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '4px' }}>/ {stats?.postsCount || 0}</span>
-                </p>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="daily-stats-banner" style={{ marginTop: '24px' }}>
-        <div className="progress-meter-card">
-          <div className="progress-top-row">
-            <div className="progress-main-info">
-              <h3 className="stat-label">Today&apos;s Progress</h3>
-            </div>
-            <div className="progress-values">
-              <span className="current">{todayStats.completed}</span>
-              <span className="separator">/</span>
-              <span className="total">{todayStats.total}</span>
-              <span className="unit">Tasks</span>
             </div>
           </div>
-          <div className="meter-labels">
-            <span className="percentage">{todayStats.percentage}% Done</span>
+
+          <div className="premium-stat-card reels">
+            <div className="card-accent-line"></div>
+            <div className="card-top">
+              <div className="label-group"><span className="stat-label">REELS PROGRESS</span></div>
+              <Video size={20} className="stat-icon" />
+            </div>
+            <div className="card-main">
+              <div className="value-group">
+                <span className="main-value">{activeStats.doneReels}</span>
+                <span className="separator">/</span>
+                <span className="total-value">{activeStats.totalReels}</span>
+                <span className="unit">REELS</span>
+              </div>
+            </div>
+            <div className="card-footer">
+              <div className="percentage-info">
+                <span className="pct-value">{pct(activeStats.doneReels, activeStats.totalReels)}%</span>
+                <span className="pct-label">Done</span>
+              </div>
+              <div className="progress-track">
+                <div className="progress-fill" style={{ width: `${pct(activeStats.doneReels, activeStats.totalReels)}%` }}></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="premium-stat-card posts">
+            <div className="card-accent-line"></div>
+            <div className="card-top">
+              <div className="label-group"><span className="stat-label">POSTS PROGRESS</span></div>
+              <FileText size={20} className="stat-icon" />
+            </div>
+            <div className="card-main">
+              <div className="value-group">
+                <span className="main-value">{activeStats.donePosts}</span>
+                <span className="separator">/</span>
+                <span className="total-value">{activeStats.totalPosts}</span>
+                <span className="unit">POSTS</span>
+              </div>
+            </div>
+            <div className="card-footer">
+              <div className="percentage-info">
+                <span className="pct-value">{pct(activeStats.donePosts, activeStats.totalPosts)}%</span>
+                <span className="pct-label">Done</span>
+              </div>
+              <div className="progress-track">
+                <div className="progress-fill" style={{ width: `${pct(activeStats.donePosts, activeStats.totalPosts)}%` }}></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="premium-stat-card shoots">
+            <div className="card-accent-line"></div>
+            <div className="card-top">
+              <div className="label-group"><span className="stat-label">SHOOTS DONE</span></div>
+              <Film size={20} className="stat-icon" />
+            </div>
+            <div className="card-main">
+              <div className="value-group">
+                <span className="main-value">{activeStats.shotReels}</span>
+                <span className="separator">/</span>
+                <span className="total-value">{activeStats.totalReels}</span>
+                <span className="unit">SHOOTS</span>
+              </div>
+            </div>
+            <div className="card-footer">
+              <div className="percentage-info">
+                <span className="pct-value">{pct(activeStats.shotReels, activeStats.totalReels)}%</span>
+                <span className="pct-label">Shot</span>
+              </div>
+              <div className="progress-track">
+                <div className="progress-fill" style={{ width: `${pct(activeStats.shotReels, activeStats.totalReels)}%` }}></div>
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        <div className="progress-meter-card">
-          <div className="progress-top-row">
-            <div className="progress-main-info">
-              <h3 className="stat-label">Week&apos;s Progress</h3>
+      <div className="unified-dashboard">
+        <div className="dashboard-card unified-main-card">
+          <div className="unified-card-header">
+            <div className="header-text">
+              <h2 className="card-title">Operational Command Center</h2>
+              <p className="card-subtitle">Real-time health and production flow monitoring</p>
             </div>
-            <div className="progress-values">
-              <span className="current">{weekCompleted}</span>
-              <span className="separator">/</span>
-              <span className="total">{weekTotal}</span>
-              <span className="unit">Tasks</span>
-            </div>
-          </div>
-          <div className="meter-labels">
-            <span className="percentage">{weekPercentage}% Done</span>
-          </div>
-        </div>
-
-        <div className="progress-meter-card">
-          <div className="progress-top-row">
-            <div className="progress-main-info">
-              <h3 className="stat-label">Month&apos;s Progress</h3>
-            </div>
-            <div className="progress-values">
-              <span className="current">{monthCompleted}</span>
-              <span className="separator">/</span>
-              <span className="total">{monthTotal}</span>
-              <span className="unit">Tasks</span>
-            </div>
-          </div>
-          <div className="meter-labels">
-            <span className="percentage">{monthPercentage}% Done</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="admin-main-grid">
-        <div className="dashboard-card" style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Production Pipeline</h3>
-                <span style={{ fontSize: '11px', background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: '20px', fontWeight: 700, color: 'var(--accent)' }}>Live Status</span>
-            </div>
-
-            <div className="pipeline-stats-grid">
-                <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid var(--border)' }}>
-                    <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Total Tasks</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900 }}>{pipelineStats?.totalItems || 0}</p>
-                </div>
-                <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                    <p style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Reels</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--success)' }}>
-                        {pipelineStats?.completedReels || 0}
-                        <span style={{ opacity: 0.5, fontSize: '14px', fontWeight: 700, marginLeft: '4px' }}>/ {pipelineStats?.videoCount || 0}</span>
-                    </p>
-                </div>
-                <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                    <p style={{ fontSize: '10px', color: 'var(--warning)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Posts</p>
-                    <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--warning)' }}>
-                        {pipelineStats?.completedPosts || 0}
-                        <span style={{ opacity: 0.5, fontSize: '14px', fontWeight: 700, marginLeft: '4px' }}>/ {pipelineStats?.postsCount || 0}</span>
-                    </p>
-                </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {(() => {
-                    const summary = pipelineStats?.statusSummary || {};
-                    const normalized: Record<string, number> = {};
-                    Object.entries(summary).forEach(([status, count]) => {
-                        const s = (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') ? 'CONTENT APPROVED' : status;
-                        normalized[s] = (normalized[s] || 0) + (count as number);
-                    });
-                    
-                    return Object.entries(normalized).map(([status, count]) => {
-                        const s = status.toUpperCase();
-                        let denominator = pipelineStats?.totalItems || 0;
-                        
-                        if (['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED'].includes(s)) {
-                            denominator = pipelineStats?.videoCount || 0;
-                        } else if (['DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'].includes(s)) {
-                            denominator = pipelineStats?.postsCount || 0;
-                        } else if (s === 'REEL' || s === 'POST') {
-                            // Support for the simplified summary categories if they appear in summary
-                            denominator = s === 'REEL' ? pipelineStats?.videoCount || 0 : pipelineStats?.postsCount || 0;
-                        }
-
-                        // Determine if this status counts as "Production Done" for consistent labeling
-                        const isProdDone = shootDoneStatuses.includes(s) || (s === 'DESIGNING COMPLETED');
-
-                        return (
-                            <div key={status} style={{ 
-                                display: 'flex', 
-                                justifyContent: 'space-between', 
-                                alignItems: 'center', 
-                                padding: '12px 16px', 
-                                background: 'var(--bg-elevated)', 
-                                borderRadius: '12px', 
-                                border: isProdDone ? '1px solid var(--success-border, rgba(16, 185, 129, 0.2))' : '1px solid var(--border)',
-                                position: 'relative',
-                                overflow: 'hidden'
-                            }}>
-                                {isProdDone && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'var(--success)' }}></div>}
-                                <span style={{ fontSize: '13px', fontWeight: 700, color: isProdDone ? 'var(--success)' : 'var(--text-secondary)' }}>{status}</span>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                                    <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>{count}</span>
-                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>/ {denominator}</span>
-                                </div>
-                            </div>
-                        );
-                    });
-                })()}
-
-                {Object.keys(pipelineStats?.statusSummary || {}).length === 0 && (
-                    <p style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>No content items this month.</p>
-                )}
-            </div>
-        </div>
-
-        <div className="dashboard-card" style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>
-            <div style={{ marginBottom: '24px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Filter by Client</h3>
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>Select a client to monitor their specific pipeline progress.</p>
-            </div>
-
-            <div style={{ position: 'relative', marginBottom: '20px' }}>
+            <div className="header-actions">
+              <div className="client-filter-box">
+                <Filter size={16} className="filter-icon" />
                 <select
-                    style={{ 
-                        width: '100%', 
-                        padding: '14px 40px 14px 16px', 
-                        background: 'var(--bg-elevated)', 
-                        border: '1px solid var(--border)', 
-                        borderRadius: '16px', 
-                        color: 'var(--text-primary)',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        appearance: 'none',
-                        cursor: 'pointer'
-                    }}
-                    value={selectedClient}
-                    onChange={(e) => setSelectedClient(e.target.value)}
+                  className="client-select-dropdown"
+                  value={selectedClient}
+                  onChange={(e) => setSelectedClient(e.target.value)}
                 >
-                    <option value="all">All Clients</option>
-                    {clients.map(c => (
-                        <option key={c.id} value={c.id}>{c.company_name}</option>
-                    ))}
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.company_name}</option>
+                  ))}
                 </select>
-                <ChevronDown size={18} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+                <ChevronDown size={16} className="select-chevron" />
+              </div>
+            </div>
+          </div>
+
+          <div className="unified-body-grid">
+            <div className="unified-progress-panel">
+              <div className="panel-section">
+                <div className="section-header">
+                  <div className="icon-badge"><MessageSquare size={12} /></div>
+                  <h4 className="section-label">POC COMMUNICATION</h4>
+                </div>
+                <div className="poc-feed-compact">
+                  {activeClientPocNotes.length > 0 ? (
+                    activeClientPocNotes.map((note, idx) => (
+                      <div key={note.id || idx} className="poc-feed-item">
+                        <div className="note-meta">
+                          <span className="note-author">{note.users?.name?.split(' ')[0] || 'TL'}</span>
+                          <span className="note-date">{format(parseISO(note.note_date), 'MMM d')}</span>
+                        </div>
+                        <p className="note-text">{note.note_text}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="poc-empty-state"><p>No recent notes</p></div>
+                  )}
+                </div>
+              </div>
+
+              <div className="panel-divider"></div>
+
+              <div className="panel-section">
+                <div className="section-header">
+                  <div className="icon-badge"><Activity size={12} /></div>
+                  <h4 className="section-label">TASK LIFECYCLE</h4>
+                </div>
+                <div className="lifecycle-list">
+                  {(() => {
+                    const periodItems = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)));
+                    const flows: Record<string, string[]> = {
+                      REEL: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                      YOUTUBE: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                      POST: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                    };
+                    const milestones = ['CONTENT APPROVED', 'WAITING FOR FINAL APPROVAL', 'POSTED'];
+
+                    return milestones.map(milestone => {
+                      let numerator = 0;
+                      let denominator = 0;
+                      periodItems.forEach(item => {
+                        const type = (item.content_type || '').toUpperCase();
+                        const status = (item.status || '').toUpperCase();
+                        const flow = flows[type] || flows.REEL;
+                        const milestoneIdx = flow.indexOf(milestone);
+                        if (milestoneIdx !== -1) {
+                          denominator += 1;
+                          const statusIdx = flow.indexOf(status);
+                          if (statusIdx >= milestoneIdx) numerator += 1;
+                        }
+                      });
+                      return (
+                        <div key={milestone} className="lifecycle-item">
+                          <div className="lifecycle-info">
+                            <span className="lifecycle-name">{milestone}</span>
+                            <span className="lifecycle-count">{numerator} / {denominator}</span>
+                          </div>
+                          <div className="lifecycle-bar-bg">
+                            <div className="lifecycle-bar-fill" style={{ width: `${pct(numerator, denominator)}%` }}></div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              <div className="panel-actions-vertical">
+                <Link href="/admin/team" className="action-btn-hub">
+                  <Users size={14} />
+                  <span>Manage Teams</span>
+                </Link>
+                <Link href="/admin/master-calendar" className="action-btn-hub">
+                  <Globe size={14} />
+                  <span>Master Calendar</span>
+                </Link>
+              </div>
             </div>
 
-            <div style={{ background: 'rgba(99, 102, 241, 0.05)', padding: '16px', borderRadius: '16px', border: '1px dashed var(--accent)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent)', marginBottom: '8px' }}>
-                    <Filter size={16} />
-                    <span style={{ fontSize: '13px', fontWeight: 700 }}>Filter Active</span>
+            <div className="unified-pipeline-panel">
+              <div className="pipeline-header">
+                <h4 className="panel-title">Production Progress</h4>
+                <span className="live-tag">LIVE</span>
+              </div>
+              <div className="unified-status-list">
+                <div className="unified-pipeline-item">
+                  <div className="item-meta">
+                    <span className="status-label">SHOOT DONE</span>
+                    <span className="status-count">{monthStatusCounts.shootDone} / {monthStatusCounts.reels}</span>
+                  </div>
+                  <div className="status-bar-bg">
+                    <div className="status-bar-fill" style={{ width: `${pct(monthStatusCounts.shootDone, monthStatusCounts.reels)}%`, background: '#06b6d4' }}></div>
+                  </div>
                 </div>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                    Currently showing {selectedClient === 'all' ? 'aggregated data for all clients' : `data for ${clients.find(c => c.id === selectedClient)?.company_name}`}.
-                </p>
+                <div className="unified-pipeline-item">
+                  <div className="item-meta">
+                    <span className="status-label">MONTHLY PIPELINE</span>
+                    <span className="status-count">{monthStatusCounts.completedReels + monthStatusCounts.completedPosts} / {monthStatusCounts.reels + monthStatusCounts.posts}</span>
+                  </div>
+                  <div className="status-bar-bg">
+                    <div className="status-bar-fill" style={{ width: `${pct(monthStatusCounts.completedReels + monthStatusCounts.completedPosts, monthStatusCounts.reels + monthStatusCounts.posts)}%` }}></div>
+                  </div>
+                </div>
+                <div className="unified-pipeline-item">
+                  <div className="item-meta">
+                    <span className="status-label">TOTAL REELS</span>
+                    <span className="status-count">{monthStatusCounts.completedReels} / {monthStatusCounts.reels}</span>
+                  </div>
+                  <div className="status-bar-bg">
+                    <div className="status-bar-fill" style={{ width: `${pct(monthStatusCounts.completedReels, monthStatusCounts.reels)}%`, background: '#a855f7' }}></div>
+                  </div>
+                </div>
+                <div className="unified-pipeline-item">
+                  <div className="item-meta">
+                    <span className="status-label">TOTAL POSTS</span>
+                    <span className="status-count">{monthStatusCounts.completedPosts} / {monthStatusCounts.posts}</span>
+                  </div>
+                  <div className="status-bar-bg">
+                    <div className="status-bar-fill" style={{ width: `${pct(monthStatusCounts.completedPosts, monthStatusCounts.posts)}%`, background: '#3b82f6' }}></div>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
         </div>
       </div>
-
 
       <div className="emergency-panel">
         <div className="emergency-panel-header">

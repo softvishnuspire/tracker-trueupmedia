@@ -2103,7 +2103,7 @@ app.get('/api/ph/today', requireRoles(PH_ROLES), async (req, res) => {
 
 // PH: Client Calendar
 app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
-    const { client_id, month, status, all } = req.query;
+    const { client_id, month, status, all, view_all } = req.query;
     if (!client_id || !month) return res.status(400).json({ error: 'Missing client_id or month' });
 
     try {
@@ -2119,7 +2119,9 @@ app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
             .gte('scheduled_datetime', startDate)
             .lte('scheduled_datetime', endDate);
 
-        if (all === 'true') {
+        if (view_all === 'true') {
+            // No status filter — all tasks for the client (same as GM client calendar)
+        } else if (all === 'true') {
             query = query.in('status', ['WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']);
         } else if (status) {
             query = query.eq('status', status);
@@ -2155,7 +2157,7 @@ app.get('/api/ph/clients', requireRoles(PH_ROLES), async (req, res) => {
 // PH: Content Details
 app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
     const { id } = req.params;
-    const { asOfDate } = req.query;
+    const { asOfDate, view_only } = req.query;
     try {
         const { data: itemData, error: itemError } = await fetchContentOrFreelancerItem(id);
         
@@ -2164,7 +2166,7 @@ app.get('/api/ph/content/:id', requireRoles(PH_ROLES), async (req, res) => {
         }
 
         const productionStatuses = ['WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
-        if (!productionStatuses.includes(itemData.status)) {
+        if (view_only !== 'true' && !productionStatuses.includes(itemData.status)) {
             return res.status(403).json({ error: 'Access denied: Content is not yet in production phase.' });
         }
 

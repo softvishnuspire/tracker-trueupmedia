@@ -1139,6 +1139,206 @@
     font-style: italic;
 }
 
+/* ─── Client-wise Approval Stats ─── */
+.client-stats-panel {
+    border-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+.client-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.client-stat-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.client-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: #6366f1;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+.client-stat-card:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.client-stat-card:hover::before {
+    opacity: 1;
+}
+
+.client-stat-card.complete {
+    border-color: rgba(16, 185, 129, 0.25);
+    background: rgba(16, 185, 129, 0.03);
+}
+
+.client-stat-card.complete::before {
+    background: var(--success);
+    opacity: 1;
+}
+
+.client-stat-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.client-stat-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    flex-shrink: 0;
+    border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.client-stat-card.complete .client-stat-avatar {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--success);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.client-stat-name-block {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.client-stat-name {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.client-stat-overall {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 1px;
+}
+
+.client-stat-pct {
+    font-size: 16px;
+    font-weight: 900;
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 8px;
+    line-height: 1;
+}
+
+.client-stat-pct.low {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.client-stat-pct.mid {
+    color: #6366f1;
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.client-stat-pct.done {
+    color: var(--success);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.client-stat-bar-wrapper {
+    margin-bottom: 10px;
+}
+
+.client-stat-bar {
+    height: 5px;
+    background: var(--bg-surface);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.client-stat-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+    border-radius: 3px;
+    transition: width 0.5s ease-out;
+}
+
+.client-stat-card.complete .client-stat-bar-fill {
+    background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.client-stat-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.client-stat-type {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.client-stat-type-count {
+    font-weight: 800;
+    color: var(--text-primary);
+    font-size: 11px;
+    margin-left: auto;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.client-stat-mini-bar {
+    width: 50px;
+    height: 3px;
+    background: var(--bg-surface);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.client-stat-mini-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease-out;
+}
+
+.client-stat-mini-fill.reels {
+    background: linear-gradient(90deg, #a855f7, #ec4899);
+}
+
+.client-stat-mini-fill.posts {
+    background: linear-gradient(90deg, #ec4899, #f43f5e);
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }
@@ -1199,6 +1399,9 @@
         justify-content: space-between;
     }
     .posting-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    .client-stats-grid {
         grid-template-columns: 1fr;
     }
     .calendar-grid {

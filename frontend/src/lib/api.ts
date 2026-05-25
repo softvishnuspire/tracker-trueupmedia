@@ -250,10 +250,18 @@ export const phApi = {
     getClients: () => phBase.get<Client[]>('/api/ph/clients'),
     getCalendar: (clientId: string, month: string, status?: string, all?: boolean) =>
         phBase.get<ContentItem[]>('/api/ph/calendar', { params: { client_id: clientId, month, status, all: all ? 'true' : undefined } }),
+    getViewAllClientCalendar: (clientId: string, month: string) =>
+        phBase.get<ContentItem[]>('/api/ph/calendar', { params: { client_id: clientId, month, view_all: 'true' } }),
     getStats: (month?: string) => phBase.get(`/api/ph/stats${month ? `?month=${month}` : ''}`),
     getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
         phBase.get<ContentItem[]>(`/api/ph/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
-    getContentDetails: (id: string, asOfDate?: string) => phBase.get<ContentDetails>(`/api/ph/content/${id}${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
+    getContentDetails: (id: string, asOfDate?: string, viewOnly?: boolean) => {
+        const params = new URLSearchParams();
+        if (asOfDate) params.set('asOfDate', asOfDate);
+        if (viewOnly) params.set('view_only', 'true');
+        const qs = params.toString();
+        return phBase.get<ContentDetails>(`/api/ph/content/${id}${qs ? `?${qs}` : ''}`);
+    },
     updateStatus: (id: string, newStatus: string, note?: string, changedBy?: string) =>
         phBase.patch(`/api/ph/content/${id}/status`, { new_status: newStatus, note, changed_by: changedBy }),
     undoStatus: (id: string) => phBase.post(`/api/ph/content/${id}/undo`),
