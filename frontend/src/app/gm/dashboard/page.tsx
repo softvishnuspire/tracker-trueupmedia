@@ -69,6 +69,7 @@ import {
     settingsApi
 } from '@/lib/api';
 import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -943,7 +944,7 @@ export default function GMDashboard() {
             )}
 
             {/* Sidebar */}
-            <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+            <aside className={`sidebar ${isSidebarOpen ? 'mobile-open' : ''}`}>
                 <div className="logo-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '0 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Image src="/logo.png" alt="TrueUp Media" width={100} height={28} className="logo-img" style={{ height: '28px', width: 'auto' }} />
@@ -1905,7 +1906,7 @@ export default function GMDashboard() {
                                                                     handleItemClick(item);
                                                                 }
                                                             }}
-                                                            className={isPocView ? 'content-item post' : `content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                                            className={isPocView ? 'content-item post' : `content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
                                                         >
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
                                                                 {isPocView ? <FileText size={10} /> : item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
@@ -1913,7 +1914,7 @@ export default function GMDashboard() {
                                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                                                         {isPocView
                                                                             ? `[${item.clients?.company_name || 'Client'}] ${item.users?.role_identifier || item.users?.name || 'TL'}: ${item.note_text}`
-                                                                            : `${item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}`}
+                                                                            : `${isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}${view === 'master' || view === 'company' ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}${(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}`}
                                                                     </span>
                                                                     {!isPocView && (
                                                                         item.assigned_to ? (
@@ -1942,7 +1943,7 @@ export default function GMDashboard() {
                                                     {dayContent.map((item: any) => (
                                                         <div
                                                             key={item.id}
-                                                            className={`mobile-dot ${isPocView ? 'post' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
+                                                            className={`mobile-dot ${isPocView ? 'post' : isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
                                                         ></div>
                                                     ))}
                                                 </div>

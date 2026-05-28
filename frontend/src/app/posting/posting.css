@@ -1120,6 +1120,10 @@
         background: #ef4444 !important;
     }
 
+    .mobile-dot.rescheduled-cross-month {
+        background: #f97316 !important;
+    }
+
     .mobile-dot.emergency {
         background: #ef4444 !important;
         box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);

@@ -638,6 +638,10 @@
         background: #ef4444 !important;
     }
 
+    .mobile-dot.rescheduled-cross-month {
+        background: #f97316 !important;
+    }
+
     /* Aggressively hide all desktop event blocks on mobile */
     .day-items.desktop-only,
     .content-item {
@@ -1258,6 +1262,16 @@
 
 .content-item.rescheduled:hover {
     background: rgba(239, 68, 68, 0.2);
+}
+
+.content-item.rescheduled-cross-month {
+    background: rgba(249, 115, 22, 0.1);
+    color: #f97316;
+    border: 1px solid rgba(249, 115, 22, 0.2);
+}
+
+.content-item.rescheduled-cross-month:hover {
+    background: rgba(249, 115, 22, 0.2);
 }
 
 /* ─── Modals ─── */

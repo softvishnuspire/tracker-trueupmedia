@@ -43,6 +43,7 @@ import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { createClient } from '@/utils/supabase/client';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 
 
 
@@ -416,14 +417,19 @@ export default function MasterCalendar() {
                                                 <div
                                                     key={item.id}
                                                     onClick={() => handleItemClick(item)}
-                                                    className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
                                                         {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                         <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                                                             <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
+<<<<<<< Updated upstream
                                                                 {item.is_rescheduled ? '[R] ' : ''}
                                                                 [{item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+=======
+                                                                {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                                [{item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
+>>>>>>> Stashed changes
                                                             </span>
                                                             {item.assigned_to ? (
                                                                 <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ padding: '1px 6px', marginTop: 0 }}>
@@ -448,7 +454,7 @@ export default function MasterCalendar() {
                                             {dayContent.map(item => (
                                                 <div
                                                     key={item.id}
-                                                    className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                 ></div>
                                             ))}
                                         </div>

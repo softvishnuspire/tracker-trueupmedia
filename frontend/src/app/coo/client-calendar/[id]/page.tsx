@@ -30,7 +30,11 @@ import {
 } from 'lucide-react';
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
+<<<<<<< Updated upstream
 import { formatIST } from '@/lib/utils';
+=======
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+>>>>>>> Stashed changes
 
 
 
@@ -328,12 +332,17 @@ export default function CooClientCalendarPage() {
                                         <div
                                             key={item.id}
                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                            className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                         >
                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                             <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
+<<<<<<< Updated upstream
                                                 {item.is_rescheduled ? '[R] ' : ''}
                                                 {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+=======
+                                                {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                {item.content_type}
+>>>>>>> Stashed changes
                                             </span>
                                         </div>
                                     ))}
@@ -342,7 +351,7 @@ export default function CooClientCalendarPage() {
                                     {dayContent.map((item) => (
                                         <div
                                             key={item.id}
-                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                            className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                         ></div>
                                     ))}
                                 </div>

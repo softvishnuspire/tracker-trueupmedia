@@ -37,6 +37,7 @@ import {
 import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import ScheduleExport from '@/components/ScheduleExport';
 import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 
 export default function ClientCalendarPage() {
     const params = useParams();
@@ -485,13 +486,15 @@ export default function ClientCalendarPage() {
                                         <div 
                                             key={item.id}
                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                            className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                            className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                         >
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
                                                 {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                 <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
                                                     {item.is_rescheduled ? '[R] ' : ''}
                                                     {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                                    {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                    {item.content_type}
                                                 </span>
                                                 {item.status === 'POSTED' ? (
                                                     <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
@@ -506,7 +509,7 @@ export default function ClientCalendarPage() {
                                     {dayContent.map(item => (
                                         <div 
                                             key={item.id}
-                                            className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                            className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                         ></div>
                                     ))}
                                 </div>

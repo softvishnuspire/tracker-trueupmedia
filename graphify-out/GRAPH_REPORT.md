@@ -1,6 +1,17 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-23 (Content Head Role Implementation)
+<<<<<<< Updated upstream
+## Latest Changes — 2026-05-28 (GM Mobile Sidebar, Backend Syntax, & Merge Conflict Resolves)
+- **Goal**: Fix the GM panel mobile sidebar menu toggle, resolve backend startup syntax errors, and fix frontend compilation errors caused by git merge conflicts.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`:
+        - Changed the class binding on `<aside>` from `open` to `mobile-open` when the sidebar is open on mobile views.
+        - Resolved all git merge conflicts regarding imports, calendar list items styling/classNames, and mobile dot rendering blocks.
+    - `backend/index.js`:
+        - Consolidated both the `/api/gm/content/:id` and `/api/admin/content/:id` PUT endpoints to use the correct `fetchContentOrFreelancerItem` lookup and history-logging payloads while removing duplicate declarations (`existingItem`, `original_scheduled_datetime`, `data`, `error`) that triggered syntax errors during start.
+- **System Impact**: Enables the backend Node.js server to start and the frontend Next.js app to compile without compilation errors, resolving the mobile sidebar visibility issue.
+
+## Previous Changes — 2026-05-23 (Content Head Role Implementation)
 - **Goal**: Implement the "Content Head" role to handle content review and approval (transitioning tasks from WAITING FOR APPROVAL to CONTENT APPROVED) along with a dedicated dashboard, client calendar, and master calendar.
 - **Affected Files**:
     - `backend/index.js`:
@@ -178,6 +189,21 @@
         - Imported `startOfDay` and `endOfDay` from `date-fns`.
         - Updated `isDayInPeriod` to use `startOfDay(periodStart)` and `endOfDay(periodEnd)` to align dates correctly and prevent boundary day cutoff.
 - **System Impact**: Ensures perfect, real-time consistency between the top statistics panel, status pills, and the calendar views below it, resolving the mismatch (e.g. 6 posts vs. 5 posts on top) when viewing bi-monthly client cycles across both dashboards.
+=======
+## Latest Changes — 2026-05-18 (Cross-Month Rescheduled Calendar Styling & Integration)
+- **Goal**: Implement visual differentiation for cross-month rescheduled content items in all calendar views. Any task rescheduled to a different calendar month than its original scheduled date gets visually marked with the prefix `[RM]` and the orange color theme (`#f97316`) for enhanced visibility and operational clarity.
+- **Affected Files**:
+    - `frontend/src/utils/calendarUtils.ts`: Created helper utility `isCrossMonthRescheduled(item)` to centralize cross-month rescheduled logic.
+    - `frontend/src/app/gm/dashboard/gm.css`, `frontend/src/app/admin/admin.css`, `frontend/src/app/posting/posting.css`: Added dedicated `.rescheduled-cross-month` definitions for both desktop calendar items (background, colors, borders, hover states) and mobile dot indicators to ensure high contrast and premium design.
+    - `frontend/src/app/gm/dashboard/page.tsx`: Integrated `isCrossMonthRescheduled` in GM day grid items and mobile dots.
+    - `frontend/src/app/coo/master-calendar/page.tsx`: Integrated `isCrossMonthRescheduled` in COO master calendar day grid items and mobile dots.
+    - `frontend/src/app/coo/company-calendar/page.tsx`: Integrated `isCrossMonthRescheduled` in COO company calendar day grid items and mobile dots.
+    - `frontend/src/app/coo/client-calendar/[id]/page.tsx`: Integrated `isCrossMonthRescheduled` in COO client calendar day grid items and mobile dots.
+    - `frontend/src/app/admin/master-calendar/page.tsx`: Integrated `isCrossMonthRescheduled` in Admin master calendar day grid items and mobile dots.
+    - `frontend/src/app/admin/company-calendar/page.tsx`: Integrated `isCrossMonthRescheduled` in Admin company calendar day grid items and mobile dots.
+    - `frontend/src/app/admin/client-calendar/[id]/page.tsx`: Integrated `isCrossMonthRescheduled` in Admin client calendar day grid items and mobile dots.
+- **System Impact**: Ensures a consistent visual cue, premium orange color coding, and label (`[RM]`) across all client, master, and company calendars (across GM, COO, and Admin views) when content is rescheduled to a different calendar month. Fully resolves transparency and styling discrepancies.
+>>>>>>> Stashed changes
 
 ## Previous Changes — 2026-05-18 (PH Dashboard Calendar Cycle Fix)
 - **Goal**: Resolve the issue where clients on a 15-15 calendar cycle were incorrectly displayed using a standard 1-1 monthly cycle in the Production Head (PH) dashboard.

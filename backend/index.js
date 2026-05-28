@@ -51,6 +51,21 @@ async function runStartupMigrations() {
     }
 }
 runStartupMigrations();
+function enrichContentItem(item) {
+    if (!item) return item;
+    let is_cross_month_rescheduled = false;
+    if (item.is_rescheduled && item.original_scheduled_datetime && item.scheduled_datetime) {
+        const orig = new Date(item.original_scheduled_datetime);
+        const sched = new Date(item.scheduled_datetime);
+        if (!isNaN(orig.getTime()) && !isNaN(sched.getTime())) {
+            is_cross_month_rescheduled = (orig.getUTCFullYear() !== sched.getUTCFullYear()) || (orig.getUTCMonth() !== sched.getUTCMonth());
+        }
+    }
+    return {
+        ...item,
+        is_cross_month_rescheduled
+    };
+}
 
 const NodeCache = require("node-cache");
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
@@ -514,6 +529,7 @@ app.post('/api/gm/content', requireRoles(GM_ROLES), async (req, res) => {
                 description, 
                 content_type, 
                 scheduled_datetime, 
+                original_scheduled_datetime: scheduled_datetime,
                 status: initial_status,
                 assigned_to: employeeId || null,
                 assigned_at: employeeId ? new Date().toISOString() : null,
@@ -1551,7 +1567,7 @@ async function fetchCombinedCalendarData(startDate, endDate, client_id, content_
 
         const { data: d1, error: e1 } = await q1;
         if (e1) throw e1;
-        contentItemsData = d1 || [];
+        contentItemsData = (d1 || []).map(enrichContentItem);
     }
 
     // 2. Fetch from freelancer_tasks
@@ -1591,7 +1607,7 @@ async function fetchContentOrFreelancerItem(id) {
         .single();
         
     if (item && !error) {
-        return { data: item, error: null, table: 'content_items' };
+        return { data: enrichContentItem(item), error: null, table: 'content_items' };
     }
 
     console.log(`[fetchContentOrFreelancerItem] Not in content_items (id: ${id}), trying freelancer_tasks...`);
@@ -1862,6 +1878,7 @@ app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
                 description, 
                 content_type, 
                 scheduled_datetime, 
+                original_scheduled_datetime: scheduled_datetime,
                 status: initial_status,
                 assigned_to: employeeId || null,
                 assigned_at: employeeId ? new Date().toISOString() : null,
@@ -1870,7 +1887,7 @@ app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
-        res.json(data[0]);
+        res.json(enrichContentItem(data[0]));
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }

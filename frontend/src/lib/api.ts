@@ -57,6 +57,8 @@ export interface ContentItem {
     freelancer_name?: string;
     freelancer_phone?: string;
     freelancer_email?: string;
+    original_scheduled_datetime?: string;
+    is_cross_month_rescheduled?: boolean;
 }
 
 export interface ContentDetails {

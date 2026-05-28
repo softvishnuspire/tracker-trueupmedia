@@ -750,6 +750,20 @@
     border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
+.content-item.rescheduled:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+.content-item.rescheduled-cross-month {
+    background: rgba(249, 115, 22, 0.1);
+    color: #f97316;
+    border: 1px solid rgba(249, 115, 22, 0.2);
+}
+
+.content-item.rescheduled-cross-month:hover {
+    background: rgba(249, 115, 22, 0.2);
+}
+
 .content-item.reel:hover {
     background: rgba(236, 72, 153, 0.2);
 }
@@ -1930,6 +1944,10 @@
 
     .mobile-dot.rescheduled {
         background: #ef4444 !important;
+    }
+
+    .mobile-dot.rescheduled-cross-month {
+        background: #f97316 !important;
     }
 
     .mobile-dot.emergency {

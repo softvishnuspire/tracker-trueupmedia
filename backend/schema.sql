@@ -40,6 +40,7 @@ CREATE TABLE public.content_items (
   assigned_to uuid,
   employee_task_status USER-DEFINED DEFAULT 'PENDING'::employee_task_status,
   assigned_at timestamp with time zone DEFAULT now(),
+  original_scheduled_datetime timestamp with time zone,
   CONSTRAINT content_items_pkey PRIMARY KEY (id),
   CONSTRAINT content_items_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
   CONSTRAINT content_items_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id),

@@ -32,7 +32,12 @@ import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
+<<<<<<< Updated upstream
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
+=======
+import { getClientAbbreviation } from '@/lib/utils';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+>>>>>>> Stashed changes
 
 
 
@@ -356,12 +361,17 @@ export default function CooMasterCalendar() {
                                                 <div
                                                     key={item.id}
                                                     onClick={() => handleItemClick(item)}
-                                                    className={`content-item ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                 >
                                                     {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
+<<<<<<< Updated upstream
                                                         {item.is_rescheduled ? '[R] ' : ''}
                                                         [{getClientAbbreviation(item.clients?.company_name)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+=======
+                                                        {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                        [{getClientAbbreviation(item.clients?.company_name)}] {item.content_type}
+>>>>>>> Stashed changes
                                                     </span>
                                                 </div>
                                             ))}
@@ -370,7 +380,7 @@ export default function CooMasterCalendar() {
                                             {dayContent.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                 ></div>
                                             ))}
                                         </div>
