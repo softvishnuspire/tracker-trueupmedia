@@ -1171,103 +1171,139 @@ export default function TLDashboard() {
                 {/* Global loading bar removed in favor of inline skeletons */}
 
                 {(view === 'client' || view === 'master' || view === 'company' || view === 'poc') && (
-                    <div className="calendar-card">
-                        <div className="calendar-grid">
-                            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                <div key={day} className="calendar-header-cell">
-                                    <span className="desktop-day">{day}</span>
-                                    <span className="mobile-day">{day.charAt(0)}</span>
-                                </div>
-                            ))}
-
-                            {loading ? (
-                                <>
-                                    {Array.from({ length: 35 }).map((_, idx) => (
-                                        <div key={idx} className="calendar-day opacity-50" style={{ minHeight: '110px' }}>
-                                            <Skeleton className="h-4 w-4 mb-2" />
-                                            <div className="space-y-1">
-                                                <Skeleton className="h-6 w-full rounded" />
-                                                <Skeleton className="h-6 w-3/4 rounded" />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </>
-                            ) : (
-                                <>
-                                    {days.map((day, idx) => {
-                                        const isPocView = view === 'poc';
-                                        const dayContent = isPocView
-                                            ? pocNotes.filter(note => isSameDay(parseISO(`${note.note_date}T00:00:00`), day))
-                                            : calendarData.filter(item => {
-                                                const itemDate = getCalendarItemDate(item);
-                                                return isSameDay(itemDate, day);
-                                            });
-                                        return (
-                                            <div 
-                                                key={idx} 
-                                                onClick={() => {
-                                                    if (isPocView) {
-                                                        handlePocDayClick(day);
-                                                    }
-                                                }}
-                                                className={`calendar-day ${!isCompanyMode && !isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                            >
-                                                <span className="day-number">{format(day, 'd')}</span>
-                                                <div className="day-items desktop-only">
-                                                    {dayContent.map((item: any) => (
-                                                        <div 
-                                                            key={item.id}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (isPocView) {
-                                                                    handlePocNoteClick(item as PocNote);
-                                                                } else {
-                                                                    handleItemClick(item);
-                                                                }
-                                                            }}
-                                                            className={isPocView ? 'content-item post' : `content-item ${(item as ContentItem).content_type.toLowerCase()} ${(item as ContentItem).is_emergency ? 'emergency' : ''}`}
-                                                            title={isPocView ? (item as PocNote).note_text : (item as ContentItem).content_type}
-                                                        >
-                                                            {isPocView ? <FileText size={10}/> : (item as ContentItem).content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
-                                                                {isPocView ? (
-                                                                    <span className="truncate" style={{ fontSize: '9px' }}>
-                                                                        {(item as PocNote).note_text}
-                                                                    </span>
-                                                                ) : (
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
-                                                                        <span className="truncate" style={{ fontSize: '9px', flex: 1 }}>
-                                                                            {isMasterMode ? (
-                                                                                (item as ContentItem).client_id ? 
-                                                                                    `[${getClientAbbreviation((item as ContentItem).clients?.company_name)}] ` : 
-                                                                                    `[${((item as ContentItem).freelancer_name || 'FR').substring(0, 2).toUpperCase()}] `
-                                                                            ) : ''}
-                                                                            {((item as ContentItem).content_type === 'Special Poster' || (item as ContentItem).content_type === 'Special Day Poster' ? '🎉 ' : '') + (item as ContentItem).content_type}
-                                                                        </span>
-                                                                        {(item as ContentItem).status === 'POSTED' ? (
-                                                                            <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
-                                                                        ) : (
-                                                                            <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="mobile-day-indicators">
-                                                    {dayContent.map(item => (
-                                                        <div
-                                                            key={item.id}
-                                                            className={`mobile-dot ${isPocView ? 'post' : ((item as ContentItem).content_type || '').toLowerCase()} ${!isPocView && (item as ContentItem).is_emergency ? 'emergency' : ''}`}
-                                                        ></div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </>
-                            )}
+                    <>
+                        {/* Legend Bar */}
+                        <div className="calendar-legend-bar">
+                            <div className="legend-item">
+                                <span className="legend-color reel"></span>
+                                <span className="legend-label">Reel</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color post"></span>
+                                <span className="legend-label">Post</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color emergency"></span>
+                                <span className="legend-label">Emergency</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color pending"></span>
+                                <span className="legend-label">Pending</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color rescheduled"></span>
+                                <span className="legend-label">Rescheduled</span>
+                            </div>
                         </div>
-                    </div>
+
+                        <div className="calendar-card">
+                            <div className="calendar-grid">
+                                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                                    <div key={day} className="calendar-header-cell">
+                                        <span className="desktop-day">{day}</span>
+                                        <span className="mobile-day">{day.charAt(0)}</span>
+                                    </div>
+                                ))}
+
+                                {loading ? (
+                                    <>
+                                        {Array.from({ length: 35 }).map((_, idx) => (
+                                            <div key={idx} className="calendar-day opacity-50" style={{ minHeight: '110px' }}>
+                                                <Skeleton className="h-4 w-4 mb-2" />
+                                                <div className="space-y-1">
+                                                    <Skeleton className="h-6 w-full rounded" />
+                                                    <Skeleton className="h-6 w-3/4 rounded" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </>
+                                ) : (
+                                    <>
+                                        {days.map((day, idx) => {
+                                            const isPocView = view === 'poc';
+                                            const dayContent = isPocView
+                                                ? pocNotes.filter(note => isSameDay(parseISO(`${note.note_date}T00:00:00`), day))
+                                                : calendarData.filter(item => {
+                                                    const itemDate = getCalendarItemDate(item);
+                                                    return isSameDay(itemDate, day);
+                                                });
+                                            return (
+                                                <div 
+                                                    key={idx} 
+                                                    onClick={() => {
+                                                        if (isPocView) {
+                                                            handlePocDayClick(day);
+                                                        }
+                                                    }}
+                                                    className={`calendar-day ${!isCompanyMode && !isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                                >
+                                                    <span className="day-number">{format(day, 'd')}</span>
+                                                    <div className="day-items desktop-only">
+                                                        {dayContent.map((item: any) => (
+                                                            <div 
+                                                                key={item.id}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (isPocView) {
+                                                                        handlePocNoteClick(item as PocNote);
+                                                                    } else {
+                                                                        handleItemClick(item);
+                                                                    }
+                                                                }}
+                                                                className={isPocView ? 'content-item post' : `content-item ${(item as ContentItem).is_rescheduled ? 'rescheduled' : (((item as ContentItem).status || '').toUpperCase() === 'PENDING' ? 'pending' : (item as ContentItem).content_type.toLowerCase().replace(/\s+/g, '-'))} ${(item as ContentItem).is_emergency ? 'emergency' : ''}`}
+                                                                title={isPocView ? (item as PocNote).note_text : (item as ContentItem).content_type}
+                                                            >
+                                                                {isPocView ? <FileText size={10}/> : (item as ContentItem).content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
+                                                                    {isPocView ? (
+                                                                        <span className="truncate" style={{ fontSize: '9px' }}>
+                                                                            {(item as PocNote).note_text}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                                            <span className="truncate" style={{ fontSize: '9px', flex: 1 }}>
+                                                                                {isMasterMode ? (
+                                                                                    (item as ContentItem).client_id ? 
+                                                                                        `[${getClientAbbreviation((item as ContentItem).clients?.company_name)}] ` : 
+                                                                                        `[${((item as ContentItem).freelancer_name || 'FR').substring(0, 2).toUpperCase()}] `
+                                                                                ) : ''}
+                                                                                {((item as ContentItem).content_type === 'Special Poster' || (item as ContentItem).content_type === 'Special Day Poster' ? '🎉 ' : '') + (item as ContentItem).content_type}
+                                                                            </span>
+                                                                            {(item as ContentItem).status === 'POSTED' ? (
+                                                                                <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                                            ) : (
+                                                                                <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="mobile-day-indicators">
+                                                        {dayContent.map(item => {
+                                                            const casted = item as ContentItem;
+                                                            const label = isPocView
+                                                                ? 'POC'
+                                                                : (view === 'master' || view === 'company')
+                                                                    ? (casted.client_id ? (getClientAbbreviation(casted.clients?.company_name) || 'TUM') : (casted.freelancer_name ? casted.freelancer_name.substring(0, 3).toUpperCase() : 'FR'))
+                                                                    : casted.content_type.substring(0, 4).toUpperCase();
+                                                            return (
+                                                                <div
+                                                                    key={item.id}
+                                                                    className={`mobile-dot ${isPocView ? 'post' : casted.is_rescheduled ? 'rescheduled' : ((casted.status || '').toUpperCase() === 'PENDING' ? 'pending' : (casted.content_type || '').toLowerCase().replace(/\s+/g, '-'))} ${!isPocView && casted.is_emergency ? 'emergency' : ''}`}
+                                                                >
+                                                                    {label}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </>
                 )}
             </main>
 

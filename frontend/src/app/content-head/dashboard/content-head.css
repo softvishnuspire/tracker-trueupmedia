@@ -181,6 +181,7 @@
     flex: 1;
     margin-left: 260px;
     padding: 32px 40px;
+    min-width: 0;
 }
 
 /* ─── Page Header ─── */
@@ -1369,7 +1370,7 @@
     cursor: pointer;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
     .sidebar {
         transform: translateX(-100%);
     }

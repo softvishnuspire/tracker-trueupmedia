@@ -48,7 +48,7 @@ import {
 } from 'lucide-react';
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
-import { formatIST } from '@/lib/utils';
+import { formatIST, getClientAbbreviation } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -1086,67 +1086,105 @@ export default function ProductionHeadDashboard() {
                 )}
 
                 {(view === 'client' || view === 'viewTaskClient' || view === 'master' || view === 'company') && (view !== 'viewTaskClient' || selectedClient !== 'all') && (
-                    <div className="calendar-card">
-                        <div className="calendar-grid">
-                            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                <div key={day} className="calendar-header-cell">
-                                    <span className="desktop-day">{day}</span>
-                                    <span className="mobile-day">{day.charAt(0)}</span>
-                                </div>
-                            ))}
-
-                            {loading ? (
-                                Array.from({ length: 35 }).map((_, idx) => (
-                                    <div key={idx} className="calendar-day" style={{ minHeight: '110px' }}>
-                                        <Skeleton className="h-4 w-4 mb-2" /><Skeleton className="h-4 w-full" />
-                                    </div>
-                                ))
-                            ) : (
-                                days.map((day, idx) => {
-                                    const dayContent = activeCalendarData.filter(item => isSameDay(parseISO(item.scheduled_datetime), day));
-                                    return (
-                                        <div key={idx} onClick={() => { if (dayContent.length > 0) handleItemClick(dayContent[0]); }} className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''} ${isReadOnlyCalendarView ? 'view-only-day' : ''}`} style={{ minHeight: '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}>
-                                            <span className="day-number">{format(day, 'd')}</span>
-                                            <div className="day-items desktop-only">
-                                                {dayContent.map(item => (
-                                                    <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
-                                                            {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                            <span className="truncate" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                {(view === 'master' || view === 'company') ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : item.clients?.company_name?.substring(0, 3)}] ` : ''}
-                                                                {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-                                                                {item.assigned_to ? (
-                                                                    <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ transform: 'scale(0.8)', padding: '2px 6px' }}>
-                                                                        <span className="assignment-dot"></span>
-                                                                        <span className="assignment-name">{getEmployeeName(item.assigned_to)}</span>
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="assignment-badge unassigned" title="Unassigned" style={{ transform: 'scale(0.8)', padding: '2px 6px' }}>
-                                                                        <span className="assignment-dot"></span>
-                                                                        <span className="assignment-name">Unassigned</span>
-                                                                    </span>
-                                                                )}
-                                                            </span>
-                                                            {isReadOnlyCalendarView ? (
-                                                                <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>{item.status}</span>
-                                                            ) : ['CONTENT READY', 'WAITING FOR APPROVAL', 'SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status) ? (
-                                                                <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
-                                                            ) : (
-                                                                <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="mobile-day-indicators">
-                                                {dayContent.map(item => <div key={item.id} className={`mobile-dot ${item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}></div>)}
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
+                    <>
+                        {/* Legend Bar */}
+                        <div className="calendar-legend-bar">
+                            <div className="legend-item">
+                                <span className="legend-color reel"></span>
+                                <span className="legend-label">Reel</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color post"></span>
+                                <span className="legend-label">Post</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color emergency"></span>
+                                <span className="legend-label">Emergency</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color pending"></span>
+                                <span className="legend-label">Pending</span>
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-color rescheduled"></span>
+                                <span className="legend-label">Rescheduled</span>
+                            </div>
                         </div>
-                    </div>
+
+                        <div className="calendar-card">
+                            <div className="calendar-grid">
+                                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                                    <div key={day} className="calendar-header-cell">
+                                        <span className="desktop-day">{day}</span>
+                                        <span className="mobile-day">{day.charAt(0)}</span>
+                                    </div>
+                                ))}
+
+                                {loading ? (
+                                    Array.from({ length: 35 }).map((_, idx) => (
+                                        <div key={idx} className="calendar-day" style={{ minHeight: '110px' }}>
+                                            <Skeleton className="h-4 w-4 mb-2" /><Skeleton className="h-4 w-full" />
+                                        </div>
+                                    ))
+                                ) : (
+                                    days.map((day, idx) => {
+                                        const dayContent = activeCalendarData.filter(item => isSameDay(parseISO(item.scheduled_datetime), day));
+                                        return (
+                                            <div key={idx} onClick={() => { if (dayContent.length > 0) handleItemClick(dayContent[0]); }} className={`calendar-day ${!isDayInPeriod(day) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''} ${isReadOnlyCalendarView ? 'view-only-day' : ''}`} style={{ minHeight: '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}>
+                                                <span className="day-number">{format(day, 'd')}</span>
+                                                <div className="day-items desktop-only">
+                                                    {dayContent.map(item => (
+                                                        <div key={item.id} onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} className={`content-item ${item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                                {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                                <span className="truncate" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                    {(view === 'master' || view === 'company') ? `[${item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : getClientAbbreviation(item.clients?.company_name)}] ` : ''}
+                                                                    {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                                                    {item.assigned_to ? (
+                                                                        <span className="assignment-badge assigned" title={`Assigned to ${getEmployeeName(item.assigned_to)}`} style={{ transform: 'scale(0.8)', padding: '2px 6px' }}>
+                                                                            <span className="assignment-dot"></span>
+                                                                            <span className="assignment-name">{getEmployeeName(item.assigned_to)}</span>
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="assignment-badge unassigned" title="Unassigned" style={{ transform: 'scale(0.8)', padding: '2px 6px' }}>
+                                                                            <span className="assignment-dot"></span>
+                                                                            <span className="assignment-name">Unassigned</span>
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                                {isReadOnlyCalendarView ? (
+                                                                    <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>{item.status}</span>
+                                                                ) : ['CONTENT READY', 'WAITING FOR APPROVAL', 'SHOOT DONE', 'EDITED', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(item.status) ? (
+                                                                    <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                                ) : (
+                                                                    <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mobile-day-indicators">
+                                                    {dayContent.map(item => {
+                                                        const label = (view === 'master' || view === 'company')
+                                                            ? (item.freelancer_name ? item.freelancer_name.substring(0, 3).toUpperCase() : (getClientAbbreviation(item.clients?.company_name) || 'TUM'))
+                                                            : item.content_type.substring(0, 4).toUpperCase();
+                                                        return (
+                                                            <div
+                                                                key={item.id}
+                                                                className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                                            >
+                                                                {label}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    </>
                 )}
 
                 {view === 'employees' && (

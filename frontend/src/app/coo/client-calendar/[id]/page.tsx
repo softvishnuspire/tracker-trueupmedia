@@ -30,11 +30,8 @@ import {
 } from 'lucide-react';
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
-<<<<<<< Updated upstream
 import { formatIST } from '@/lib/utils';
-=======
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
->>>>>>> Stashed changes
 
 
 
@@ -291,6 +288,30 @@ export default function CooClientCalendarPage() {
                 </div>
             </div>
 
+            {/* Legend Bar */}
+            <div className="calendar-legend-bar">
+                <div className="legend-item">
+                    <span className="legend-color reel"></span>
+                    <span className="legend-label">Reel</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color post"></span>
+                    <span className="legend-label">Post</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color emergency"></span>
+                    <span className="legend-label">Emergency</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color pending"></span>
+                    <span className="legend-label">Pending</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color rescheduled"></span>
+                    <span className="legend-label">Rescheduled</span>
+                </div>
+            </div>
+
             {loading && <div className="loading-bar">Updating calendar...</div>}
 
             <div className="calendar-card">
@@ -309,7 +330,7 @@ export default function CooClientCalendarPage() {
                             : calendarData.filter((item) => {
                                 const itemDate = parseISO(item.scheduled_datetime);
                                 return isSameDay(itemDate, day);
-                            });
+                             });
 
                         return (
                             <div
@@ -328,32 +349,29 @@ export default function CooClientCalendarPage() {
                             >
                                 <span className="day-number">{format(day, 'd')}</span>
                                 <div className="day-items desktop-only">
-                                    {dayContent.map((item) => (
-                                        <div
-                                            key={item.id}
-                                            onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                            className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                        >
-                                            {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                            <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-<<<<<<< Updated upstream
-                                                {item.is_rescheduled ? '[R] ' : ''}
-                                                {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-=======
-                                                {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
-                                                {item.content_type}
->>>>>>> Stashed changes
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mobile-day-indicators">
-                                    {dayContent.map((item) => (
-                                        <div
-                                            key={item.id}
-                                            className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                        ></div>
-                                    ))}
+                                     {dayContent.map((item) => (
+                                         <div
+                                             key={item.id}
+                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
+                                             className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                         >
+                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                             <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                                 {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                 {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                             </span>
+                                         </div>
+                                     ))}
+                                 </div>
+                                 <div className="mobile-day-indicators">
+                                     {dayContent.map((item) => (
+                                         <div
+                                             key={item.id}
+                                             className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                         >
+                                             {item.content_type.substring(0, 4).toUpperCase()}
+                                         </div>
+                                     ))}
                                 </div>
                             </div>
                         );

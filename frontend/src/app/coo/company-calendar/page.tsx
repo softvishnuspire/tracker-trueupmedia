@@ -32,11 +32,8 @@ import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
-<<<<<<< Updated upstream
 import { formatIST } from '@/lib/utils';
-=======
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
->>>>>>> Stashed changes
 
 export default function CooCompanyCalendar() {
     const DISPLAY_OFFSET_DAYS = 7;
@@ -319,6 +316,30 @@ export default function CooCompanyCalendar() {
                 </div>
             </div>
 
+            {/* Legend Bar */}
+            <div className="calendar-legend-bar">
+                <div className="legend-item">
+                    <span className="legend-color reel"></span>
+                    <span className="legend-label">Reel</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color post"></span>
+                    <span className="legend-label">Post</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color emergency"></span>
+                    <span className="legend-label">Emergency</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color pending"></span>
+                    <span className="legend-label">Pending</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color rescheduled"></span>
+                    <span className="legend-label">Rescheduled</span>
+                </div>
+            </div>
+
             <div className="calendar-card">
                 <div className="calendar-grid" style={{ gridTemplateRows: viewMode === 'week' ? 'auto 1fr' : 'auto', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
@@ -369,17 +390,12 @@ export default function CooCompanyCalendar() {
                                                 <div
                                                     key={item.id}
                                                     onClick={() => handleItemClick(item)}
-                                                    className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                                 >
                                                     {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-<<<<<<< Updated upstream
-                                                        {item.is_rescheduled ? '[R] ' : ''}
-                                                        [{item.clients?.company_name?.substring(0, 3)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-=======
                                                         {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
-                                                        [{item.clients?.company_name?.substring(0, 3)}] {item.content_type}
->>>>>>> Stashed changes
+                                                        [{item.clients?.company_name?.substring(0, 3)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                     </span>
                                                 </div>
                                             ))}
@@ -388,8 +404,10 @@ export default function CooCompanyCalendar() {
                                             {dayContent.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                                ></div>
+                                                    className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                >
+                                                    {item.clients?.company_name?.substring(0, 3).toUpperCase() || 'CLI'}
+                                                </div>
                                             ))}
                                         </div>
                                     </div>

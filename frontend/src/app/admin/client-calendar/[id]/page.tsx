@@ -406,6 +406,30 @@ export default function ClientCalendarPage() {
                 </div>
             </div>
 
+            {/* Legend Bar */}
+            <div className="calendar-legend-bar">
+                <div className="legend-item">
+                    <span className="legend-color reel"></span>
+                    <span className="legend-label">Reel</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color post"></span>
+                    <span className="legend-label">Post</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color emergency"></span>
+                    <span className="legend-label">Emergency</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color pending"></span>
+                    <span className="legend-label">Pending</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color rescheduled"></span>
+                    <span className="legend-label">Rescheduled</span>
+                </div>
+            </div>
+
             {loading && <div className="loading-bar">Updating calendar...</div>}
 
             <div className="calendar-card">
@@ -481,38 +505,38 @@ export default function ClientCalendarPage() {
                                         <Plus size={14} />
                                     </button>
                                 </div>
-                                <div className="day-items desktop-only">
-                                    {dayContent.map(item => (
-                                        <div 
-                                            key={item.id}
-                                            onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                            className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
-                                                {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
-                                                    {item.is_rescheduled ? '[R] ' : ''}
-                                                    {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-                                                    {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
-                                                    {item.content_type}
-                                                </span>
-                                                {item.status === 'POSTED' ? (
-                                                    <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
-                                                ) : (
-                                                    <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mobile-day-indicators">
-                                    {dayContent.map(item => (
-                                        <div 
-                                            key={item.id}
-                                            className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                        ></div>
-                                    ))}
-                                </div>
+                                 <div className="day-items desktop-only">
+                                     {dayContent.map(item => (
+                                         <div 
+                                             key={item.id}
+                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
+                                             className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                         >
+                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+                                                 {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                 <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
+                                                     {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                     {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                                 </span>
+                                                 {item.status === 'POSTED' ? (
+                                                     <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                 ) : (
+                                                     <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                 )}
+                                             </div>
+                                         </div>
+                                     ))}
+                                 </div>
+                                 <div className="mobile-day-indicators">
+                                     {dayContent.map(item => (
+                                         <div 
+                                             key={item.id}
+                                             className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                         >
+                                             {item.content_type.includes('Special') ? '🎉' : item.content_type.substring(0, 4).toUpperCase()}
+                                         </div>
+                                     ))}
+                                 </div>
                             </div>
                         );
                     })}

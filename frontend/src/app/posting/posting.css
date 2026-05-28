@@ -1092,32 +1092,46 @@
 
     .mobile-day-indicators {
         display: flex !important;
-        flex-wrap: wrap;
-        gap: 3px;
-        margin-top: 8px;
-        justify-content: center;
-        width: 100%;
-        padding: 0 4px;
+        flex-direction: column !important;
+        gap: 3px !important;
+        margin-top: 4px !important;
+        width: 100% !important;
+        padding: 0 2px !important;
+        box-sizing: border-box !important;
+        align-items: stretch !important;
     }
 
     .mobile-dot {
-        flex: 0 0 24px;
-        height: 4px;
-        border-radius: 2px;
-        background: var(--accent);
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        width: 100% !important;
+        height: 14px !important;
+        border-radius: 3px !important;
+        font-size: 8px !important;
+        font-weight: 800 !important;
+        color: #ffffff !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        overflow: hidden !important;
+        white-space: nowrap !important;
+        text-overflow: ellipsis !important;
+        padding: 0 2px !important;
+        box-sizing: border-box !important;
+        text-transform: uppercase !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+        border: none !important;
     }
 
     .mobile-dot.post {
-        background: #3b82f6 !important;
+        background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%) !important;
     }
 
     .mobile-dot.reel {
-        background: #a855f7 !important;
+        background: linear-gradient(135deg, #ec4899 0%, #db2777 100%) !important;
     }
 
-    .mobile-dot.rescheduled {
-        background: #ef4444 !important;
+    .mobile-dot.youtube {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
     }
 
     .mobile-dot.rescheduled-cross-month {
@@ -1125,8 +1139,16 @@
     }
 
     .mobile-dot.emergency {
-        background: #ef4444 !important;
-        box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.6) !important;
+    }
+
+    .mobile-dot.pending {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+    }
+
+    .mobile-dot.rescheduled {
+        background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%) !important;
     }
 
     .calendar-day {
@@ -1445,4 +1467,68 @@
             rgba(0, 0, 0, 0.05) 10px,
             rgba(0, 0, 0, 0.05) 20px) !important;
     opacity: 0.6;
+}
+
+/* ─── Premium Glassmorphic Legend Bar ─── */
+.calendar-legend-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    padding: 12px 24px;
+    border-radius: 16px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.legend-color.reel {
+    background: #ec4899;
+}
+
+.legend-color.post {
+    background: #06b6d4;
+}
+
+.legend-color.emergency {
+    background: #ef4444;
+    box-shadow: 0 0 6px #ef4444;
+}
+
+.legend-color.pending {
+    background: #f59e0b;
+}
+
+.legend-color.rescheduled {
+    background: #a855f7;
+}
+
+@media (max-width: 768px) {
+    .calendar-legend-bar {
+        gap: 12px;
+        padding: 10px 16px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+    }
 }

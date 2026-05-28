@@ -172,6 +172,30 @@ export default function MasterProductionSchedule() {
                 </div>
             </header>
 
+            {/* Legend Bar */}
+            <div className="calendar-legend-bar" style={{ marginTop: '24px' }}>
+                <div className="legend-item">
+                    <span className="legend-color reel"></span>
+                    <span className="legend-label">Reel</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color post"></span>
+                    <span className="legend-label">Post</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color emergency"></span>
+                    <span className="legend-label">Emergency</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color pending"></span>
+                    <span className="legend-label">Pending</span>
+                </div>
+                <div className="legend-item">
+                    <span className="legend-color rescheduled"></span>
+                    <span className="legend-label">Rescheduled</span>
+                </div>
+            </div>
+
             <main className="calendar-card" style={{ marginTop: '24px' }}>
                 <div className="calendar-grid">
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -204,7 +228,7 @@ export default function MasterProductionSchedule() {
                                             <div 
                                                 key={item.id} 
                                                 onClick={(e) => { e.stopPropagation(); handleItemClick(item); }} 
-                                                className={`content-item ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                className={`content-item ${item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
                                             >
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                                                     {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
@@ -221,7 +245,14 @@ export default function MasterProductionSchedule() {
                                         ))}
                                     </div>
                                     <div className="mobile-day-indicators">
-                                        {dayContent.map(item => <div key={item.id} className={`mobile-dot ${item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}></div>)}
+                                        {dayContent.map(item => (
+                                            <div 
+                                                key={item.id} 
+                                                className={`mobile-dot ${item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                            >
+                                                {item.clients?.company_name?.substring(0, 3).toUpperCase() || 'CLI'}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             );
