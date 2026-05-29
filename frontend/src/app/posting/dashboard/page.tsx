@@ -36,6 +36,7 @@ interface ContentItem {
     status: string;
     client_id: string;
     is_emergency?: boolean;
+    is_rescheduled?: boolean;
     clients?: { company_name: string; team_lead?: { name: string } };
     assigned_to?: string;
 }

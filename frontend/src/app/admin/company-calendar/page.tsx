@@ -203,7 +203,6 @@ export default function CompanyCalendar() {
                 </div>
 
                 <div className="header-controls">
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
                         <div className="master-filters-container">
                             <div className="filter-icon-box">
                                 <Filter size={14} />
@@ -237,15 +236,6 @@ export default function CompanyCalendar() {
                             </div>
                         </div>
 
-                        <ScheduleExport 
-                            data={calendarData}
-                            clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find(c => c.id === selectedClient)?.company_name || 'Client'}
-                            month={currentMonth}
-                            batchType={selectedClient !== 'all' ? clients.find(c => c.id === selectedClient)?.batch_type : '1-1'}
-                            summaryOnly={true}
-                        />
-                    </div>
-
                     <div className="view-mode-toggle">
                         <button 
                             onClick={() => setViewMode('month')}
@@ -271,6 +261,14 @@ export default function CompanyCalendar() {
                             <ChevronRight size={20}/>
                         </button>
                     </div>
+
+                    <ScheduleExport 
+                        data={calendarData}
+                        clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find(c => c.id === selectedClient)?.company_name || 'Client'}
+                        month={currentMonth}
+                        batchType={selectedClient !== 'all' ? clients.find(c => c.id === selectedClient)?.batch_type : '1-1'}
+                        summaryOnly={true}
+                    />
                 </div>
             </header>
 

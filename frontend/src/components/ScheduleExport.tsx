@@ -130,7 +130,8 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     width: '45px',
-                    height: '45px'
+                    height: '45px',
+                    flexShrink: 0
                 }}
             >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

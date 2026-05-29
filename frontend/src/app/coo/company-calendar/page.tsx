@@ -211,8 +211,7 @@ export default function CooCompanyCalendar() {
                 </div>
 
                 <div className="header-controls">
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'var(--bg-elevated)', padding: '4px', borderRadius: '14px', border: '1px solid var(--border)', flex: 1, minWidth: '200px' }}>
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'var(--bg-elevated)', padding: '4px', borderRadius: '14px', border: '1px solid var(--border)', flex: 1, minWidth: '320px' }}>
                             <div style={{ padding: '0 8px', color: 'var(--text-muted)' }}>
                                 <Filter size={14} />
                             </div>
@@ -257,14 +256,6 @@ export default function CooCompanyCalendar() {
                             </div>
                         </div>
 
-                        <ScheduleExport
-                            data={calendarData}
-                            clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find((c) => c.id === selectedClient)?.company_name || 'Client'}
-                            month={currentMonth}
-                            batchType={selectedClient !== 'all' ? clients.find((c) => c.id === selectedClient)?.batch_type : '1-1'}
-                        />
-                    </div>
-
                     <div className="view-mode-toggle">
                         <button
                             onClick={() => setViewMode('month')}
@@ -290,6 +281,13 @@ export default function CooCompanyCalendar() {
                             <ChevronRight size={20} />
                         </button>
                     </div>
+
+                    <ScheduleExport
+                        data={calendarData}
+                        clientName={selectedClient === 'all' ? 'TrueUp Media' : clients.find((c) => c.id === selectedClient)?.company_name || 'Client'}
+                        month={currentMonth}
+                        batchType={selectedClient !== 'all' ? clients.find((c) => c.id === selectedClient)?.batch_type : '1-1'}
+                    />
                 </div>
             </header>
 
