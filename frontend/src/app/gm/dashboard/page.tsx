@@ -158,6 +158,7 @@ export default function GMDashboard() {
     const [trackingTab, setTrackingTab] = useState<'tl' | 'employee'>('employee');
     const [trackingSearchQuery, setTrackingSearchQuery] = useState('');
     const [trackingDate, setTrackingDate] = useState(new Date().toISOString().split('T')[0]);
+    const [expandedEmpClients, setExpandedEmpClients] = useState<Record<string, boolean>>({});
 
     const filteredTLs = trackingStats?.teamLeads.filter((tl: TlTrackingStats) => 
         tl.name.toLowerCase().includes(trackingSearchQuery.toLowerCase()) || 
@@ -2171,6 +2172,47 @@ export default function GMDashboard() {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                    </div>
+
+                                                    <div className="compact-task-list" style={{ marginBottom: '8px' }}>
+                                                        <button 
+                                                            className="list-header" 
+                                                            style={{ 
+                                                                background: 'none', 
+                                                                border: 'none', 
+                                                                width: '100%', 
+                                                                display: 'flex', 
+                                                                justifyContent: 'space-between', 
+                                                                alignItems: 'center', 
+                                                                cursor: 'pointer',
+                                                                padding: 0,
+                                                                textAlign: 'left'
+                                                            }}
+                                                            onClick={() => setExpandedEmpClients(prev => ({ ...prev, [emp.id]: !prev[emp.id] }))}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <Briefcase size={10} />
+                                                                <span>ASSIGNED CLIENTS ({(emp.assignedClients || []).length})</span>
+                                                            </div>
+                                                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                                                                {expandedEmpClients[emp.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                            </div>
+                                                        </button>
+                                                        
+                                                        {expandedEmpClients[emp.id] && (
+                                                            <div className="tasks-container scrollable-list" style={{ marginTop: '10px' }}>
+                                                                {(emp.assignedClients || []).length > 0 ? (
+                                                                    (emp.assignedClients || []).map(client => (
+                                                                        <div key={client.id} className="mini-task-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                            <span className="task-name" style={{ fontSize: '13px' }}>{client.name}</span>
+                                                                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '6px', border: '1px solid var(--border)' }}>{client.role}</span>
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', padding: '4px' }}>No assigned clients</div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     {emp.tasks && emp.tasks.length > 0 && (

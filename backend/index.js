@@ -1315,7 +1315,7 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
         // 2. Fetch Client Assignments for TLs
         const { data: clients, error: clientError } = await supabase
             .from('clients')
-            .select('id, company_name, team_lead_id')
+            .select('id, company_name, team_lead_id, employee_id, reel_employee_id, post_employee_id, writer_employee_id')
             .eq('is_active', true)
             .eq('is_deleted', false);
 
@@ -1482,6 +1482,13 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
             const monthlyTotal = monthlyTasks.length;
             const monthlyCompleted = monthlyTasks.filter(t => (t.employee_task_status || '').toUpperCase() === 'COMPLETED').length;
 
+            const empClients = clients.filter(c => 
+                c.employee_id === emp.user_id || 
+                c.reel_employee_id === emp.user_id || 
+                c.post_employee_id === emp.user_id || 
+                c.writer_employee_id === emp.user_id
+            );
+
             return {
                 id: emp.user_id,
                 name: emp.name,
@@ -1493,6 +1500,18 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
                 monthlyTotal,
                 monthlyCompleted,
                 monthlyRate: monthlyTotal > 0 ? (monthlyCompleted / monthlyTotal) : 0,
+                assignedClients: empClients.map(c => {
+                    const roles = [];
+                    if (c.employee_id === emp.user_id) roles.push('Employee');
+                    if (c.reel_employee_id === emp.user_id) roles.push('Reel Editor');
+                    if (c.post_employee_id === emp.user_id) roles.push('Post Editor');
+                    if (c.writer_employee_id === emp.user_id) roles.push('Writer');
+                    return {
+                        id: c.id,
+                        name: c.company_name,
+                        role: roles.join(', ') || 'Assigned'
+                    };
+                }),
                 tasks: dailyTasks.map(t => ({
                     id: t.id,
                     title: t.title,

@@ -168,6 +168,11 @@ export interface EmployeeTrackingStats {
     monthlyTotal: number;
     monthlyCompleted: number;
     monthlyRate: number;
+    assignedClients?: {
+        id: string;
+        name: string;
+        role: string;
+    }[];
     tasks?: {
         id: string;
         title: string;
