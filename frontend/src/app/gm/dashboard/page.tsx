@@ -52,7 +52,14 @@ import {
     Layers,
     Film,
     MessageSquare,
-    Activity
+    Activity,
+    Circle,
+    RefreshCcw,
+    TrendingUp,
+    Target,
+    UserCircle2,
+    Briefcase,
+    Trophy
 } from 'lucide-react';
 import {
     gmApi,
@@ -66,7 +73,9 @@ import {
     Client,
     TeamMember,
     ContentDetails,
-    settingsApi
+    settingsApi,
+    TlTrackingStats,
+    EmployeeTrackingStats
 } from '@/lib/api';
 import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
@@ -79,7 +88,51 @@ import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 import './gm.css';
+
+const TrackingRadialProgress = ({ progress, size = 60, strokeWidth = 6, color = "var(--accent)" }: { progress: number, size?: number, strokeWidth?: number, color?: string }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const offset = circumference - (progress * circumference);
+
+    return (
+        <div className="radial-progress-container" style={{ position: 'relative', width: size, height: size }}>
+            <svg width={size} height={size}>
+                <circle
+                    stroke="var(--border)"
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    r={radius}
+                    cx={size / 2}
+                    cy={size / 2}
+                />
+                <circle
+                    stroke={color}
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={circumference}
+                    style={{ strokeDashoffset: offset, transition: 'stroke-dashoffset 1s ease-in-out' }}
+                    strokeLinecap="round"
+                    fill="transparent"
+                    r={radius}
+                    cx={size / 2}
+                    cy={size / 2}
+                />
+            </svg>
+            <div style={{ 
+                position: 'absolute', 
+                top: '50%', 
+                left: '50%', 
+                transform: 'translate(-50%, -50%)',
+                fontSize: '10px',
+                fontWeight: 800,
+                color: 'var(--text-primary)'
+            }}>
+                {Math.round(progress * 100)}%
+            </div>
+        </div>
+    );
+};
 
 interface TeamLead extends TeamMember {
     clients: Client[];
@@ -96,8 +149,25 @@ export default function GMDashboard() {
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [globalCalendarData, setGlobalCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc' | 'tracking'>('dashboard');
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
+
+    // Tracking Panel States
+    const [trackingStats, setTrackingStats] = useState<{ teamLeads: TlTrackingStats[], employees: EmployeeTrackingStats[], date: string } | null>(null);
+    const [trackingLoading, setTrackingLoading] = useState(true);
+    const [trackingTab, setTrackingTab] = useState<'tl' | 'employee'>('employee');
+    const [trackingSearchQuery, setTrackingSearchQuery] = useState('');
+    const [trackingDate, setTrackingDate] = useState(new Date().toISOString().split('T')[0]);
+
+    const filteredTLs = trackingStats?.teamLeads.filter((tl: TlTrackingStats) => 
+        tl.name.toLowerCase().includes(trackingSearchQuery.toLowerCase()) || 
+        tl.email.toLowerCase().includes(trackingSearchQuery.toLowerCase())
+    ) || [];
+
+    const filteredEmployees = trackingStats?.employees.filter((emp: EmployeeTrackingStats) => 
+        emp.name.toLowerCase().includes(trackingSearchQuery.toLowerCase()) || 
+        emp.email.toLowerCase().includes(trackingSearchQuery.toLowerCase())
+    ) || [];
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -291,6 +361,22 @@ export default function GMDashboard() {
         }
     }, [currentMonth]);
 
+    const fetchTrackingStats = useCallback(async (date = trackingDate) => {
+        setTrackingLoading(true);
+        try {
+            const res = await adminApi.getTrackingStats(date);
+            setTrackingStats(res.data);
+        } catch (err: any) {
+            console.error('Error fetching tracking stats:', err);
+            const detailMsg = err.response?.data?.details || err.response?.data?.error;
+            if (detailMsg) {
+                alert(`API Error: ${detailMsg}`);
+            }
+        } finally {
+            setTrackingLoading(false);
+        }
+    }, [trackingDate]);
+
     useEffect(() => {
         if (view === 'master' || view === 'company') {
             fetchMasterCalendar().then(setCalendarData);
@@ -302,9 +388,17 @@ export default function GMDashboard() {
             fetchPocNotes();
         } else if (view === 'dashboard') {
             fetchDashboardStats();
+        } else if (view === 'tracking') {
+            fetchTrackingStats(trackingDate);
         }
         fetchGlobalData();
-    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length, fetchGlobalData]);
+    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length, trackingDate, fetchGlobalData, fetchTrackingStats]);
+
+    useEffect(() => {
+        if (view === 'tracking') {
+            fetchTrackingStats(trackingDate);
+        }
+    }, [trackingDate, view, fetchTrackingStats]);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -1014,6 +1108,13 @@ export default function GMDashboard() {
                     >
                         <FileText size={20} />
                         <span>POC Communication</span>
+                    </div>
+                    <div
+                        onClick={() => setView('tracking')}
+                        className={`nav-item ${view === 'tracking' ? 'active' : ''}`}
+                    >
+                        <Activity size={20} />
+                        <span>Employee Tracking</span>
                     </div>
 
                     {view === 'client' && (
@@ -1773,6 +1874,337 @@ export default function GMDashboard() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                ) : view === 'tracking' ? (
+                    <div className="tracking-page-container">
+                        <header className="page-header" style={{ marginBottom: '24px' }}>
+                            <div className="header-info">
+                                <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <Activity className="text-accent" size={28} />
+                                    Employee Tracking
+                                </h1>
+                                <p className="page-subtitle">Real-time productivity and engagement metrics</p>
+                            </div>
+                            <div className="header-controls">
+                                <div className="date-picker-box">
+                                    <CalendarIcon className="calendar-icon" size={18} />
+                                    <input 
+                                        type="date" 
+                                        value={trackingDate}
+                                        onChange={(e) => setTrackingDate(e.target.value)}
+                                    />
+                                </div>
+                                <div className="search-input-box">
+                                    <Search className="search-icon" size={18} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search by name or email..." 
+                                        value={trackingSearchQuery}
+                                        onChange={(e) => setTrackingSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                                <button className="refresh-btn" onClick={() => fetchTrackingStats()} disabled={trackingLoading}>
+                                    <RefreshCcw size={18} className={trackingLoading ? 'animate-spin' : ''} />
+                                </button>
+                            </div>
+                        </header>
+
+                        <div className="tracking-tabs">
+                            <button 
+                                className={`tracking-tab-btn ${trackingTab === 'tl' ? 'active' : ''}`}
+                                onClick={() => setTrackingTab('tl')}
+                            >
+                                <Users size={18} />
+                                Team Leads
+                            </button>
+                            <button 
+                                className={`tracking-tab-btn ${trackingTab === 'employee' ? 'active' : ''}`}
+                                onClick={() => setTrackingTab('employee')}
+                            >
+                                <Briefcase size={18} />
+                                Employees
+                            </button>
+                        </div>
+
+                        {!trackingLoading && trackingStats && (
+                            <div className="overview-summary-grid">
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="summary-card"
+                                >
+                                    <div className="summary-icon tl-bg"><Users size={20} /></div>
+                                    <div className="summary-data">
+                                        <span className="summary-label">TL Engagement</span>
+                                        <span className="summary-value">
+                                            {Math.round((trackingStats.teamLeads.reduce((acc, tl) => acc + tl.progress, 0) / (trackingStats.teamLeads.length || 1)) * 100)}%
+                                        </span>
+                                    </div>
+                                    <div className="summary-trend text-success">
+                                        <TrendingUp size={12} /> Today
+                                    </div>
+                                </motion.div>
+
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.1 }}
+                                    className="summary-card"
+                                >
+                                    <div className="summary-icon emp-bg"><Briefcase size={20} /></div>
+                                    <div className="summary-data">
+                                        <span className="summary-label">Prod. Velocity</span>
+                                        <span className="summary-value">
+                                            {Math.round((trackingStats.employees.reduce((acc, emp) => acc + emp.completionRate, 0) / (trackingStats.employees.length || 1)) * 100)}%
+                                        </span>
+                                    </div>
+                                    <div className="summary-trend text-accent">
+                                        <Target size={12} /> Current
+                                    </div>
+                                </motion.div>
+
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.2 }}
+                                    className="summary-card"
+                                >
+                                    <div className="summary-icon client-bg"><UserCircle2 size={20} /></div>
+                                    <div className="summary-data">
+                                        <span className="summary-label">Total Clients</span>
+                                        <span className="summary-value">
+                                            {trackingStats.teamLeads.reduce((acc, tl) => acc + tl.totalClients, 0)}
+                                        </span>
+                                    </div>
+                                    <div className="summary-trend">Active</div>
+                                </motion.div>
+
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.3 }}
+                                    className="summary-card"
+                                >
+                                    <div className="summary-icon task-bg"><CheckCircle2 size={20} /></div>
+                                    <div className="summary-data">
+                                        <span className="summary-label">Queue Load</span>
+                                        <span className="summary-value">
+                                            {trackingStats.employees.reduce((acc, emp) => acc + emp.assignedTasks, 0)}
+                                        </span>
+                                    </div>
+                                    <div className="summary-trend">Items</div>
+                                </motion.div>
+                            </div>
+                        )}
+
+                        <main className="tracking-content">
+                            <AnimatePresence mode="wait">
+                                {trackingLoading ? (
+                                    <motion.div 
+                                        key="loading"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="loading-placeholder"
+                                    >
+                                        <div className="pulse-loader"></div>
+                                        <p>Calculating productivity metrics...</p>
+                                    </motion.div>
+                                ) : trackingTab === 'tl' ? (
+                                    <motion.div 
+                                        key="tl-grid"
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        className="stats-grid"
+                                    >
+                                        {filteredTLs.length > 0 ? filteredTLs.map((tl, index) => (
+                                            <motion.div 
+                                                key={tl.id}
+                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                transition={{ delay: index * 0.05 }}
+                                                className="tracking-card tl-card"
+                                            >
+                                                <div className="card-header">
+                                                    <div className="user-info-group">
+                                                        <div className="user-avatar-small" style={{ color: 'var(--accent-secondary)' }}>
+                                                            <Users size={20} />
+                                                        </div>
+                                                        <div className="user-meta">
+                                                            <h3>{tl.name}</h3>
+                                                            <p>Team Lead</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="radial-group">
+                                                        <TrackingRadialProgress 
+                                                            progress={tl.progress} 
+                                                            size={48} 
+                                                            color={tl.progress >= 1 ? "var(--success)" : "var(--accent-secondary)"} 
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="card-body">
+                                                    <div className="stats-2x2-grid">
+                                                        <div className="metric-box poc">
+                                                            <div className="box-header">
+                                                                <MessageSquare size={12} style={{ color: 'var(--accent-secondary)' }} />
+                                                                <span>POC COMMS</span>
+                                                            </div>
+                                                            <div className="box-content">
+                                                                <div className="val-pair">
+                                                                    <span className="pair-main">{tl.talkedToday}</span>
+                                                                    <span className="pair-sub">/ {tl.totalClients}</span>
+                                                                </div>
+                                                                <div className="mini-progress">
+                                                                    <div className="bar"><div className="fill" style={{ width: `${tl.progress * 100}%`, background: 'var(--accent-secondary)' }}></div></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="metric-box content">
+                                                            <div className="box-header">
+                                                                <TrendingUp size={12} className="text-success" />
+                                                                <span>CONTENT FLOW</span>
+                                                            </div>
+                                                            <div className="box-content">
+                                                                <div className="val-pair">
+                                                                    <span className="pair-main">{tl.todayContentDone}</span>
+                                                                    <span className="pair-sub">/ {tl.todayContentTotal}</span>
+                                                                </div>
+                                                                <div className="mini-progress">
+                                                                    <div className="bar"><div className="fill" style={{ width: `${tl.todayContentTotal > 0 ? (tl.todayContentDone / tl.todayContentTotal) * 100 : 0}%`, background: 'var(--success)' }}></div></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="compact-task-list" style={{ marginTop: '12px' }}>
+                                                        <div className="list-header">
+                                                            <Circle size={10} />
+                                                            <span>CLIENTS STATUS (TODAY)</span>
+                                                        </div>
+                                                        <div className="tasks-container scrollable-list">
+                                                            {tl.assignedClients.map(client => (
+                                                                <div key={client.id} className="mini-task-item">
+                                                                    <span className={`status-dot ${client.talkedToday ? 'done' : 'pending'}`}></span>
+                                                                    <div className="task-info">
+                                                                        <span className="task-name">{client.name}</span>
+                                                                        <span className="task-client">{client.talkedToday ? 'Talked' : 'Not Contacted'}</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )) : (
+                                            <div className="no-data">No Team Leads found.</div>
+                                        )}
+                                    </motion.div>
+                                ) : (
+                                    <motion.div 
+                                        key="emp-grid"
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        className="stats-grid"
+                                    >
+                                        {filteredEmployees.length > 0 ? filteredEmployees.map((emp, index) => (
+                                            <motion.div 
+                                                key={emp.id}
+                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                transition={{ delay: index * 0.05 }}
+                                                className="tracking-card emp-card"
+                                            >
+                                                <div className="card-header">
+                                                    <div className="user-info-group">
+                                                        <div className="user-avatar-small">
+                                                            <Briefcase size={20} />
+                                                        </div>
+                                                        <div className="user-meta">
+                                                            <h3>{emp.name}</h3>
+                                                            <p>{emp.role}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="radial-group">
+                                                        <TrackingRadialProgress 
+                                                            progress={emp.completionRate} 
+                                                            size={48} 
+                                                            color={emp.completionRate >= 1 ? "var(--success)" : "var(--accent)"} 
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="card-body">
+                                                    <div className="stats-2x2-grid">
+                                                        <div className="metric-box daily">
+                                                            <div className="box-header">
+                                                                <Target size={12} className="text-accent" />
+                                                                <span>DAILY</span>
+                                                            </div>
+                                                            <div className="box-content">
+                                                                <div className="val-pair">
+                                                                    <span className="pair-main">{emp.completedTasks}</span>
+                                                                    <span className="pair-sub">/ {emp.assignedTasks}</span>
+                                                                </div>
+                                                                <div className="mini-progress">
+                                                                    <div className="bar"><div className="fill" style={{ width: `${emp.completionRate * 100}%` }}></div></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="metric-box monthly">
+                                                            <div className="box-header">
+                                                                <Trophy size={12} style={{ color: '#fbbf24' }} />
+                                                                <span>MONTHLY</span>
+                                                            </div>
+                                                            <div className="box-content">
+                                                                <div className="val-pair">
+                                                                    <span className="pair-main">{emp.monthlyCompleted}</span>
+                                                                    <span className="pair-sub">/ {emp.monthlyTotal}</span>
+                                                                </div>
+                                                                <div className="mini-progress">
+                                                                    <div className="bar"><div className="fill monthly" style={{ width: `${emp.monthlyRate * 100}%` }}></div></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {emp.tasks && emp.tasks.length > 0 && (
+                                                        <div className="compact-task-list">
+                                                            <div className="list-header">
+                                                                <Activity size={10} />
+                                                                <span>RECENT TASKS</span>
+                                                            </div>
+                                                            <div className="tasks-container scrollable-list">
+                                                                {emp.tasks.map(task => {
+                                                                    const isDone = (task.employeeStatus || '').toUpperCase() === 'COMPLETED';
+                                                                    return (
+                                                                        <div key={task.id} className="mini-task-item">
+                                                                            <span className={`status-dot ${isDone ? 'done' : 'pending'}`}></span>
+                                                                            <div className="task-info">
+                                                                                <span className="task-name">{task.title}</span>
+                                                                                <span className="task-client">{task.clientName}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        )) : (
+                                            <div className="no-data">No Employees found.</div>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </main>
+
                     </div>
                 ) : (view === 'client' && !selectedClient) ? (
                     <div className="client-selection-view">
