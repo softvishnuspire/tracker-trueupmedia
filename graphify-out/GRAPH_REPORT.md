@@ -1,6 +1,24 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-05-29 (Admin & COO Calendar Filters Overlap Fix)
+## Latest Changes — 2026-06-08 (Client Calendar Redirection & Browser Back Support)
+- **Goal**: Make the client name clickable at the top of the task details modal across all role-based dashboards/calendars to redirect the user to that client's calendar view, and support browser "Back" navigation restoration.
+- **Affected Files**:
+    - `frontend/src/app/globals.css`
+    - `frontend/src/app/admin/dashboard/page.tsx`
+    - `frontend/src/app/admin/master-calendar/page.tsx`
+    - `frontend/src/app/admin/company-calendar/page.tsx`
+    - `frontend/src/app/admin/production-schedule/page.tsx`
+    - `frontend/src/app/coo/dashboard/page.tsx`
+    - `frontend/src/app/coo/master-calendar/page.tsx`
+    - `frontend/src/app/coo/company-calendar/page.tsx`
+    - `frontend/src/app/gm/dashboard/page.tsx`
+    - `frontend/src/app/ph/dashboard/page.tsx`
+    - `frontend/src/app/tl/dashboard/page.tsx`
+    - `frontend/src/app/posting/dashboard/page.tsx`
+    - `frontend/src/app/content-head/dashboard/page.tsx`
+- **System Impact**: Integrates Link component routing for Admin/COO pages, and view/clientId state transitions for state-driven GM/PH/TL/Posting/Content Head pages. Synchronizes open details state (`taskId`) and active layout states (`view`, `clientId`) in URL search parameters across all pages, listening to browser `popstate` events to seamlessly restore open task cards and views on browser Back/Forward navigation. Prevents stripping `taskId` from previous history states when programmatically closing the modal to change views by introducing URL parameter guard conditions (checking if `viewParam === view` and `clientIdParam === selectedClient`) before executing `replaceState` across all state-driven dashboards (GM, PH, TL, Posting, and Content Head). Also fixes the browser Back popstate listener to ensure the details modal is opened if a `taskIdParam` exists in the URL but the modal was closed, even if `activeItem` already matches `taskIdParam` (since `activeItem` is retained in component state on view switches).
+
+## Previous Changes — 2026-05-29 (Admin & COO Calendar Filters Overlap Fix)
 - **Goal**: Fix the layout bug where calendar filters (Client and Type selectors) overflowed their container and overlapped the adjacent Schedule Export button on narrower/medium screen widths.
 - **Affected Files**:
     - `frontend/src/app/admin/admin.css`

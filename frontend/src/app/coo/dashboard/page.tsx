@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { cooApi, emergencyApi } from '@/lib/api';
 import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2, Check, AlertTriangle, User as UserIcon, Phone, Mail } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -101,6 +102,33 @@ export default function CooDashboard() {
         fetchDashboardData();
     }, [selectedClient, currentMonth]);
 
+    useEffect(() => {
+        if (!isModalOpen) {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('taskId')) {
+                params.delete('taskId');
+                const newSearch = params.toString();
+                window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+            }
+        }
+    }, [isModalOpen]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const taskId = params.get('taskId');
+        if (taskId && !loading) {
+            const currentActiveId = activeItem?.item?.id;
+            if (currentActiveId !== taskId) {
+                const item = calendarData.find(i => i.id === taskId);
+                if (item) {
+                    handleItemClick(item);
+                } else {
+                    handleItemClick({ id: taskId } as any);
+                }
+            }
+        }
+    }, [loading, calendarData]);
+
     const isBiMonthly = false;
     const periodStart = startOfMonth(currentMonth);
     const periodEnd = endOfMonth(currentMonth);
@@ -123,6 +151,7 @@ export default function CooDashboard() {
 
     const handleItemClick = async (item: any) => {
         try {
+            window.history.replaceState(null, '', `?taskId=${item.id}`);
             // Find all tasks on the same day as the clicked item
             const day = parseISO(item.scheduled_datetime);
             
@@ -535,7 +564,17 @@ export default function CooDashboard() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
                                 <div className="detail-section">
                                     <div className="detail-field">
-                                        <p className="detail-value" style={{ fontSize: '15px', fontWeight: 700 }}>{activeItem.item.clients?.company_name || activeItem.item.freelancer_name || 'N/A'}</p>
+                                        <p className="detail-value" style={{ fontSize: '15px', fontWeight: 700 }}>
+                                            {activeItem.item.freelancer_name ? (
+                                                activeItem.item.freelancer_name
+                                            ) : (
+                                                activeItem.item.clients?.company_name && (
+                                                    <Link href={`/coo/client-calendar/${activeItem.item.client_id}`} className="client-link-hover">
+                                                        {activeItem.item.clients?.company_name}
+                                                    </Link>
+                                                )
+                                            )}
+                                        </p>
                                     </div>
                                     {activeItem.item.freelancer_name && (
                                         <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>

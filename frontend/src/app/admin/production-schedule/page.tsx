@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
     format,
     startOfMonth,
@@ -70,6 +71,33 @@ export default function MasterProductionSchedule() {
         fetchMasterCalendar();
     }, [selectedClient, currentMonth]);
 
+    useEffect(() => {
+        if (!isDetailsOpen) {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('taskId')) {
+                params.delete('taskId');
+                const newSearch = params.toString();
+                window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+            }
+        }
+    }, [isDetailsOpen]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const taskId = params.get('taskId');
+        if (taskId && !loading) {
+            const currentActiveId = activeItem?.item?.id;
+            if (currentActiveId !== taskId) {
+                const item = calendarData.find(i => i.id === taskId);
+                if (item) {
+                    handleItemClick(item);
+                } else {
+                    handleItemClick({ id: taskId } as ContentItem);
+                }
+            }
+        }
+    }, [loading, calendarData]);
+
     const fetchClients = async () => {
         try {
             const res = await adminApi.getClients();
@@ -92,6 +120,7 @@ export default function MasterProductionSchedule() {
 
     const handleItemClick = async (item: ContentItem) => {
         try {
+            window.history.replaceState(null, '', `?taskId=${item.id}`);
             const res = await adminApi.getContentDetails(item.id);
             const fetchedItem = res.data.item;
 
@@ -297,7 +326,13 @@ export default function MasterProductionSchedule() {
                                 <div className="detail-section">
                                     <div className="detail-field">
                                         <label className="detail-label">Client</label>
-                                        <p className="detail-value">{activeItem.item.clients?.company_name}</p>
+                                        <p className="detail-value">
+                                            {activeItem.item.clients?.company_name && (
+                                                <Link href={`/admin/client-calendar/${activeItem.item.client_id}`} className="client-link-hover">
+                                                    {activeItem.item.clients?.company_name}
+                                                </Link>
+                                            )}
+                                        </p>
                                     </div>
                                     <div className="detail-field">
                                         <label className="detail-label">Scheduled For</label>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { 
     format, 
     startOfMonth, 
@@ -85,6 +86,33 @@ export default function CompanyCalendar() {
         fetchMasterData();
     }, [fetchMasterData]);
 
+    useEffect(() => {
+        if (!selectedItem) {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('taskId')) {
+                params.delete('taskId');
+                const newSearch = params.toString();
+                window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+            }
+        }
+    }, [selectedItem]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const taskId = params.get('taskId');
+        if (taskId && !loading) {
+            const currentActiveId = selectedItem?.item?.id;
+            if (currentActiveId !== taskId) {
+                const item = calendarData.find(i => i.id === taskId);
+                if (item) {
+                    handleItemClick(item);
+                } else {
+                    handleItemClick({ id: taskId } as ContentItem);
+                }
+            }
+        }
+    }, [loading, calendarData]);
+
     const days = viewMode === 'month' 
         ? eachDayOfInterval({
             start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
@@ -107,6 +135,7 @@ export default function CompanyCalendar() {
 
     const handleItemClick = async (item: ContentItem) => {
         try {
+            window.history.replaceState(null, '', `?taskId=${item.id}`);
             const res = await adminApi.getContentDetails(item.id);
             const fetchedItem = res.data.item;
             
@@ -453,7 +482,11 @@ export default function CompanyCalendar() {
                                         {selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type}
                                     </span>
                                     <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
-                                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{selectedItem.item.clients?.company_name}</span>
+                                    {selectedItem.item.clients?.company_name && (
+                                        <Link href={`/admin/client-calendar/${selectedItem.item.client_id}`} className="client-link-hover">
+                                            {selectedItem.item.clients?.company_name}
+                                        </Link>
+                                    )}
                                     {dayTasks.length > 1 && (
                                         <>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
