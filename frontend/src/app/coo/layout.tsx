@@ -12,7 +12,10 @@ import {
     UserCircle,
     Menu,
     X,
-    CalendarClock
+    CalendarClock,
+    Settings2,
+    UserPlus,
+    Activity
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
@@ -86,6 +89,9 @@ export default function CooLayout({
         { name: 'Team Management', path: '/coo/team', icon: <UserCircle size={20} /> },
         { name: 'Master Calendar', path: '/coo/master-calendar', icon: <CalendarIcon size={20} /> },
         ...(showCompanyCalendar ? [{ name: 'Company Calendar', path: '/coo/company-calendar', icon: <CalendarClock size={20} /> }] : []),
+        { name: 'System Toggles', path: '/coo/toggles', icon: <Settings2 size={20} /> },
+        { name: 'Client Onboarding', path: '/coo/onboarding', icon: <UserPlus size={20} /> },
+        { name: 'Employee Tracking', path: '/coo/employee-tracking', icon: <Activity size={20} /> },
     ];
 
     return (

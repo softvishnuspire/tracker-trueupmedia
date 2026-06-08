@@ -2,12 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { adminApi, Client } from '@/lib/api';
+import { adminApi, Client, ContentItem } from '@/lib/api';
 import { Plus, Search, Edit2, Trash2, X, Calendar as CalendarIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
 
 export default function ClientManagement() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,6 +33,10 @@ export default function ClientManagement() {
       const res = await adminApi.getClients();
       console.log('Fetched Clients raw data:', res.data);
       setClients(res.data);
+
+      const monthStr = format(new Date(), 'yyyy-MM');
+      const calendarRes = await adminApi.getMasterCalendar(monthStr);
+      setContentItems(calendarRes.data || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -103,8 +109,18 @@ export default function ClientManagement() {
     c.company_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalPosts = clients.reduce((sum, c) => sum + (c.posts_per_month || 0), 0);
-  const totalReels = clients.reduce((sum, c) => sum + (c.reels_per_month || 0), 0);
+  const totalReelsTarget = clients.reduce((sum, c) => sum + (c.reels_per_month || 0), 0);
+  const totalPostsTarget = clients.reduce((sum, c) => sum + (c.posts_per_month || 0), 0);
+
+  const actualReelsScheduled = contentItems.filter(item => (item.content_type || '').toUpperCase() === 'REEL').length;
+  const actualPostsScheduled = contentItems.filter(item => (item.content_type || '').toUpperCase() === 'POST').length;
+
+  const getAllocationStyle = (actual: number, target: number) => {
+    if (target === 0) return { color: 'var(--text-secondary)' };
+    if (actual === target) return { color: '#10b981', fontWeight: 'bold' }; // success green
+    if (actual < target) return { color: '#f59e0b', fontWeight: 'bold' }; // warning orange
+    return { color: '#8b5cf6', fontWeight: 'bold' }; // over-allocated purple
+  };
 
   return (
     <div>
@@ -140,12 +156,20 @@ export default function ClientManagement() {
               <span className="summary-value clients">{clients.length}</span>
             </div>
             <div className="summary-item">
-              <span className="summary-label">Total Reels:</span>
-              <span className="summary-value reels">{totalReels}</span>
+              <span className="summary-label">Reels Assigned:</span>
+              <span className="summary-value reels" style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                <span style={{ fontSize: '24px', fontWeight: 900 }}>{actualReelsScheduled}</span>
+                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>/</span>
+                <span style={{ fontSize: '16px', color: 'var(--text-muted)', fontWeight: 700 }}>{totalReelsTarget}</span>
+              </span>
             </div>
             <div className="summary-item">
-              <span className="summary-label">Total Posts:</span>
-              <span className="summary-value posts">{totalPosts}</span>
+              <span className="summary-label">Posts Assigned:</span>
+              <span className="summary-value posts" style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                <span style={{ fontSize: '24px', fontWeight: 900 }}>{actualPostsScheduled}</span>
+                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>/</span>
+                <span style={{ fontSize: '16px', color: 'var(--text-muted)', fontWeight: 700 }}>{totalPostsTarget}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -162,9 +186,9 @@ export default function ClientManagement() {
                   <th>Email</th>
                   <th>Address</th>
                   <th>Batch</th>
-                  <th>Posts/mo</th>
-                  <th>Reels/mo</th>
-                  <th>YTvid/mo</th>
+                  <th>Posts Assigned</th>
+                  <th>Reels Assigned</th>
+                  <th>YTvid Assigned</th>
                   <th>Date Added</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -188,44 +212,62 @@ export default function ClientManagement() {
                   </>
                 ) : (
                   <>
-                    {filteredClients.map((client, index) => (
-                      <tr key={client.id || index}>
-                        <td data-label="Company Name" style={{ fontWeight: 700, color: 'var(--text-primary)' }}><span>{client.company_name}</span></td>
-                        <td data-label="Contact"><span>{client.phone || '-'}</span></td>
-                        <td data-label="Email"><span>{client.email || '-'}</span></td>
-                        <td data-label="Address" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span>{client.address || '-'}</span></td>
-                        <td data-label="Batch">
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '3px 10px',
-                            borderRadius: '8px',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            letterSpacing: '0.3px',
-                            background: (client.batch_type === '15-15') ? 'rgba(139, 92, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                            color: (client.batch_type === '15-15') ? '#8b5cf6' : '#10b981',
-                            border: `1px solid ${(client.batch_type === '15-15') ? 'rgba(139, 92, 246, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
-                          }}>{client.batch_type || '1-1'}</span>
-                        </td>
-                        <td data-label="Posts/mo"><span>{client.posts_per_month || '0'}</span></td>
-                        <td data-label="Reels/mo"><span>{client.reels_per_month || '0'}</span></td>
-                        <td data-label="YTvid/mo"><span>{client.youtube_per_month || '0'}</span></td>
-                        <td data-label="Date Added"><span>{client.created_at ? new Date(client.created_at).toLocaleDateString() : '-'}</span></td>
-                        <td data-label="Actions" style={{ textAlign: 'right' }}>
-                          <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
-                            <Link href={`/admin/client-calendar/${client.id}`} className="btn-icon">
-                              <CalendarIcon size={14} />
-                            </Link>
-                            <button className="btn-icon" onClick={() => handleEditClick(client)}>
-                              <Edit2 size={14} />
-                            </button>
-                            <button className="btn-icon delete" onClick={() => handleDeleteClick(client.id, client.company_name)}>
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredClients.map((client, index) => {
+                      const clientActualReels = contentItems.filter(item => item.client_id === client.id && (item.content_type || '').toUpperCase() === 'REEL').length;
+                      const clientActualPosts = contentItems.filter(item => item.client_id === client.id && (item.content_type || '').toUpperCase() === 'POST').length;
+                      const clientActualYT = contentItems.filter(item => item.client_id === client.id && (item.content_type || '').toUpperCase() === 'YOUTUBE').length;
+
+                      return (
+                        <tr key={client.id || index}>
+                          <td data-label="Company Name" style={{ fontWeight: 700, color: 'var(--text-primary)' }}><span>{client.company_name}</span></td>
+                          <td data-label="Contact"><span>{client.phone || '-'}</span></td>
+                          <td data-label="Email"><span>{client.email || '-'}</span></td>
+                          <td data-label="Address" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span>{client.address || '-'}</span></td>
+                          <td data-label="Batch">
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '3px 10px',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              letterSpacing: '0.3px',
+                              background: (client.batch_type === '15-15') ? 'rgba(139, 92, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                              color: (client.batch_type === '15-15') ? '#8b5cf6' : '#10b981',
+                              border: `1px solid ${(client.batch_type === '15-15') ? 'rgba(139, 92, 246, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                            }}>{client.batch_type || '1-1'}</span>
+                          </td>
+                          <td data-label="Posts Assigned">
+                            <span style={getAllocationStyle(clientActualPosts, client.posts_per_month || 0)}>
+                              {clientActualPosts} / {client.posts_per_month || 0}
+                            </span>
+                          </td>
+                          <td data-label="Reels Assigned">
+                            <span style={getAllocationStyle(clientActualReels, client.reels_per_month || 0)}>
+                              {clientActualReels} / {client.reels_per_month || 0}
+                            </span>
+                          </td>
+                          <td data-label="YTvid Assigned">
+                            <span style={getAllocationStyle(clientActualYT, client.youtube_per_month || 0)}>
+                              {clientActualYT} / {client.youtube_per_month || 0}
+                            </span>
+                          </td>
+                          <td data-label="Date Added"><span>{client.created_at ? new Date(client.created_at).toLocaleDateString() : '-'}</span></td>
+                          <td data-label="Actions" style={{ textAlign: 'right' }}>
+                            <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
+                              <Link href={`/admin/client-calendar/${client.id}`} className="btn-icon">
+                                <CalendarIcon size={14} />
+                              </Link>
+                              <button className="btn-icon" onClick={() => handleEditClick(client)}>
+                                <Edit2 size={14} />
+                              </button>
+                              <button className="btn-icon delete" onClick={() => handleDeleteClick(client.id, client.company_name)}>
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {filteredClients.length === 0 && (
                       <tr>
                         <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>

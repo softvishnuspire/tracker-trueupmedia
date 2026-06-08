@@ -388,14 +388,22 @@ export default function ClientCalendarPage() {
             </header>
 
             <div className="status-summary-row">
-                <div className="status-pill status-pill-reels">
-                    <span className="status-pill-label">Reels</span>
-                    <span className="status-pill-count">{monthStatusCounts.reels}</span>
-                </div>
-                <div className="status-pill status-pill-posts">
-                    <span className="status-pill-label">Posts</span>
-                    <span className="status-pill-count">{monthStatusCounts.posts}</span>
-                </div>
+                 <div className="status-pill status-pill-reels">
+                     <span className="status-pill-label">Reels</span>
+                     <span className="status-pill-count" style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+                         <span style={{ fontSize: '15px', fontWeight: 900 }}>{monthStatusCounts.reels}</span>
+                         <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>/</span>
+                         <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700 }}>{client?.reels_per_month || 0}</span>
+                     </span>
+                 </div>
+                 <div className="status-pill status-pill-posts">
+                     <span className="status-pill-label">Posts</span>
+                     <span className="status-pill-count" style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+                         <span style={{ fontSize: '15px', fontWeight: 900 }}>{monthStatusCounts.posts}</span>
+                         <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>/</span>
+                         <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700 }}>{client?.posts_per_month || 0}</span>
+                     </span>
+                 </div>
                 <div className="status-pill status-pill-content-approved">
                     <span className="status-pill-label">Content Approved</span>
                     <span className="status-pill-count">{monthStatusCounts.contentApproved}</span>

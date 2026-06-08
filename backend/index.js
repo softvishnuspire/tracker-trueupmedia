@@ -237,10 +237,10 @@ const getRequesterRole = async (user) => {
 };
 
 const ADMIN_ROLES = ['ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'PH', 'PRODUCTION HEAD', 'TEAM LEAD', 'TL'];
-const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD'];
+const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD', 'COO'];
 const COO_ROLES = ['COO', 'ADMIN'];
-const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER'];
-const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD'];
+const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO'];
+const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO'];
 const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER'];
 const CLIENT_ROLES = ['CLIENT', 'ADMIN'];
 const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN'];
@@ -1713,8 +1713,13 @@ app.get('/api/coo/team', requireRoles(COO_ROLES), async (req, res) => {
         .order('created_at', { ascending: false });
 
     if (error) return res.status(500).json({ error: error.message });
-    const teamLeads = (data || []).filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role));
-    res.json(teamLeads);
+
+    const teamMembers = (data || []).filter(u => {
+        const normalizedRole = (u.role || '').toUpperCase().trim().replace(/_/g, ' ');
+        return ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE', 'GM', 'GENERAL MANAGER', 'COO', 'ADMIN', 'CONTENT HEAD'].includes(normalizedRole);
+    });
+
+    res.json(teamMembers);
 });
 
 app.get('/api/coo/stats', requireRoles(COO_ROLES), async (req, res) => {
@@ -3553,7 +3558,7 @@ app.post('/api/notifications/send', async (req, res) => {
         const senderRole = normalizeRole(senderData.role);
         const senderRoleIdentifier = normalizeRole(senderData.role_identifier);
         const isAdmin = senderRole === 'ADMIN';
-        const isGM = senderRole === 'GENERAL MANAGER' || senderRole === 'GM' || senderRoleIdentifier === 'GM' || senderRoleIdentifier === 'GENERAL MANAGER';
+        const isGM = senderRole === 'GENERAL MANAGER' || senderRole === 'GM' || senderRoleIdentifier === 'GM' || senderRoleIdentifier === 'GENERAL MANAGER' || senderRole === 'COO' || senderRoleIdentifier === 'COO';
 
         if (!isAdmin && !isGM) {
             return res.status(403).json({ error: 'Unauthorized to send notifications' });

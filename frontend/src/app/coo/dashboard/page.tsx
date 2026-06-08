@@ -1,641 +1,815 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from 'react';
-import { cooApi, emergencyApi } from '@/lib/api';
-import { Users, Calendar, Activity, ShieldAlert, FileText, Video, ArrowRight, ChevronDown, Filter, ChevronLeft, ChevronRight, X, Undo2, Check, AlertTriangle, User as UserIcon, Phone, Mail } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    format,
+    startOfMonth,
+    endOfMonth,
+    startOfWeek,
+    endOfWeek,
+    eachDayOfInterval,
+    isSameMonth,
+    isSameDay,
+    parseISO,
+    subDays,
+    startOfDay,
+    endOfDay,
+    subMonths,
+    addMonths
+} from 'date-fns';
+import {
+    LayoutDashboard,
+    Globe,
+    Users,
+    Activity,
+    FileText,
+    Video,
+    Film,
+    Filter,
+    ChevronDown,
+    Plus,
+    Clock,
+    ShieldAlert,
+    ArrowRight,
+    MessageSquare
+} from 'lucide-react';
+import {
+    gmApi,
+    emergencyApi,
+    dashboardApi,
+    adminApi,
+    tlApi,
+    ContentItem,
+    PocNote,
+    Client,
+    ContentDetails,
+    settingsApi
+} from '@/lib/api';
+import { getClientAbbreviation, getISTDate } from '@/lib/utils';
+import { createClient } from '@/utils/supabase/client';
+import { User } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
+import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatIST } from '@/lib/utils';
-import { endOfWeek, format, isSameDay, parseISO, startOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from 'date-fns';
-
-interface Stats {
-    totalClients: number;
-    totalItemsThisMonth: number;
-    statusSummary: Record<string, number>;
-}
+import ScheduleExport from '@/components/ScheduleExport';
+import FreelancerTaskModal from '@/components/FreelancerTaskModal';
+import Image from 'next/image';
+import './coo.css';
 
 export default function CooDashboard() {
-    const [stats, setStats] = useState<Stats | null>(null);
-    const [calendarData, setCalendarData] = useState<any[]>([]);
-    const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [emergencyTasks, setEmergencyTasks] = useState<any[]>([]);
-    const [clients, setClients] = useState<any[]>([]);
-    const [selectedClient, setSelectedClient] = useState<string>('all');
-    const [activeItem, setActiveItem] = useState<any>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [dayTasks, setDayTasks] = useState<any[]>([]);
+    const DISPLAY_OFFSET_DAYS = 7;
+    const [clients, setClients] = useState<Client[]>([]);
+    const [selectedClient, setSelectedClient] = useState<string>('');
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
+    const [globalCalendarData, setGlobalCalendarData] = useState<ContentItem[]>([]);
+    const [loading, setLoading] = useState(false);
+    
+    const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
+    const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
+    const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
+    const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
 
-    const [currentMonth] = useState(new Date());
+    const shootDoneStatuses = [
+        'SHOOT DONE',
+        'EDITING IN PROGRESS',
+        'EDITED',
+        'WAITING FOR FINAL APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED'
+    ];
 
+    const contentApprovedStatuses = [
+        'CONTENT READY',
+        'WAITING FOR APPROVAL',
+        'CONTENT APPROVED',
+        'SHOOT DONE',
+        'EDITING IN PROGRESS',
+        'EDITED',
+        'WAITING FOR FINAL APPROVAL',
+        'APPROVED',
+        'WAITING FOR POSTING',
+        'POSTED',
+        'DESIGNING IN PROGRESS',
+        'DESIGNING COMPLETED'
+    ];
 
+    const router = useRouter();
+    const supabase = createClient();
 
-    const fetchDashboardData = async () => {
-        setLoading(true);
+    const [user, setUser] = useState<User | null>(null);
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [isFreelancerModalOpen, setIsFreelancerModalOpen] = useState(false);
+
+    const getDisplayDate = (scheduledDateTime: string) => subDays(getISTDate(scheduledDateTime), DISPLAY_OFFSET_DAYS);
+    const getCalendarItemDate = (item: ContentItem) =>
+        showCompanyCalendar ? getDisplayDate(item.scheduled_datetime) : getISTDate(item.scheduled_datetime);
+
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const isBiMonthlyView = selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+
+    const periodStart = isBiMonthlyView
+        ? (currentMonth.getDate() >= 15
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
+        : startOfMonth(currentMonth);
+
+    const periodEnd = isBiMonthlyView
+        ? (currentMonth.getDate() >= 15
+            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
+            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
+        : endOfMonth(currentMonth);
+
+    const isDayInPeriod = (day: Date): boolean => {
+        if (!isBiMonthlyView) return isSameMonth(day, currentMonth);
+        return day >= startOfDay(periodStart) && day <= endOfDay(periodEnd);
+    };
+
+    const fetchClientCalendar = useCallback(async (clientId: string) => {
+        if (!clientId) return [];
         try {
-            // Fetch clients if not already loaded
-            if (clients.length === 0) {
-                const clientsRes = await cooApi.getClients();
-                setClients(clientsRes.data);
-            }
+            const client = clients.find(c => c.id === clientId);
+            const is1515 = client?.batch_type === '15-15';
 
-            // Fetch master calendar
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const calendarRes = await cooApi.getMasterCalendar(
-                currentMonthStr,
+            let data = [];
+            if (is1515) {
+                const isSecondHalf = currentMonth.getDate() >= 15;
+                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
+                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+
+                // local helper functions to avoid global function dependency
+                const formatMonth = (d: Date) => format(d, 'yyyy-MM');
+                
+                const [resStart, resEnd] = await Promise.all([
+                    gmApi.getCalendar(clientId, formatMonth(startMonth)),
+                    gmApi.getCalendar(clientId, formatMonth(endMonth))
+                ]);
+                data = [...(resStart.data || []), ...(resEnd.data || [])];
+            } else {
+                data = (await gmApi.getCalendar(clientId, format(currentMonth, 'yyyy-MM'))).data || [];
+            }
+            return data;
+        } catch (error) {
+            console.error('Error fetching client calendar:', error);
+            return [];
+        }
+    }, [currentMonth, clients]);
+
+    const fetchMasterCalendar = useCallback(async () => {
+        try {
+            const monthStr = format(currentMonth, 'yyyy-MM');
+            const res = await gmApi.getMasterCalendar(
+                monthStr,
                 selectedClient === 'all' ? undefined : selectedClient
             );
-            const data = calendarRes.data;
-            
-            setCalendarData(data);
+            return res.data || [];
+        } catch (error) {
+            console.error('Error fetching master calendar:', error);
+            return [];
+        }
+    }, [currentMonth, selectedClient]);
 
-            const filteredData = data;
+    const fetchGlobalData = useCallback(async () => {
+        try {
+            const res = await gmApi.getMasterCalendar(format(currentMonth, 'yyyy-MM'));
+            setGlobalCalendarData(res.data || []);
+        } catch (err) {
+            console.error("Error fetching global data:", err);
+        }
+    }, [currentMonth]);
 
-            const breakdown = filteredData.reduce((acc: any, item: any) => {
-                acc[item.status] = (acc[item.status] || 0) + 1;
-                return acc;
-            }, {});
+    const fetchPocNotes = useCallback(async () => {
+        try {
+            const clientId = selectedClient === 'all' ? undefined : selectedClient;
+            const res = await gmApi.getPocNotes(format(currentMonth, 'yyyy-MM'), undefined, clientId);
+            setPocNotes(res.data || []);
+        } catch (err) {
+            console.error('Error fetching POC notes:', err);
+        }
+    }, [currentMonth, selectedClient]);
 
-            // Calculate today's stats
-            const today = new Date();
-            const todayItems = data.filter((item: any) => isSameDay(parseISO(item.scheduled_datetime), today));
-            const totalToday = todayItems.length;
-            const completedToday = todayItems.filter((item: any) => item.status === 'POSTED').length;
-
-            setTodayStats({
-                total: totalToday,
-                completed: completedToday,
-                remaining: totalToday - completedToday,
-                percentage: totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0
-            });
-
-            // Update stats state
-            if (selectedClient === 'all') {
-                const statsRes = await cooApi.getStats();
-                setStats({
-                    ...statsRes.data,
-                    statusSummary: breakdown,
-                    totalItemsThisMonth: filteredData.length
-                });
+    const fetchDashboardStats = useCallback(async () => {
+        setLoading(true);
+        try {
+            let calendarData = [];
+            if (selectedClient && selectedClient !== 'all') {
+                calendarData = await fetchClientCalendar(selectedClient);
             } else {
-                setStats({
-                    totalClients: clients.length,
-                    totalItemsThisMonth: filteredData.length,
-                    statusSummary: breakdown
-                });
+                calendarData = await fetchMasterCalendar();
             }
 
-            const emergencyRes = await emergencyApi.getAll();
-            const filteredEmergency = (emergencyRes.data || []).filter(item => 
-                (item.status || '').toUpperCase() !== 'POSTED'
-            );
-            setEmergencyTasks(filteredEmergency);
-        } catch (err: any) {
-            setError(err.message);
+            setCalendarData(calendarData);
+
+            // Fetch all dashboard lists
+            const [emergencyRes, pendingRes] = await Promise.all([
+                emergencyApi.getAll(),
+                dashboardApi.getPendingImportant()
+            ]);
+
+            setEmergencyTasks(emergencyRes.data || []);
+            setPendingTasks(pendingRes.data || []);
+        } catch (err) {
+            console.error(err);
         } finally {
             setLoading(false);
         }
-    };
+    }, [selectedClient, fetchClientCalendar, fetchMasterCalendar]);
+
+    const fetchClients = useCallback(async () => {
+        try {
+            const res = await gmApi.getClients();
+            setClients(res.data);
+            if (res.data.length > 0 && !selectedClient) {
+                setSelectedClient(res.data[0].id);
+            }
+        } catch (err) {
+            console.error('Error fetching clients:', err);
+        }
+    }, [selectedClient]);
 
     useEffect(() => {
-        fetchDashboardData();
-    }, [selectedClient, currentMonth]);
+        fetchClients();
+        const fetchUserEffect = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                setUser(user);
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('role, role_identifier')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                const role = profile?.role_identifier || profile?.role || user.user_metadata?.role;
+                setUserRole(role?.toUpperCase());
+            }
+        };
+        fetchUserEffect();
+    }, [fetchClients, supabase]);
 
-    const isBiMonthly = false;
-    const periodStart = startOfMonth(currentMonth);
-    const periodEnd = endOfMonth(currentMonth);
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const res = await settingsApi.getSettings();
+                const calendarSetting = res.data.find(s => s.key === 'show_company_calendar');
+                if (calendarSetting) {
+                    setShowCompanyCalendar(calendarSetting.value === true || calendarSetting.value === 'true');
+                }
+            } catch (err) {
+                console.error('Error fetching settings:', err);
+            }
+        };
+        fetchSettings();
+    }, []);
 
-    const monthTotal = stats?.totalItemsThisMonth || 0;
-    const monthCompleted = (stats?.statusSummary?.POSTED || 0) as number;
-    const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
-    
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-    const weekItems = calendarData.filter((item: any) => {
+    useEffect(() => {
+        if (clients.length > 0) {
+            fetchDashboardStats();
+            fetchPocNotes();
+        }
+        fetchGlobalData();
+    }, [selectedClient, currentMonth, clients.length, fetchDashboardStats, fetchPocNotes, fetchGlobalData]);
+
+    const handleItemClick = (item: ContentItem) => {
+        // Redirect to calendar details directly
+        router.push(`/coo/master-calendar?item=${item.id}`);
+    };
+
+    const globalMonthCounts = globalCalendarData.filter(item => {
         const itemDate = parseISO(item.scheduled_datetime);
-        return itemDate >= weekStart && itemDate <= weekEnd;
-    });
-    const weekTotal = weekItems.length;
-    const weekCompleted = weekItems.filter((item: any) => (item.status || '').toUpperCase() === 'POSTED').length;
-    const weekPercentage = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
-
-    if (error) return <div className="error-message">{error}</div>;
-
-    const handleItemClick = async (item: any) => {
-        try {
-            // Find all tasks on the same day as the clicked item
-            const day = parseISO(item.scheduled_datetime);
+        return isSameMonth(itemDate, currentMonth);
+    }).reduce(
+        (acc, item) => {
+            const status = (item.status || '').toUpperCase();
+            const type = (item.content_type || '').toUpperCase();
+            const isShot = shootDoneStatuses.includes(status);
+            const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
             
-            // Collect tasks from available sources
-            const tasksOnDay = calendarData.filter((i: any) => isSameDay(parseISO(i.scheduled_datetime), day));
+            acc.totalItems += 1;
+            if (status === 'POSTED') acc.posted += 1;
+            if (contentApprovedStatuses.includes(status)) acc.contentApproved += 1;
+            if (status === 'DESIGNING IN PROGRESS') acc.designingInProgress += 1;
+
+            if (type === 'REEL' || type === 'YOUTUBE') {
+                acc.totalReels += 1;
+                if (isShot) acc.shotReels += 1;
+                if (isDone) acc.doneReels += 1;
+            } else if (type === 'POST') {
+                acc.totalPosts += 1;
+                if (isShot) acc.shotPosts += 1;
+                if (isDone) acc.donePosts += 1;
+            }
+            return acc;
+        },
+        { 
+            totalReels: 0, totalPosts: 0, shotReels: 0, shotPosts: 0, doneReels: 0, donePosts: 0,
+            totalItems: 0, posted: 0, contentApproved: 0, designingInProgress: 0
+        }
+    );
+
+    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
+        (acc, item) => {
+            const status = (item.status || '').toUpperCase();
+            const type = (item.content_type || '').toUpperCase();
+            const isShot = shootDoneStatuses.includes(status);
+            const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
             
-            // If the item itself isn't in the list, add it
-            if (!tasksOnDay.some((t: any) => t.id === item.id)) {
-                tasksOnDay.push(item);
+            acc.total += 1;
+            if (isDone) acc.completed += 1;
+            if (status === 'POSTED') acc.posted += 1;
+            if (contentApprovedStatuses.includes(status)) acc.contentApproved += 1;
+            if (status === 'DESIGNING IN PROGRESS') acc.designingInProgress += 1;
+
+            acc.statusCounts[status] = (acc.statusCounts[status] || 0) + 1;
+
+            if (type === 'REEL' || type === 'YOUTUBE') {
+                acc.reels += 1;
+                if (isDone) acc.completedReels += 1;
+                if (isShot) acc.shootDone += 1;
+            } else if (type === 'POST') {
+                acc.posts += 1;
+                if (isDone) acc.completedPosts += 1;
+                if (isShot) acc.shotPosts += 1;
             }
 
-            // Sort them by time
-            tasksOnDay.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
-            
-            setDayTasks(tasksOnDay);
-
-            const res = await cooApi.getContentDetails(item.id);
-            setActiveItem(res.data);
-            setIsModalOpen(true);
-        } catch (err) { console.error(err); }
-    };
-
-    const navigateToTask = async (direction: 'next' | 'prev') => {
-        if (!activeItem || dayTasks.length <= 1) return;
-        
-        const currentIndex = dayTasks.findIndex(t => t.id === activeItem.item.id);
-        let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-        
-        if (nextIndex < 0) nextIndex = dayTasks.length - 1;
-        if (nextIndex >= dayTasks.length) nextIndex = 0;
-        
-        const nextTask = dayTasks[nextIndex];
-        try {
-            const res = await cooApi.getContentDetails(nextTask.id);
-            setActiveItem(res.data);
-        } catch (err) { console.error(err); }
-    };
-
-    const handleUndoStatus = async () => {
-        if (!activeItem) return;
-        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
-        try {
-            await cooApi.undoStatus(activeItem.item.id);
-            const res = await cooApi.getContentDetails(activeItem.item.id);
-            setActiveItem(res.data);
-            fetchDashboardData();
-        } catch (err) {
-            console.error(err);
-            alert('Failed to undo status change. It might be because there is no more history to undo.');
+            return acc;
+        },
+        { 
+            total: 0, completed: 0, reels: 0, posts: 0, 
+            completedReels: 0, completedPosts: 0, 
+            shootDone: 0, contentApproved: 0,
+            statusCounts: {} as Record<string, number>,
+            posted: 0, designingInProgress: 0, shotPosts: 0
         }
+    );
+
+    const activeStats = {
+        totalItems: globalMonthCounts.totalItems,
+        totalReels: globalMonthCounts.totalReels,
+        totalPosts: globalMonthCounts.totalPosts,
+        shotReels: globalMonthCounts.shotReels,
+        shotPosts: globalMonthCounts.shotPosts,
+        doneReels: globalMonthCounts.doneReels,
+        donePosts: globalMonthCounts.donePosts,
+        posted: globalMonthCounts.posted,
+        contentApproved: globalMonthCounts.contentApproved,
+        designingInProgress: globalMonthCounts.designingInProgress
     };
+
+    const activeClientPocNotes = pocNotes
+        .filter(note => selectedClient === 'all' || note.client_id === selectedClient)
+        .sort((a, b) => new Date(b.note_date).getTime() - new Date(a.note_date).getTime())
+        .slice(0, 5);
 
     return (
-        <div>
-            <header className="page-header">
-                <div>
-                    <h1 className="page-title">COO Dashboard</h1>
-                    <p className="page-subtitle">Monitoring overview of system activity and client pipelines</p>
+        <div className="dashboard-view" style={{ animation: 'fadeIn 0.3s ease-out' }}>
+            <header className="page-header page-header-safe">
+                <div className="header-content">
+                    <div className="header-info">
+                        <h1 className="page-title">Dashboard Overview</h1>
+                        <p className="page-subtitle">Monitor operational health and pipeline metrics</p>
+                    </div>
+
+                    <div className="header-controls">
+                        {(userRole === 'ADMIN' || userRole === 'COO' || userRole === 'GM' || userRole === 'GENERAL MANAGER' || userRole === 'PRODUCTION HEAD' || userRole === 'PH') && (
+                            <button 
+                                onClick={() => setIsFreelancerModalOpen(true)}
+                                className="month-btn"
+                                style={{ 
+                                    background: 'linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%)', 
+                                    color: 'white',
+                                    border: 'none',
+                                    marginLeft: '8px',
+                                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '8px 16px',
+                                    borderRadius: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                }}
+                                title="Create Freelancer Task"
+                            >
+                                <Plus size={18} />
+                                <span>Create Freelancer Task</span>
+                            </button>
+                        )}
+
+                        <ScheduleExport
+                            data={calendarData}
+                            clientName={selectedClient === 'all' ? 'TrueUp Media' : selectedClientData?.company_name || 'Client'}
+                            month={currentMonth}
+                        />
+                    </div>
                 </div>
             </header>
 
-            <div className="stats-grid" style={{ marginBottom: '32px' }}>
-                {loading ? (
-                    <>
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="stat-card">
-                                <Skeleton className="h-12 w-12 rounded-xl" />
-                                <div className="space-y-2 flex-1">
-                                    <Skeleton className="h-4 w-20" />
-                                    <Skeleton className="h-8 w-12" />
-                                </div>
-                            </div>
-                        ))}
-                    </>
-                ) : (
-                    <>
-                        <div className="stat-card">
-                            <div className="stat-icon-box">
-                                <Users size={24} />
-                            </div>
-                            <div className="stat-info">
-                                <h3>Total Clients</h3>
-                                <p className="stat-value">{stats?.totalClients || 0}</p>
-                            </div>
+            {/* Premium Stats Grid - Decoupled Global View */}
+            <div className="premium-stats-grid" style={{ marginTop: '12px', marginBottom: '24px' }}>
+                {/* Monthly Pipeline */}
+                <div className="premium-stat-card pipeline">
+                    <div className="card-accent-line"></div>
+                    <div className="card-top">
+                        <div className="label-group">
+                            <span className="stat-label">MONTHLY PIPELINE</span>
                         </div>
-                        <div className="stat-card">
-                            <div className="stat-icon-box" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)' }}>
-                                <Calendar size={24} />
-                            </div>
-                            <div className="stat-info">
-                                <h3>Scheduled (Month)</h3>
-                                <p className="stat-value">{stats?.totalItemsThisMonth || 0}</p>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon-box" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
-                                <Activity size={24} />
-                            </div>
-                            <div className="stat-info">
-                                <h3>Active Pipelines</h3>
-                                <p className="stat-value">
-                                    {Object.values(stats?.statusSummary || {}).reduce((a, b) => a + b, 0)}
-                                </p>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
-
-            <div className="daily-stats-banner" style={{ marginTop: '24px' }}>
-                <div className="progress-meter-card">
-                    <div className="progress-top-row">
-                        <div className="progress-main-info">
-                            <h3 className="stat-label">Today&apos;s Progress</h3>
-                        </div>
-                        <div className="progress-values">
-                            <span className="current">{todayStats.completed}</span>
+                        <LayersIcon size={20} className="stat-icon" />
+                    </div>
+                    <div className="card-main">
+                        <div className="value-group">
+                            <span className="main-value">{activeStats.shotReels + activeStats.shotPosts}</span>
                             <span className="separator">/</span>
-                            <span className="total">{todayStats.total}</span>
-                            <span className="unit">Tasks</span>
+                            <span className="total-value">{activeStats.totalReels + activeStats.totalPosts}</span>
+                            <span className="unit">ITEMS</span>
                         </div>
                     </div>
-                    <div className="meter-labels">
-                        <span className="percentage">{todayStats.percentage}% Done</span>
+                    <div className="card-footer">
+                        <div className="percentage-info">
+                            <span className="pct-value">{Math.round(((activeStats.shotReels + activeStats.shotPosts) / (activeStats.totalReels + activeStats.totalPosts || 1)) * 100)}%</span>
+                            <span className="pct-label">Shot</span>
+                        </div>
+                        <div className="progress-track">
+                            <div 
+                                className="progress-fill" 
+                                style={{ width: `${((activeStats.shotReels + activeStats.shotPosts) / (activeStats.totalReels + activeStats.totalPosts || 1)) * 100}%` }}
+                            ></div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="progress-meter-card">
-                    <div className="progress-top-row">
-                        <div className="progress-main-info">
-                            <h3 className="stat-label">Week&apos;s Progress</h3>
+                {/* Reels Progress */}
+                <div className="premium-stat-card reels">
+                    <div className="card-accent-line"></div>
+                    <div className="card-top">
+                        <div className="label-group">
+                            <span className="stat-label">REELS PROGRESS</span>
                         </div>
-                        <div className="progress-values">
-                            <span className="current">{weekCompleted}</span>
+                        <Video size={20} className="stat-icon" />
+                    </div>
+                    <div className="card-main">
+                        <div className="value-group">
+                            <span className="main-value">{activeStats.doneReels}</span>
                             <span className="separator">/</span>
-                            <span className="total">{weekTotal}</span>
-                            <span className="unit">Tasks</span>
+                            <span className="total-value">{activeStats.totalReels}</span>
+                            <span className="unit">REELS</span>
                         </div>
                     </div>
-                    <div className="meter-labels">
-                        <span className="percentage">{weekPercentage}% Done</span>
+                    <div className="card-footer">
+                        <div className="percentage-info">
+                            <span className="pct-value">{Math.round((activeStats.doneReels / (activeStats.totalReels || 1)) * 100)}%</span>
+                            <span className="pct-label">Done</span>
+                        </div>
+                        <div className="progress-track">
+                            <div 
+                                className="progress-fill" 
+                                style={{ width: `${(activeStats.doneReels / (activeStats.totalReels || 1)) * 100}%` }}
+                            ></div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="progress-meter-card">
-                    <div className="progress-top-row">
-                        <div className="progress-main-info">
-                            <h3 className="stat-label">Month&apos;s Progress</h3>
-                            {isBiMonthly && (
-                                <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                    {format(periodStart, 'd MMM')} - {format(periodEnd, 'd MMM')}
-                                </p>
-                            )}
+                {/* Posts Progress */}
+                <div className="premium-stat-card posts">
+                    <div className="card-accent-line"></div>
+                    <div className="card-top">
+                        <div className="label-group">
+                            <span className="stat-label">POSTS PROGRESS</span>
                         </div>
-                        <div className="progress-values">
-                            <span className="current">{monthCompleted}</span>
+                        <FileText size={20} className="stat-icon" />
+                    </div>
+                    <div className="card-main">
+                        <div className="value-group">
+                            <span className="main-value">{activeStats.donePosts}</span>
                             <span className="separator">/</span>
-                            <span className="total">{monthTotal}</span>
-                            <span className="unit">Tasks</span>
+                            <span className="total-value">{activeStats.totalPosts}</span>
+                            <span className="unit">POSTS</span>
                         </div>
                     </div>
-                    <div className="meter-labels">
-                        <span className="percentage">{monthPercentage}% Done</span>
+                    <div className="card-footer">
+                        <div className="percentage-info">
+                            <span className="pct-value">{Math.round((activeStats.donePosts / (activeStats.totalPosts || 1)) * 100)}%</span>
+                            <span className="pct-label">Done</span>
+                        </div>
+                        <div className="progress-track">
+                            <div 
+                                className="progress-fill" 
+                                style={{ width: `${(activeStats.donePosts / (activeStats.totalPosts || 1)) * 100}%` }}
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Shoots Done */}
+                <div className="premium-stat-card shoots">
+                    <div className="card-accent-line"></div>
+                    <div className="card-top">
+                        <div className="label-group">
+                            <span className="stat-label">SHOOTS DONE</span>
+                        </div>
+                        <Film size={20} className="stat-icon" />
+                    </div>
+                    <div className="card-main">
+                        <div className="value-group">
+                            <span className="main-value">{activeStats.shotReels}</span>
+                            <span className="separator">/</span>
+                            <span className="total-value">{activeStats.totalReels}</span>
+                            <span className="unit">SHOOTS</span>
+                        </div>
+                    </div>
+                    <div className="card-footer">
+                        <div className="percentage-info">
+                            <span className="pct-value">{Math.round((activeStats.shotReels / (activeStats.totalReels || 1)) * 100)}%</span>
+                            <span className="pct-label">Shot</span>
+                        </div>
+                        <div className="progress-track">
+                            <div 
+                                className="progress-fill" 
+                                style={{ width: `${(activeStats.shotReels / (activeStats.totalReels || 1)) * 100}%` }}
+                            ></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div className="calendar-card" style={{ marginTop: '32px', background: 'var(--bg-surface)', borderRadius: '24px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                <div className="calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: 'var(--border)' }}>
-                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                        <div key={day} className="calendar-header-cell" style={{ background: 'var(--bg-elevated)', padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                            {day}
-                        </div>
-                    ))}
+            <FreelancerTaskModal 
+                isOpen={isFreelancerModalOpen}
+                onClose={() => setIsFreelancerModalOpen(false)}
+                onSuccess={() => fetchDashboardStats()}
+            />
 
-                    {loading ? (
-                        Array.from({ length: 35 }).map((_, idx) => (
-                            <div key={idx} className="calendar-day" style={{ background: 'var(--bg-surface)', minHeight: '120px', padding: '12px' }}>
-                                <Skeleton className="h-4 w-4 mb-2" />
-                                <Skeleton className="h-4 w-full" />
+            <div className="unified-dashboard">
+                {/* Unified Header with Integrated Filter */}
+                <div className="dashboard-card unified-main-card">
+                    <div className="unified-card-header">
+                        <div className="header-text">
+                            <h2 className="card-title">Operational Command Center</h2>
+                            <p className="card-subtitle">Real-time health and production flow monitoring</p>
+                        </div>
+                        <div className="header-actions">
+                            <div className="client-filter-box">
+                                <Filter size={16} className="filter-icon" />
+                                <select
+                                    className="client-select-dropdown"
+                                    value={selectedClient}
+                                    onChange={(e) => setSelectedClient(e.target.value)}
+                                >
+                                    {clients.map(c => (
+                                        <option key={c.id} value={c.id}>{c.company_name}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown size={16} className="select-chevron" />
                             </div>
-                        ))
-                    ) : (
-                        (() => {
-                            const days = eachDayOfInterval({
-                                start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-                                end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
-                            });
-                            
-                            return days.map((day: Date, idx: number) => {
-                                const dayContent = calendarData.filter((item: any) => isSameDay(parseISO(item.scheduled_datetime), day));
-                                return (
-                                    <div
-                                        key={idx}
-                                        onClick={() => { if (dayContent.length > 0) handleItemClick(dayContent[0]); }}
-                                        className={`calendar-day ${!isSameMonth(day, currentMonth) ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                        style={{ 
-                                            background: isSameMonth(day, currentMonth) ? 'var(--bg-surface)' : 'rgba(0,0,0,0.02)', 
-                                            minHeight: '120px', 
-                                            padding: '12px',
-                                            cursor: dayContent.length > 0 ? 'pointer' : 'default',
-                                            transition: 'all 0.2s ease',
-                                            position: 'relative',
-                                            opacity: isSameMonth(day, currentMonth) ? 1 : 0.4
-                                        }}
-                                    >
-                                        <span className="day-number" style={{ fontSize: '12px', fontWeight: 700, color: isSameDay(day, new Date()) ? 'var(--accent)' : 'var(--text-muted)' }}>{format(day, 'd')}</span>
-                                        <div className="day-items" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            {dayContent.map((item: any) => (
-                                                <div
-                                                    key={item.id}
-                                                    onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                                    className={`content-item ${item.content_type.toLowerCase()}`}
-                                                    style={{ 
-                                                        fontSize: '10px', 
-                                                        padding: '4px 8px', 
-                                                        background: 'var(--bg-elevated)', 
-                                                        borderRadius: '6px', 
-                                                        border: '1px solid var(--border)',
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '4px',
-                                                        fontWeight: 600
-                                                    }}
-                                                >
-                                                    {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
-                                                    {item.status === 'POSTED' ? (
-                                                        <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
-                                                    ) : (
-                                                        <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
+                        </div>
+                    </div>
+
+                    {/* Operational Command Center Content */}
+                    <div className="unified-body-grid">
+                        {/* Left Panel: POC Activity & Status Hub */}
+                        <div className="unified-progress-panel">
+                            <div className="panel-section">
+                                <div className="section-header">
+                                    <div className="icon-badge">
+                                        <MessageSquare size={12} />
                                     </div>
-                                );
-                            });
-                        })()
-                    )}
-                </div>
-            </div>
-
-            <div className="coo-main-grid">
-                <div className="dashboard-card" style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                        <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Production Pipeline</h3>
-                        <span style={{ fontSize: '11px', background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: '20px', fontWeight: 700, color: 'var(--accent)' }}>Live Status</span>
-                    </div>
-
-                    <div className="pipeline-summary-grid">
-                        <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid var(--border)' }}>
-                            <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Total Tasks</p>
-                            <p style={{ fontSize: '20px', fontWeight: 900 }}>{stats?.totalItemsThisMonth || 0}</p>
-                        </div>
-                        <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                            <p style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Completed</p>
-                            <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--success)' }}>{stats?.statusSummary?.['POSTED'] || 0}</p>
-                        </div>
-                        <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '16px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                            <p style={{ fontSize: '10px', color: 'var(--warning)', marginBottom: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Pending</p>
-                            <p style={{ fontSize: '20px', fontWeight: 900, color: 'var(--warning)' }}>{(stats?.totalItemsThisMonth || 0) - (stats?.statusSummary?.['POSTED'] || 0)}</p>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {(() => {
-                    const summary = stats?.statusSummary || {};
-                    const normalized: Record<string, number> = {};
-                    Object.entries(summary).forEach(([status, count]) => {
-                        let s = status;
-                        if (status === 'CONTENT READY' || status === 'WAITING FOR APPROVAL') {
-                            s = 'CONTENT APPROVED';
-                        }
-                        normalized[s] = (normalized[s] || 0) + (count as number);
-                    });
-                    
-                    return Object.entries(normalized).map(([status, count]) => (
-                        <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>{status}</span>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                                <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>{count}</span>
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>/ {stats?.totalItemsThisMonth || 0}</span>
-                            </div>
-                        </div>
-                    ));
-                })()}
-                        {Object.keys(stats?.statusSummary || {}).length === 0 && (
-                            <p style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>No content items this month.</p>
-                        )}
-                    </div>
-                </div>
-
-                <div className="dashboard-card" style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>
-                    <div style={{ marginBottom: '24px' }}>
-                        <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Filter by Client</h3>
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>Select a client to monitor their specific pipeline progress.</p>
-                    </div>
-
-                    <div style={{ position: 'relative', marginBottom: '20px' }}>
-                        <select
-                            style={{ 
-                                width: '100%', 
-                                padding: '14px 40px 14px 16px', 
-                                background: 'var(--bg-elevated)', 
-                                border: '1px solid var(--border)', 
-                                borderRadius: '16px', 
-                                color: 'var(--text-primary)',
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                appearance: 'none',
-                                cursor: 'pointer'
-                            }}
-                            value={selectedClient}
-                            onChange={(e) => setSelectedClient(e.target.value)}
-                        >
-                            <option value="all">All Clients</option>
-                            <option value="freelancer">Freelancer Clients</option>
-                            {clients.map(c => (
-                                <option key={c.id} value={c.id}>{c.company_name}</option>
-                            ))}
-                        </select>
-                        <ChevronDown size={18} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
-                    </div>
-
-                    <div style={{ background: 'rgba(99, 102, 241, 0.05)', padding: '16px', borderRadius: '16px', border: '1px dashed var(--accent)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent)', marginBottom: '8px' }}>
-                            <Filter size={16} />
-                            <span style={{ fontSize: '13px', fontWeight: 700 }}>Filter Active</span>
-                        </div>
-                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                            Currently showing {selectedClient === 'all' ? 'aggregated data for all clients' : `data for ${clients.find(c => c.id === selectedClient)?.company_name}`}.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-
-            {emergencyTasks.length > 0 && (
-                <div className="emergency-panel" style={{ marginTop: '32px' }}>
-                    <div className="emergency-panel-header">
-                        <ShieldAlert size={24} color="#ef4444" />
-                        <h2 className="emergency-panel-title">All Emergency Tasks</h2>
-                    </div>
-                    <div className="emergency-list">
-                        {emergencyTasks.map((task: any) => (
-                            <div key={task.id} className="emergency-card" onClick={() => handleItemClick(task)} style={{ cursor: 'pointer' }}>
-                                <div className="emergency-card-icon">
-                                    {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                    <h4 className="section-label">POC COMMUNICATION</h4>
                                 </div>
-                                <div className="emergency-card-info">
-                                    <p className="emergency-card-client">{task.clients?.company_name}</p>
-                                    <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'p')}</p>
-                                </div>
-                                <ArrowRight size={18} color="var(--text-muted)" />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-            {isModalOpen && activeItem && (
-                <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-                    <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <h3 className="modal-title">{activeItem.item.title}</h3>
-                                {dayTasks.length > 1 && (
-                                    <span className="task-counter" style={{ color: 'var(--accent)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase', background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: '20px', border: '1px solid var(--border)' }}>
-                                        Task {dayTasks.findIndex(t => t.id === activeItem.item.id) + 1} of {dayTasks.length}
-                                    </span>
-                                )}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                {dayTasks.length > 1 && (
-                                    <div className="task-nav-buttons" style={{ display: 'flex', gap: '4px', marginRight: '12px', paddingRight: '12px', borderRight: '1px solid var(--border)' }}>
-                                        <button 
-                                            onClick={() => navigateToTask('prev')}
-                                            className="nav-btn"
-                                            style={{ 
-                                                width: '32px', height: '32px', borderRadius: '8px', 
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                                                color: 'var(--text-primary)', cursor: 'pointer'
-                                            }}
-                                        >
-                                            <ChevronLeft size={18} />
-                                        </button>
-                                        <button 
-                                            onClick={() => navigateToTask('next')}
-                                            className="nav-btn"
-                                            style={{ 
-                                                width: '32px', height: '32px', borderRadius: '8px', 
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                                                color: 'var(--text-primary)', cursor: 'pointer'
-                                            }}
-                                        >
-                                            <ChevronRight size={18} />
-                                        </button>
-                                    </div>
-                                )}
-                                <button onClick={() => setIsModalOpen(false)} className="modal-close"><X size={20} /></button>
-                            </div>
-                        </div>
-                        
-                        <div className="modal-body" style={{ padding: '32px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-                                <div className="detail-section">
-                                    <div className="detail-field">
-                                        <p className="detail-value" style={{ fontSize: '15px', fontWeight: 700 }}>{activeItem.item.clients?.company_name || activeItem.item.freelancer_name || 'N/A'}</p>
-                                    </div>
-                                    {activeItem.item.freelancer_name && (
-                                        <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
-                                            <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '8px' }}>Freelancer Details</p>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-                                                    <UserIcon size={14} className="text-muted" />
-                                                    <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_name}</span>
+                                
+                                <div className="poc-feed-compact">
+                                    {activeClientPocNotes.length > 0 ? (
+                                        activeClientPocNotes.map((note, idx) => (
+                                            <div key={note.id || idx} className="poc-feed-item">
+                                                <div className="note-meta">
+                                                    <span className="note-author">{note.users?.name?.split(' ')[0] || 'TL'}</span>
+                                                    <span className="note-date">{format(parseISO(note.note_date), 'MMM d')}</span>
                                                 </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-                                                    <Phone size={14} className="text-muted" />
-                                                    <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_phone}</span>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-                                                    <Mail size={14} className="text-muted" />
-                                                    <span style={{ fontWeight: 600 }}>{activeItem.item.freelancer_email}</span>
-                                                </div>
+                                                <p className="note-text">{note.note_text}</p>
                                             </div>
+                                        ))
+                                    ) : (
+                                        <div className="poc-empty-state">
+                                            <p>No recent notes</p>
                                         </div>
                                     )}
-                                    <div className="detail-field" style={{ marginTop: '20px' }}>
-                                        <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Scheduled For</label>
-                                        {activeItem.item.is_rescheduled && activeItem.item.original_scheduled_datetime ? (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                                                <div className="date-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <Calendar size={16} color="var(--text-muted)" />
-                                                    <span className="date-display" style={{ fontWeight: 600 }}>
-                                                        Actual Date: {formatIST(activeItem.item.original_scheduled_datetime, 'dd/MM/yyyy')} rescheduled to {formatIST(activeItem.item.scheduled_datetime, 'dd/MM/yy')}
-                                                    </span>
-                                                </div>
-                                                {activeItem.item.reschedule_history && activeItem.item.reschedule_history.length > 0 && (
-                                                    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border)', width: '100%' }}>
-                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule History</span>
-                                                        {activeItem.item.reschedule_history.map((h: any, idx: number) => (
-                                                            <div key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
-                                                                <span>{idx + 1}.</span>
-                                                                <span>{formatIST(h.from, 'dd/MM/yyyy')}</span>
-                                                                <span>➔</span>
-                                                                <span>{formatIST(h.to, 'dd/MM/yy')}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="date-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <Calendar size={16} color="var(--text-muted)" />
-                                                <span className="date-display" style={{ fontWeight: 600 }}>{format(parseISO(activeItem.item.scheduled_datetime), 'PPP p')}</span>
-                                            </div>
-                                        )}
+                                </div>
+                            </div>
+
+                            <div className="panel-divider"></div>
+
+                            <div className="panel-section">
+                                <div className="section-header">
+                                    <div className="icon-badge">
+                                        <Activity size={12} />
                                     </div>
-                                    <div className="detail-field" style={{ marginTop: '20px' }}>
-                                        <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Description</label>
-                                        <p className="detail-text" style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{activeItem.item.description || 'No description provided.'}</p>
+                                    <h4 className="section-label">TASK LIFECYCLE</h4>
+                                </div>
+                                
+                                 <div className="lifecycle-list">
+                                     {(() => {
+                                         const periodItems = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)));
+                                         const flows: Record<string, string[]> = {
+                                             'REEL': [
+                                                 'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                             ],
+                                             'YOUTUBE': [
+                                                 'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                             ],
+                                             'POST': [
+                                                 'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                             ]
+                                         };
+
+                                         const milestones = ['CONTENT APPROVED', 'WAITING FOR FINAL APPROVAL', 'POSTED'];
+
+                                         return milestones.map(milestone => {
+                                             let numerator = 0;
+                                             let denominator = 0;
+
+                                             periodItems.forEach(item => {
+                                                 const type = (item.content_type || '').toUpperCase();
+                                                 const status = (item.status || '').toUpperCase();
+                                                 const flow = flows[type] || flows['REEL'];
+
+                                                 const milestoneIdx = flow.indexOf(milestone);
+                                                 if (milestoneIdx !== -1) {
+                                                     denominator += 1;
+                                                     const statusIdx = flow.indexOf(status);
+                                                     if (statusIdx >= milestoneIdx) {
+                                                         numerator += 1;
+                                                     }
+                                                 }
+                                             });
+
+                                             const pct = denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
+
+                                             return (
+                                                 <div key={milestone} className="lifecycle-item">
+                                                     <div className="lifecycle-info">
+                                                         <span className="lifecycle-name">{milestone}</span>
+                                                         <span className="lifecycle-count">{numerator} / {denominator}</span>
+                                                     </div>
+                                                     <div className="lifecycle-bar-bg">
+                                                         <div 
+                                                             className="lifecycle-bar-fill" 
+                                                             style={{ width: `${pct}%` }}
+                                                         ></div>
+                                                     </div>
+                                                 </div>
+                                             );
+                                         });
+                                     })()}
+                                 </div>
+                            </div>
+
+                            <div className="panel-actions-vertical">
+                                <button onClick={() => router.push('/coo/team')} className="action-btn-hub">
+                                    <Users size={14} />
+                                    <span>Manage Teams</span>
+                                </button>
+                                <button onClick={() => router.push('/coo/master-calendar')} className="action-btn-hub">
+                                    <Globe size={14} />
+                                    <span>Master Calendar</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Right Panel: Detailed Pipeline */}
+                        <div className="unified-pipeline-panel">
+                            <div className="pipeline-header">
+                                <h4 className="panel-title">Production Progress</h4>
+                                <span className="live-tag">LIVE</span>
+                            </div>
+                            
+                            <div className="unified-status-list">
+                                {/* Shoot Done Progress */}
+                                <div className="unified-pipeline-item">
+                                    <div className="item-meta">
+                                        <span className="status-label">SHOOT DONE</span>
+                                        <span className="status-count">{monthStatusCounts.shootDone} / {monthStatusCounts.reels}</span>
+                                    </div>
+                                    <div className="status-bar-bg">
+                                        <div className="status-bar-fill" style={{ width: `${monthStatusCounts.reels > 0 ? Math.round((monthStatusCounts.shootDone / monthStatusCounts.reels) * 100) : 0}%`, background: '#06b6d4' }}></div>
                                     </div>
                                 </div>
-                                <div className="detail-section">
-                                    <div className="detail-field">
-                                        <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Current Status</label>
-                                        <span className={`status-badge ${activeItem.item.status.toLowerCase().replace(/ /g, '-')}`} style={{ display: 'inline-block', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 800, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                                            {activeItem.item.status}
-                                        </span>
+
+                                {/* Monthly Pipeline */}
+                                <div className="unified-pipeline-item">
+                                    <div className="item-meta">
+                                        <span className="status-label">MONTHLY PIPELINE</span>
+                                        <span className="status-count">{monthStatusCounts.completedReels + monthStatusCounts.completedPosts} / {monthStatusCounts.reels + monthStatusCounts.posts}</span>
                                     </div>
-                                    
-                                    <div style={{ marginTop: '32px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                        <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 0 }}>Status History</label>
-                                        <button 
-                                            onClick={handleUndoStatus}
-                                            style={{ 
-                                                display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
-                                                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
-                                                border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
-                                                fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
-                                            }}
-                                        >
-                                            <Undo2 size={12} />
-                                            Undo
-                                        </button>
+                                    <div className="status-bar-bg">
+                                        <div className="status-bar-fill" style={{ width: `${(monthStatusCounts.reels + monthStatusCounts.posts) > 0 ? Math.round(((monthStatusCounts.completedReels + monthStatusCounts.completedPosts) / (monthStatusCounts.reels + monthStatusCounts.posts)) * 100) : 0}%` }}></div>
                                     </div>
-                                        <div className="history-timeline">
-                                            {activeItem.history?.map((h: any, i: number) => (
-                                                <div key={i} className="history-item" style={{ display: 'flex', gap: '16px', marginBottom: '16px', position: 'relative' }}>
-                                                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent)', marginTop: '4px', zIndex: 2 }}></div>
-                                                    <div>
-                                                        <p style={{ fontWeight: 700, fontSize: '13px' }}>{h.old_status} → {h.new_status}</p>
-                                                        <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                            {h.users?.name || 'System'} • {format(parseISO(h.changed_at), 'MMM d, h:mm a')}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                </div>
+
+                                {/* Total Reels */}
+                                <div className="unified-pipeline-item">
+                                    <div className="item-meta">
+                                        <span className="status-label">TOTAL REELS</span>
+                                        <span className="status-count">{monthStatusCounts.completedReels} / {monthStatusCounts.reels}</span>
+                                    </div>
+                                    <div className="status-bar-bg">
+                                        <div className="status-bar-fill" style={{ width: `${monthStatusCounts.reels > 0 ? Math.round((monthStatusCounts.completedReels / monthStatusCounts.reels) * 100) : 0}%`, background: '#a855f7' }}></div>
+                                    </div>
+                                </div>
+
+                                {/* Total Posts */}
+                                <div className="unified-pipeline-item">
+                                    <div className="item-meta">
+                                        <span className="status-label">TOTAL POSTS</span>
+                                        <span className="status-count">{monthStatusCounts.completedPosts} / {monthStatusCounts.posts}</span>
+                                    </div>
+                                    <div className="status-bar-bg">
+                                        <div className="status-bar-fill" style={{ width: `${monthStatusCounts.posts > 0 ? Math.round((monthStatusCounts.completedPosts / monthStatusCounts.posts) * 100) : 0}%`, background: '#3b82f6' }}></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* Emergency Panels */}
+                {emergencyTasks.length > 0 && (
+                    <div className="emergency-panel" style={{ marginTop: '24px' }}>
+                        <div className="emergency-panel-header">
+                            <ShieldAlert size={24} color="#ef4444" />
+                            <h2 className="emergency-panel-title">Emergency Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {emergencyTasks.map((task: ContentItem) => (
+                                <div key={task.id} className="emergency-card" onClick={() => handleItemClick(task)}>
+                                    <div className="emergency-card-icon">
+                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                    </div>
+                                    <div className="emergency-card-info">
+                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                        <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'h:mm a')}</p>
+                                    </div>
+                                    <ArrowRight size={18} color="var(--text-muted)" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {pendingTasks.length > 0 && (
+                    <div className="emergency-panel" style={{ marginTop: '24px', borderColor: 'var(--accent)' }}>
+                        <div className="emergency-panel-header">
+                            <Clock size={24} color="var(--accent)" />
+                            <h2 className="emergency-panel-title">Pending Important Tasks</h2>
+                        </div>
+                        <div className="emergency-list">
+                            {pendingTasks.map((task: ContentItem) => (
+                                <div
+                                    key={task.id}
+                                    className="emergency-card"
+                                    onClick={() => handleItemClick(task)}
+                                    style={{ borderLeftColor: 'var(--accent)' }}
+                                >
+                                    <div className="emergency-card-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)' }}>
+                                        {task.content_type === 'Post' ? <FileText size={20} /> : <Video size={20} />}
+                                    </div>
+                                    <div className="emergency-card-info">
+                                        <p className="emergency-card-client">{task.clients?.company_name}</p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <p className="emergency-card-type">{(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type} • {format(parseISO(task.scheduled_datetime), 'MMM d, h:mm a')}</p>
+                                            <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>{task.status}</span>
+                                        </div>
+                                    </div>
+                                    <ArrowRight size={18} color="var(--text-muted)" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
+    );
+}
+
+// Simple wrapper icon component to avoid importing all of lucide-react if not needed,
+// but Layers is standard.
+function LayersIcon(props: any) {
+    return (
+        <svg
+            {...props}
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="m12 3-10 5 10 5 10-5-10-5Z" />
+            <path d="m2 17 10 5 10-5" />
+            <path d="m2 12 10 5 10-5" />
+        </svg>
     );
 }
