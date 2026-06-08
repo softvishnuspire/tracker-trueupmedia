@@ -1,6 +1,14 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-06-08 (Optimistic UI & Double Loading Skeletons Refactoring)
+## Latest Changes — 2026-06-08 (Merge Conflict Resolution & Git Sync)
+- **Goal**: Resolve git merge conflicts on GM dashboard (`frontend/src/app/gm/dashboard/page.tsx`) and clean-merge remote updates for the COO dashboard (`frontend/src/app/coo/dashboard/page.tsx`).
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`
+    - `frontend/src/app/coo/dashboard/page.tsx`
+    - `graphify-out/GRAPH_REPORT.md`
+- **System Impact**: Restores project compilation and synchronizes local development with remote repositories. Resolves lucide-react import conflicts for `Download` and `Loader2` in the GM dashboard. Re-aligns the COO dashboard with the upstream command center design while preserving all responsive assets (ToastProvider, TopProgressBar, and hooks).
+
+## Previous Changes — 2026-06-08 (Optimistic UI & Double Loading Skeletons Refactoring)
 - **Goal**: Implement optimistic UI updates with rollbacks, loading skeletons on first load, refreshing indicators/background revalidation, Mobile-Desktop responsive glassmorphism toast placement, and compilation/prerendering error fixes across calendars and dashboards.
 - **Affected Files**:
     - `frontend/src/app/admin/client-calendar/[id]/page.tsx`
