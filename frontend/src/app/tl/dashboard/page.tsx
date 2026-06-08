@@ -260,6 +260,85 @@ export default function TLDashboard() {
     }, []);
 
     useEffect(() => {
+        const syncStateFromUrl = () => {
+            const params = new URLSearchParams(window.location.search);
+            const viewParam = params.get('view') || 'dashboard';
+            const clientIdParam = params.get('clientId') || 'all';
+            const taskIdParam = params.get('taskId') || '';
+
+            if (viewParam !== view) {
+                setView(viewParam as any);
+            }
+            if (clientIdParam !== selectedClient) {
+                setSelectedClient(clientIdParam);
+            }
+            if (taskIdParam) {
+                if (activeItem?.item?.id !== taskIdParam) {
+                    const fetchAndOpen = async () => {
+                        try {
+                            const res = await gmApi.getContentDetails(taskIdParam);
+                            setActiveItem(res.data);
+                            setIsDetailsOpen(true);
+                        } catch (err) {
+                            console.error('Failed to restore details from URL:', err);
+                        }
+                    };
+                    fetchAndOpen();
+                } else if (!isDetailsOpen) {
+                    setIsDetailsOpen(true);
+                }
+            } else {
+                if (isDetailsOpen) {
+                    setIsDetailsOpen(false);
+                }
+            }
+        };
+
+        if (!loading) {
+            syncStateFromUrl();
+        }
+
+        window.addEventListener('popstate', syncStateFromUrl);
+        return () => {
+            window.removeEventListener('popstate', syncStateFromUrl);
+        };
+    }, [loading, view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const viewParam = params.get('view') || 'dashboard';
+        const clientIdParam = params.get('clientId') || 'all';
+
+        if (view !== viewParam || selectedClient !== clientIdParam) {
+            const nextParams = new URLSearchParams();
+            nextParams.set('view', view);
+            if (selectedClient) {
+                nextParams.set('clientId', selectedClient);
+            }
+            const taskIdParam = params.get('taskId');
+            if (taskIdParam && isDetailsOpen) {
+                nextParams.set('taskId', taskIdParam);
+            }
+            window.history.pushState(null, '', `?${nextParams.toString()}`);
+        }
+    }, [view, selectedClient]);
+
+    useEffect(() => {
+        if (!isDetailsOpen) {
+            const params = new URLSearchParams(window.location.search);
+            const viewParam = params.get('view') || 'dashboard';
+            const clientIdParam = params.get('clientId') || 'all';
+            if (viewParam === view && clientIdParam === selectedClient) {
+                if (params.has('taskId')) {
+                    params.delete('taskId');
+                    const newSearch = params.toString();
+                    window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+                }
+            }
+        }
+    }, [isDetailsOpen, view, selectedClient]);
+
+    useEffect(() => {
         const init = async () => {
             setLoading(true);
             try {
@@ -384,6 +463,14 @@ export default function TLDashboard() {
             const res = await gmApi.getContentDetails(item.id);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
+
+            const params = new URLSearchParams(window.location.search);
+            params.set('view', view);
+            params.set('taskId', item.id);
+            if (selectedClient) {
+                params.set('clientId', selectedClient);
+            }
+            window.history.replaceState(null, '', `?${params.toString()}`);
         } catch (err) { console.error(err); }
     };
 
@@ -1318,7 +1405,19 @@ export default function TLDashboard() {
                                         {activeItem.item.content_type === 'Special Poster' || activeItem.item.content_type === 'Special Day Poster' ? '🎉 ' + activeItem.item.content_type : activeItem.item.content_type}
                                     </span>
                                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>•</span>
-                                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>{activeItem.item.clients?.company_name}</span>
+                                    {activeItem.item.clients?.company_name && (
+                                        <span 
+                                            style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}
+                                            className="client-link-hover"
+                                            onClick={() => {
+                                                setIsDetailsOpen(false);
+                                                setView('client');
+                                                setSelectedClient(activeItem.item.client_id);
+                                            }}
+                                        >
+                                            {activeItem.item.clients?.company_name}
+                                        </span>
+                                    )}
                                     {dayTasks.length > 1 && (
                                         <>
                                             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>•</span>

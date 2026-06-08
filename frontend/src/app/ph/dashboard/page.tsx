@@ -372,6 +372,85 @@ export default function ProductionHeadDashboard() {
         fetchSettings();
     }, [supabase.auth, fetchClients, fetchTodayStats]);
 
+    useEffect(() => {
+        const syncStateFromUrl = () => {
+            const params = new URLSearchParams(window.location.search);
+            const viewParam = params.get('view') || 'dashboard';
+            const clientIdParam = params.get('clientId') || 'all';
+            const taskIdParam = params.get('taskId') || '';
+
+            if (viewParam !== view) {
+                setView(viewParam as any);
+            }
+            if (clientIdParam !== selectedClient) {
+                setSelectedClient(clientIdParam);
+            }
+            if (taskIdParam) {
+                if (activeItem?.item?.id !== taskIdParam) {
+                    const fetchAndOpen = async () => {
+                        try {
+                            const res = await phApi.getContentDetails(taskIdParam);
+                            setActiveItem(res.data);
+                            setIsDetailsOpen(true);
+                        } catch (err) {
+                            console.error('Failed to restore details from URL:', err);
+                        }
+                    };
+                    fetchAndOpen();
+                } else if (!isDetailsOpen) {
+                    setIsDetailsOpen(true);
+                }
+            } else {
+                if (isDetailsOpen) {
+                    setIsDetailsOpen(false);
+                }
+            }
+        };
+
+        if (!loading) {
+            syncStateFromUrl();
+        }
+
+        window.addEventListener('popstate', syncStateFromUrl);
+        return () => {
+            window.removeEventListener('popstate', syncStateFromUrl);
+        };
+    }, [loading, view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const viewParam = params.get('view') || 'dashboard';
+        const clientIdParam = params.get('clientId') || 'all';
+
+        if (view !== viewParam || selectedClient !== clientIdParam) {
+            const nextParams = new URLSearchParams();
+            nextParams.set('view', view);
+            if (selectedClient) {
+                nextParams.set('clientId', selectedClient);
+            }
+            const taskIdParam = params.get('taskId');
+            if (taskIdParam && isDetailsOpen) {
+                nextParams.set('taskId', taskIdParam);
+            }
+            window.history.pushState(null, '', `?${nextParams.toString()}`);
+        }
+    }, [view, selectedClient]);
+
+    useEffect(() => {
+        if (!isDetailsOpen) {
+            const params = new URLSearchParams(window.location.search);
+            const viewParam = params.get('view') || 'dashboard';
+            const clientIdParam = params.get('clientId') || 'all';
+            if (viewParam === view && clientIdParam === selectedClient) {
+                if (params.has('taskId')) {
+                    params.delete('taskId');
+                    const newSearch = params.toString();
+                    window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+                }
+            }
+        }
+    }, [isDetailsOpen, view, selectedClient]);
+
 
     useEffect(() => {
         if (view === 'dashboard') {
@@ -500,6 +579,14 @@ export default function ProductionHeadDashboard() {
             const res = await phApi.getContentDetails(item.id, asOfDate);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
+
+            const params = new URLSearchParams(window.location.search);
+            params.set('view', view);
+            params.set('taskId', item.id);
+            if (selectedClient) {
+                params.set('clientId', selectedClient);
+            }
+            window.history.replaceState(null, '', `?${params.toString()}`);
         } catch (err) { console.error(err); }
     };
 
@@ -1478,10 +1565,20 @@ export default function ProductionHeadDashboard() {
                             )}
                             <div style={{ display: 'grid', gridTemplateColumns: view === 'viewTaskClient' ? '1fr' : '1fr 1fr', gap: '32px' }}>
                                 <div className="detail-section">
-                                    <div className="detail-field">
-                                        <label className="detail-label">Client</label>
-                                        <p className="detail-value">{activeItem.item.clients?.company_name}</p>
-                                    </div>
+                                        <p className="detail-value">
+                                            {activeItem.item.clients?.company_name && (
+                                                <span 
+                                                    className="client-link-hover" 
+                                                    onClick={() => {
+                                                        setIsDetailsOpen(false);
+                                                        setView('client');
+                                                        setSelectedClient(activeItem.item.client_id);
+                                                    }}
+                                                >
+                                                    {activeItem.item.clients?.company_name}
+                                                </span>
+                                            )}
+                                        </p>
                                     <div className="detail-field">
                                         <label className="detail-label">Scheduled For</label>
                                         {activeItem.item.is_rescheduled && activeItem.item.original_scheduled_datetime ? (

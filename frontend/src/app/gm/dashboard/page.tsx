@@ -59,7 +59,8 @@ import {
     Target,
     UserCircle2,
     Briefcase,
-    Trophy
+    Trophy,
+    Download
 } from 'lucide-react';
 import {
     gmApi,
@@ -77,6 +78,7 @@ import {
     TlTrackingStats,
     EmployeeTrackingStats
 } from '@/lib/api';
+import { downloadAllEmployeesReport, downloadEmployeeReport } from '@/utils/pdfExport';
 import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import { createClient } from '@/utils/supabase/client';
@@ -415,6 +417,85 @@ export default function GMDashboard() {
         };
         fetchSettings();
     }, []);
+
+    useEffect(() => {
+        const syncStateFromUrl = () => {
+            const params = new URLSearchParams(window.location.search);
+            const viewParam = params.get('view') || 'dashboard';
+            const clientIdParam = params.get('clientId') || '';
+            const taskIdParam = params.get('taskId') || '';
+
+            if (viewParam !== view) {
+                setView(viewParam as any);
+            }
+            if (clientIdParam !== selectedClient) {
+                setSelectedClient(clientIdParam);
+            }
+            if (taskIdParam) {
+                if (activeItem?.item?.id !== taskIdParam) {
+                    const fetchAndOpen = async () => {
+                        try {
+                            const res = await gmApi.getContentDetails(taskIdParam);
+                            setActiveItem(res.data);
+                            setIsDetailsOpen(true);
+                        } catch (err) {
+                            console.error('Failed to restore details from URL:', err);
+                        }
+                    };
+                    fetchAndOpen();
+                } else if (!isDetailsOpen) {
+                    setIsDetailsOpen(true);
+                }
+            } else {
+                if (isDetailsOpen) {
+                    setIsDetailsOpen(false);
+                }
+            }
+        };
+
+        if (!loading) {
+            syncStateFromUrl();
+        }
+
+        window.addEventListener('popstate', syncStateFromUrl);
+        return () => {
+            window.removeEventListener('popstate', syncStateFromUrl);
+        };
+    }, [loading, view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const viewParam = params.get('view') || 'dashboard';
+        const clientIdParam = params.get('clientId') || '';
+
+        if (view !== viewParam || selectedClient !== clientIdParam) {
+            const nextParams = new URLSearchParams();
+            nextParams.set('view', view);
+            if (selectedClient) {
+                nextParams.set('clientId', selectedClient);
+            }
+            const taskIdParam = params.get('taskId');
+            if (taskIdParam && isDetailsOpen) {
+                nextParams.set('taskId', taskIdParam);
+            }
+            window.history.pushState(null, '', `?${nextParams.toString()}`);
+        }
+    }, [view, selectedClient]);
+
+    useEffect(() => {
+        if (!isDetailsOpen) {
+            const params = new URLSearchParams(window.location.search);
+            const viewParam = params.get('view') || 'dashboard';
+            const clientIdParam = params.get('clientId') || '';
+            if (viewParam === view && clientIdParam === selectedClient) {
+                if (params.has('taskId')) {
+                    params.delete('taskId');
+                    const newSearch = params.toString();
+                    window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+                }
+            }
+        }
+    }, [isDetailsOpen, view, selectedClient]);
 
     const fetchPocNotes = useCallback(async () => {
         setLoading(true);
@@ -810,6 +891,14 @@ export default function GMDashboard() {
             const res = await gmApi.getContentDetails(item.id);
             setActiveItem(res.data);
             setIsDetailsOpen(true);
+
+            const params = new URLSearchParams(window.location.search);
+            params.set('view', view);
+            params.set('taskId', item.id);
+            if (selectedClient) {
+                params.set('clientId', selectedClient);
+            }
+            window.history.replaceState(null, '', `?${params.toString()}`);
         } catch (err) { console.error(err); }
     };
 
@@ -1907,6 +1996,17 @@ export default function GMDashboard() {
                                 <button className="refresh-btn" onClick={() => fetchTrackingStats()} disabled={trackingLoading}>
                                     <RefreshCcw size={18} className={trackingLoading ? 'animate-spin' : ''} />
                                 </button>
+                                {trackingTab === 'employee' && trackingStats && trackingStats.employees.length > 0 && (
+                                    <button 
+                                        className="refresh-btn" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: 'auto', padding: '0 16px', color: 'var(--accent)', borderColor: 'var(--accent)' }}
+                                        onClick={() => downloadAllEmployeesReport(filteredEmployees, trackingDate)}
+                                        title="Download All Employees Report"
+                                    >
+                                        <Download size={18} />
+                                        <span style={{ fontSize: '13px', fontWeight: 700 }}>Export PDF</span>
+                                    </button>
+                                )}
                             </div>
                         </header>
 
@@ -2130,7 +2230,27 @@ export default function GMDashboard() {
                                                             <p>{emp.role}</p>
                                                         </div>
                                                     </div>
-                                                    <div className="radial-group">
+                                                    <div className="radial-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <button 
+                                                            onClick={() => downloadEmployeeReport(emp, trackingDate)}
+                                                            title="Download Employee Report"
+                                                            style={{
+                                                                background: 'none',
+                                                                border: 'none',
+                                                                color: 'var(--text-secondary)',
+                                                                cursor: 'pointer',
+                                                                padding: '6px',
+                                                                borderRadius: '8px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent)'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                                                        >
+                                                            <Download size={16} />
+                                                        </button>
                                                         <TrackingRadialProgress 
                                                             progress={emp.completionRate} 
                                                             size={48} 
@@ -2593,7 +2713,22 @@ export default function GMDashboard() {
                                         {activeItem.item.content_type === 'Special Poster' || activeItem.item.content_type === 'Special Day Poster' ? '🎉 ' + activeItem.item.content_type : activeItem.item.content_type}
                                     </span>
                                     <span className="meta-dot">•</span>
-                                    <span className="meta-client">{activeItem.item.freelancer_name || activeItem.item.clients?.company_name}</span>
+                                    {activeItem.item.freelancer_name ? (
+                                        <span className="meta-client">{activeItem.item.freelancer_name}</span>
+                                    ) : (
+                                        activeItem.item.clients?.company_name && (
+                                            <span 
+                                                className="meta-client client-link-hover" 
+                                                onClick={() => {
+                                                    setIsDetailsOpen(false);
+                                                    setView('client');
+                                                    setSelectedClient(activeItem.item.client_id);
+                                                }}
+                                            >
+                                                {activeItem.item.clients?.company_name}
+                                            </span>
+                                        )
+                                    )}
                                     {dayTasks.length > 1 && (
                                         <>
                                             <span className="meta-dot">•</span>

@@ -183,8 +183,31 @@ export default function AdminDashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  useEffect(() => {
+    if (!isModalOpen) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('taskId')) {
+        params.delete('taskId');
+        const newSearch = params.toString();
+        window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+      }
+    }
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const taskId = params.get('taskId');
+    if (taskId && !loading) {
+      const currentActiveId = activeItem?.item?.id;
+      if (currentActiveId !== taskId) {
+        handleTaskClick(taskId);
+      }
+    }
+  }, [loading, calendarData]);
+
   const handleTaskClick = async (taskId: string) => {
     try {
+      window.history.replaceState(null, '', `?taskId=${taskId}`);
       const res = await adminApi.getContentDetails(taskId);
       const item = res.data.item;
 
@@ -750,7 +773,11 @@ export default function AdminDashboard() {
                   {activeItem.item.content_type}
                 </span>
                 <span className="dot">•</span>
-                <span className="client-name">{activeItem.item.clients?.company_name}</span>
+                <span className="client-name">
+                  <Link href={`/admin/client-calendar/${activeItem.item.client_id}`} className="client-link-hover">
+                    {activeItem.item.clients?.company_name}
+                  </Link>
+                </span>
                 {dayTasks.length > 1 && (
                   <>
                     <span className="dot">•</span>

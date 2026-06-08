@@ -320,3 +320,13 @@ a {
     }
 }
 
+.client-link-hover {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.client-link-hover:hover {
+  color: var(--accent) !important;
+  text-decoration: underline !important;
+  opacity: 0.9;
+}
+

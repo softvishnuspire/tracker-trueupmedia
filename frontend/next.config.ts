@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  outputFileTracingRoot: process.cwd(),
   async headers() {
     if (process.env.NODE_ENV === 'development') {
       return [];

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
     format,
     startOfMonth,
@@ -31,10 +32,12 @@ import {
     Clock,
     ShieldAlert,
     ArrowRight,
-    MessageSquare
+    MessageSquare,
+    Calendar
 } from 'lucide-react';
 import {
     gmApi,
+    cooApi,
     emergencyApi,
     dashboardApi,
     adminApi,
@@ -272,7 +275,7 @@ export default function CooDashboard() {
 
     const handleItemClick = (item: ContentItem) => {
         // Redirect to calendar details directly
-        router.push(`/coo/master-calendar?item=${item.id}`);
+        router.push(`/coo/master-calendar?taskId=${item.id}`);
     };
 
     const globalMonthCounts = globalCalendarData.filter(item => {
