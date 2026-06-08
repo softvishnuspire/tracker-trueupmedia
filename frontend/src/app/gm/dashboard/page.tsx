@@ -59,7 +59,8 @@ import {
     Target,
     UserCircle2,
     Briefcase,
-    Trophy
+    Trophy,
+    Download
 } from 'lucide-react';
 import {
     gmApi,
@@ -77,6 +78,7 @@ import {
     TlTrackingStats,
     EmployeeTrackingStats
 } from '@/lib/api';
+import { downloadAllEmployeesReport, downloadEmployeeReport } from '@/utils/pdfExport';
 import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import { createClient } from '@/utils/supabase/client';
@@ -1994,6 +1996,17 @@ export default function GMDashboard() {
                                 <button className="refresh-btn" onClick={() => fetchTrackingStats()} disabled={trackingLoading}>
                                     <RefreshCcw size={18} className={trackingLoading ? 'animate-spin' : ''} />
                                 </button>
+                                {trackingTab === 'employee' && trackingStats && trackingStats.employees.length > 0 && (
+                                    <button 
+                                        className="refresh-btn" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: 'auto', padding: '0 16px', color: 'var(--accent)', borderColor: 'var(--accent)' }}
+                                        onClick={() => downloadAllEmployeesReport(filteredEmployees, trackingDate)}
+                                        title="Download All Employees Report"
+                                    >
+                                        <Download size={18} />
+                                        <span style={{ fontSize: '13px', fontWeight: 700 }}>Export PDF</span>
+                                    </button>
+                                )}
                             </div>
                         </header>
 
@@ -2217,7 +2230,27 @@ export default function GMDashboard() {
                                                             <p>{emp.role}</p>
                                                         </div>
                                                     </div>
-                                                    <div className="radial-group">
+                                                    <div className="radial-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <button 
+                                                            onClick={() => downloadEmployeeReport(emp, trackingDate)}
+                                                            title="Download Employee Report"
+                                                            style={{
+                                                                background: 'none',
+                                                                border: 'none',
+                                                                color: 'var(--text-secondary)',
+                                                                cursor: 'pointer',
+                                                                padding: '6px',
+                                                                borderRadius: '8px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent)'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                                                        >
+                                                            <Download size={16} />
+                                                        </button>
                                                         <TrackingRadialProgress 
                                                             progress={emp.completionRate} 
                                                             size={48} 

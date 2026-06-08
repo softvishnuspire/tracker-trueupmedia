@@ -16,10 +16,12 @@ import {
     ChevronRight,
     ChevronDown,
     Briefcase,
-    Trophy
+    Trophy,
+    Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { adminApi, TlTrackingStats, EmployeeTrackingStats } from '@/lib/api';
+import { downloadAllEmployeesReport, downloadEmployeeReport } from '@/utils/pdfExport';
 import '../admin.css';
 
 const RadialProgress = ({ progress, size = 60, strokeWidth = 6, color = "var(--accent)" }: { progress: number, size?: number, strokeWidth?: number, color?: string }) => {
@@ -134,6 +136,17 @@ export default function EmployeeTrackingPage() {
                     <button className="refresh-btn" onClick={() => fetchStats()} disabled={loading}>
                         <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
                     </button>
+                    {activeTab === 'employee' && stats && stats.employees.length > 0 && (
+                        <button 
+                            className="refresh-btn" 
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: 'auto', padding: '0 16px', color: 'var(--accent)', borderColor: 'var(--accent)' }}
+                            onClick={() => downloadAllEmployeesReport(filteredEmployees, selectedDate)}
+                            title="Download All Employees Report"
+                        >
+                            <Download size={18} />
+                            <span style={{ fontSize: '13px', fontWeight: 700 }}>Export PDF</span>
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -357,7 +370,27 @@ export default function EmployeeTrackingPage() {
                                                 <p>{emp.role}</p>
                                             </div>
                                         </div>
-                                        <div className="radial-group">
+                                        <div className="radial-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button 
+                                                onClick={() => downloadEmployeeReport(emp, selectedDate)}
+                                                title="Download Employee Report"
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: 'var(--text-secondary)',
+                                                    cursor: 'pointer',
+                                                    padding: '6px',
+                                                    borderRadius: '8px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent)'}
+                                                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                                            >
+                                                <Download size={16} />
+                                            </button>
                                             <RadialProgress 
                                                 progress={emp.completionRate} 
                                                 size={48} 

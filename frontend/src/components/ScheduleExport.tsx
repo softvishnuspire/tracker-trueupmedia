@@ -1,8 +1,5 @@
 import React from 'react';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, startOfWeek, endOfWeek, addMonths } from 'date-fns';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
-
 interface ContentItem {
     id: string;
     title: string;
@@ -33,6 +30,9 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
         element.style.display = 'block';
 
         try {
+            const html2canvas = (await import('html2canvas')).default;
+            const { jsPDF } = await import('jspdf');
+
             const canvas = await html2canvas(element, {
                 scale: 3, // Increased scale for high-definition clarity
                 useCORS: true,

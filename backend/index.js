@@ -1426,7 +1426,7 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
             const [contentRes, freelancerRes] = await Promise.all([
                 supabase
                     .from('content_items')
-                    .select('id, title, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, clients(company_name)')
+                    .select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, clients(company_name)')
                     .in('assigned_to', employeeIds)
                     .or(`scheduled_datetime.gte.${startOfMonth},employee_task_status.eq.PENDING`),
                 supabase
@@ -1506,10 +1506,23 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
                     if (c.reel_employee_id === emp.user_id) roles.push('Reel Editor');
                     if (c.post_employee_id === emp.user_id) roles.push('Post Editor');
                     if (c.writer_employee_id === emp.user_id) roles.push('Writer');
+
+                    const clientDailyTasks = dailyTasks.filter(t => t.client_id === c.id);
+                    const clientDailyTotal = clientDailyTasks.length;
+                    const clientDailyCompleted = clientDailyTasks.filter(t => (t.employee_task_status || '').toUpperCase() === 'COMPLETED').length;
+
+                    const clientMonthlyTasks = monthlyTasks.filter(t => t.client_id === c.id);
+                    const clientMonthlyTotal = clientMonthlyTasks.length;
+                    const clientMonthlyCompleted = clientMonthlyTasks.filter(t => (t.employee_task_status || '').toUpperCase() === 'COMPLETED').length;
+
                     return {
                         id: c.id,
                         name: c.company_name,
-                        role: roles.join(', ') || 'Assigned'
+                        role: roles.join(', ') || 'Assigned',
+                        dailyCompleted: clientDailyCompleted,
+                        dailyTotal: clientDailyTotal,
+                        monthlyCompleted: clientMonthlyCompleted,
+                        monthlyTotal: clientMonthlyTotal
                     };
                 }),
                 tasks: dailyTasks.map(t => ({

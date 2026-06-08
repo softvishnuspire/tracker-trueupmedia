@@ -172,6 +172,10 @@ export interface EmployeeTrackingStats {
         id: string;
         name: string;
         role: string;
+        dailyCompleted?: number;
+        dailyTotal?: number;
+        monthlyCompleted?: number;
+        monthlyTotal?: number;
     }[];
     tasks?: {
         id: string;
