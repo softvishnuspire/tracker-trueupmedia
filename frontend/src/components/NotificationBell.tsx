@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bell, Send, X } from 'lucide-react';
+import { Bell, Send, X, Loader2 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { notificationApi, type NotificationItem, type NotificationTarget } from '@/lib/api';
+import { useToast } from '@/components/ui/ToastProvider';
 
 const cardStyle: React.CSSProperties = {
     position: 'absolute',
@@ -29,6 +30,7 @@ const normalizeRole = (role?: string | null) => (role || '').trim().toUpperCase(
 
 export default function NotificationBell() {
     const supabase = createClient();
+    const { success: toastSuccess, error: toastError } = useToast();
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -141,22 +143,32 @@ export default function NotificationBell() {
     }, [canSend, targetOptions]);
 
     const markAsRead = async (notificationId: string) => {
+        // Rollback state capture
+        const previousNotifications = [...notifications];
+        const previousUnreadCount = unreadCount;
+
+        // Optimistically update
+        setNotifications((prev) => prev.map((n) => (
+            n.notification_id === notificationId
+                ? { ...n, is_read: true, read_at: new Date().toISOString() }
+                : n
+        )));
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+
         try {
             await notificationApi.markAsRead(notificationId);
-            setNotifications((prev) => prev.map((n) => (
-                n.notification_id === notificationId
-                    ? { ...n, is_read: true, read_at: new Date().toISOString() }
-                    : n
-            )));
-            setUnreadCount((prev) => Math.max(0, prev - 1));
         } catch (error) {
             console.error('Failed to mark notification as read', error);
+            // Rollback on failure
+            setNotifications(previousNotifications);
+            setUnreadCount(previousUnreadCount);
+            toastError('Failed to mark notification as read.');
         }
     };
 
     const onSend = async () => {
         if (!title.trim() || !message.trim()) {
-            alert('Title and message are required.');
+            toastError('Title and message are required.');
             return;
         }
 
@@ -175,6 +187,7 @@ export default function NotificationBell() {
             setMessage('');
             setType('INFO');
             setTab('inbox');
+            toastSuccess('Notification sent successfully!');
             await load();
         } catch (error: unknown) {
             const errorMessage = typeof error === 'object'
@@ -183,7 +196,7 @@ export default function NotificationBell() {
                 && typeof (error as { response?: { data?: { error?: string } } }).response?.data?.error === 'string'
                 ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
                 : null;
-            alert(errorMessage || 'Failed to send notification');
+            toastError(errorMessage || 'Failed to send notification');
         } finally {
             setLoading(false);
         }
@@ -413,7 +426,11 @@ export default function NotificationBell() {
                                     boxShadow: '0 4px 15px var(--accent-glow)'
                                 }}
                             >
-                                {loading ? 'Sending...' : <><Send size={16} /> Send Notification</>}
+                                {loading ? (
+                                    <><Loader2 size={16} className="spinner-btn-icon" /> Sending...</>
+                                ) : (
+                                    <><Send size={16} /> Send Notification</>
+                                )}
                             </button>
                         </div>
                     )}

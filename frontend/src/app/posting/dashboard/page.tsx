@@ -16,12 +16,14 @@ import {
 import { 
     ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Globe, Calendar as CalendarIcon, 
     FileText, Video, CheckCircle2, X, LogOut, Filter, Menu, Clock, ShieldAlert, Check, 
-    AlertTriangle, ArrowRight, CalendarClock, Undo2 
+    AlertTriangle, ArrowRight, CalendarClock, Undo2, Loader2 
 } from 'lucide-react';
 import { postingApi, emergencyApi, dashboardApi, settingsApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
@@ -42,6 +44,10 @@ interface ContentItem {
 }
 
 export default function PostingDashboard() {
+    const { success: toastSuccess, error: toastError } = useToast();
+    const { startLoading, stopLoading } = usePageLoading();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company'>('dashboard');
     const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
@@ -51,7 +57,6 @@ export default function PostingDashboard() {
     const [loading, setLoading] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [postingId, setPostingId] = useState<string | null>(null);
-    const [toast, setToast] = useState<string | null>(null);
     const [activeItem, setActiveItem] = useState<any>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [statusNote, setStatusNote] = useState('');
@@ -88,8 +93,15 @@ export default function PostingDashboard() {
     }, []);
 
     // Fetch stats for the meter
-    const fetchTodayStats = useCallback(async () => {
-        setLoading(true);
+    const fetchTodayStats = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (pendingTasks.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             // Calculate today's progress stats
             const res = await postingApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), undefined, undefined, true);
@@ -117,24 +129,48 @@ export default function PostingDashboard() {
             setEmergencyTasks((emergencyRes.data || []).filter((item: any) => item.status === 'WAITING FOR POSTING'));
         } catch (err) {
             console.error('Error fetching today stats:', err);
+            toastError('Failed to refresh today stats.');
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, []);
+    }, [pendingTasks.length, startLoading, stopLoading, toastError]);
 
-    const fetchClientCalendar = useCallback(async () => {
+    const fetchClientCalendar = useCallback(async (isSilent = false) => {
         if (selectedClient === 'all') return;
-        setLoading(true);
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
             setCalendarData(res.data || []);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    }, [selectedClient, currentMonth]);
+        } catch (err) {
+            console.error(err);
+            toastError('Failed to refresh client calendar.');
+        }
+        finally {
+            setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [selectedClient, currentMonth, calendarData.length, startLoading, stopLoading, toastError]);
 
-    const fetchMasterCalendar = useCallback(async () => {
-        setLoading(true);
+    const fetchMasterCalendar = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             let asOfDate;
@@ -153,10 +189,13 @@ export default function PostingDashboard() {
             setCalendarData(res.data || []);
         } catch (err) {
             console.error('Error fetching master calendar:', err);
+            toastError('Failed to refresh master calendar.');
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [view, selectedClient, currentMonth]);
+    }, [view, selectedClient, currentMonth, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -166,6 +205,10 @@ export default function PostingDashboard() {
                 setPostingId(user.id);
             }
         };
+        fetchUser();
+    }, [supabase]);
+
+    useEffect(() => {
         const fetchSettings = async () => {
             try {
                 const res = await settingsApi.getSettings();
@@ -177,11 +220,10 @@ export default function PostingDashboard() {
                 console.error('Error fetching settings:', err);
             }
         };
-        fetchUser();
         fetchClients();
         fetchTodayStats();
         fetchSettings();
-    }, [fetchClients, fetchTodayStats, supabase.auth]);
+    }, [fetchClients, fetchTodayStats]);
 
     useEffect(() => {
         if (view === 'dashboard') {
@@ -193,6 +235,11 @@ export default function PostingDashboard() {
         }
     }, [view, selectedClient, currentMonth, fetchTodayStats, fetchClientCalendar, fetchMasterCalendar]);
 
+    const latestState = React.useRef({ view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen });
+    useEffect(() => {
+        latestState.current = { view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen };
+    }, [view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+
     useEffect(() => {
         const syncStateFromUrl = () => {
             const params = new URLSearchParams(window.location.search);
@@ -200,14 +247,16 @@ export default function PostingDashboard() {
             const clientIdParam = params.get('clientId') || 'all';
             const taskIdParam = params.get('taskId') || '';
 
-            if (viewParam !== view) {
+            const currentState = latestState.current;
+
+            if (viewParam !== currentState.view) {
                 setView(viewParam as any);
             }
-            if (clientIdParam !== selectedClient) {
+            if (clientIdParam !== currentState.selectedClient) {
                 setSelectedClient(clientIdParam);
             }
             if (taskIdParam) {
-                if (activeItem?.item?.id !== taskIdParam) {
+                if (currentState.activeItemId !== taskIdParam) {
                     const fetchAndOpen = async () => {
                         try {
                             const res = await postingApi.getContentDetails(taskIdParam);
@@ -218,11 +267,11 @@ export default function PostingDashboard() {
                         }
                     };
                     fetchAndOpen();
-                } else if (!isDetailsOpen) {
+                } else if (!currentState.isDetailsOpen) {
                     setIsDetailsOpen(true);
                 }
             } else {
-                if (isDetailsOpen) {
+                if (currentState.isDetailsOpen) {
                     setIsDetailsOpen(false);
                 }
             }
@@ -236,7 +285,7 @@ export default function PostingDashboard() {
         return () => {
             window.removeEventListener('popstate', syncStateFromUrl);
         };
-    }, [loading, view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+    }, [loading]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -274,68 +323,190 @@ export default function PostingDashboard() {
 
     const handleStatusUpdate = async (newStatus: string) => {
         if (!activeItem) return;
+        setPostingId(activeItem.item.id);
+        
+        const previousActiveItem = { ...activeItem };
+        const previousCalendarData = [...calendarData];
+        const previousPendingTasks = [...pendingTasks];
+
+        // Optimistic UI update
+        const updatedItem = { ...activeItem.item, status: newStatus };
+        setActiveItem({
+            ...activeItem,
+            item: updatedItem
+        });
+        setCalendarData(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        setPendingTasks(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        toastSuccess(`Status updated to ${newStatus}`);
+
         try {
             await postingApi.updateStatus(activeItem.item.id, newStatus, statusNote.trim() || undefined);
-            const res = await postingApi.getContentDetails(activeItem.item.id);
-            setActiveItem(res.data);
             setStatusNote('');
-            fetchMasterCalendar();
-        } catch (err) {
+
+            setTimeout(async () => {
+                try {
+                    const res = await postingApi.getContentDetails(activeItem.item.id);
+                    setActiveItem(res.data);
+                    fetchMasterCalendar(true);
+                    fetchTodayStats(true);
+                } catch (refreshErr) {
+                    console.error('Background refresh failed:', refreshErr);
+                }
+            }, 500);
+        } catch (err: any) {
             console.error(err);
-            alert('Failed to update status');
+            setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            setPendingTasks(previousPendingTasks);
+            toastError(err.response?.data?.error || 'Failed to update status');
+        } finally {
+            setPostingId(null);
         }
     };
 
     const handleMarkPosted = async (id: string) => {
         setPostingId(id);
+
+        const previousCalendarData = [...calendarData];
+        const previousPendingTasks = [...pendingTasks];
+        const previousEmergencyTasks = [...emergencyTasks];
+        const previousTodayStats = { ...todayStats };
+        const previousActiveItem = activeItem ? { ...activeItem } : null;
+
+        // Optimistic updates
+        setCalendarData(prev => prev.map(item => item.id === id ? { ...item, status: 'POSTED' } : item));
+        setPendingTasks(prev => prev.map(item => item.id === id ? { ...item, status: 'POSTED' } : item));
+        setEmergencyTasks(prev => prev.map(item => item.id === id ? { ...item, status: 'POSTED' } : item));
+        
+        if (activeItem?.item?.id === id) {
+            setActiveItem({
+                ...activeItem,
+                item: { ...activeItem.item, status: 'POSTED' }
+            });
+        }
+
+        // Stats update
+        const isAlreadyPosted = calendarData.find(i => i.id === id)?.status === 'POSTED' || pendingTasks.find(i => i.id === id)?.status === 'POSTED';
+        if (!isAlreadyPosted) {
+            const completed = todayStats.completed + 1;
+            const remaining = Math.max(0, todayStats.remaining - 1);
+            const total = todayStats.total;
+            setTodayStats({
+                total,
+                completed,
+                remaining,
+                percentage: total > 0 ? Math.round((completed / total) * 100) : 0
+            });
+        }
+        toastSuccess('Content marked as POSTED!');
+
         try {
             const actorId = user?.id;
             await postingApi.markAsPosted(id, actorId);
-            setToast('Content marked as POSTED!');
-            setTimeout(() => setToast(null), 3000);
             
-            // Refresh everything
-            await Promise.all([
-                fetchTodayStats(),
-                view === 'client' ? fetchClientCalendar() : Promise.resolve(),
-                view === 'master' ? fetchMasterCalendar() : Promise.resolve()
-            ]);
-            
-            if (activeItem?.item?.id === id) {
-                const res = await postingApi.getContentDetails(id);
-                setActiveItem(res.data);
-            }
+            setTimeout(() => {
+                fetchTodayStats(true);
+                if (view === 'client') fetchClientCalendar(true);
+                else fetchMasterCalendar(true);
+                
+                if (activeItem?.item?.id === id) {
+                    postingApi.getContentDetails(id).then(res => setActiveItem(res.data)).catch(console.error);
+                }
+            }, 500);
         } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to mark as posted');
-        } finally { setPostingId(null); }
+            console.error(err);
+            setCalendarData(previousCalendarData);
+            setPendingTasks(previousPendingTasks);
+            setEmergencyTasks(previousEmergencyTasks);
+            setTodayStats(previousTodayStats);
+            if (previousActiveItem) setActiveItem(previousActiveItem);
+            toastError(err.response?.data?.error || 'Failed to mark as posted');
+        } finally {
+            setPostingId(null);
+        }
     };
 
     const handleUndo = async (id: string) => {
         setPostingId(id);
+
+        const previousCalendarData = [...calendarData];
+        const previousPendingTasks = [...pendingTasks];
+        const previousEmergencyTasks = [...emergencyTasks];
+        const previousTodayStats = { ...todayStats };
+        const previousActiveItem = activeItem ? { ...activeItem } : null;
+
+        // Optimistic updates
+        setCalendarData(prev => prev.map(item => item.id === id ? { ...item, status: 'WAITING FOR POSTING' } : item));
+        setPendingTasks(prev => prev.map(item => item.id === id ? { ...item, status: 'WAITING FOR POSTING' } : item));
+        setEmergencyTasks(prev => prev.map(item => item.id === id ? { ...item, status: 'WAITING FOR POSTING' } : item));
+
+        if (activeItem?.item?.id === id) {
+            setActiveItem({
+                ...activeItem,
+                item: { ...activeItem.item, status: 'WAITING FOR POSTING' }
+            });
+        }
+
+        // Stats update
+        const completed = Math.max(0, todayStats.completed - 1);
+        const remaining = todayStats.remaining + 1;
+        const total = todayStats.total;
+        setTodayStats({
+            total,
+            completed,
+            remaining,
+            percentage: total > 0 ? Math.round((completed / total) * 100) : 0
+        });
+        toastSuccess('Reverted to Waiting for Posting.');
+
         try {
             await postingApi.undoStatus(id);
-            setToast('Reverted to Waiting for Posting');
-            setTimeout(() => setToast(null), 3000);
             
-            // Refresh everything
-            await Promise.all([
-                fetchTodayStats(),
-                view === 'client' ? fetchClientCalendar() : Promise.resolve(),
-                view === 'master' ? fetchMasterCalendar() : Promise.resolve()
-            ]);
+            setTimeout(() => {
+                fetchTodayStats(true);
+                if (view === 'client') fetchClientCalendar(true);
+                else fetchMasterCalendar(true);
 
-            if (activeItem?.item?.id === id) {
-                const res = await postingApi.getContentDetails(id);
-                setActiveItem(res.data);
-            }
+                if (activeItem?.item?.id === id) {
+                    postingApi.getContentDetails(id).then(res => setActiveItem(res.data)).catch(console.error);
+                }
+            }, 500);
         } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to undo status');
-        } finally { setPostingId(null); }
+            console.error(err);
+            setCalendarData(previousCalendarData);
+            setPendingTasks(previousPendingTasks);
+            setEmergencyTasks(previousEmergencyTasks);
+            setTodayStats(previousTodayStats);
+            if (previousActiveItem) setActiveItem(previousActiveItem);
+            toastError(err.response?.data?.error || 'Failed to undo status');
+        } finally {
+            setPostingId(null);
+        }
     };
 
     const handleUndoStatus = async () => {
         if (!activeItem) return;
         if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        setPostingId(activeItem.item.id);
+
+        const previousActiveItem = { ...activeItem };
+        const previousCalendarData = [...calendarData];
+        const previousPendingTasks = [...pendingTasks];
+
+        // Optimistic update
+        let revertedStatus = 'WAITING FOR POSTING';
+        if (activeItem.history && activeItem.history.length > 1) {
+            revertedStatus = activeItem.history[1].status;
+        }
+        const updatedItem = { ...activeItem.item, status: revertedStatus };
+        setActiveItem({
+            ...activeItem,
+            item: updatedItem
+        });
+        setCalendarData(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        setPendingTasks(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        toastSuccess('Undoing last status change...');
+
         try {
             await postingApi.undoStatus(activeItem.item.id);
             let asOfDate;
@@ -343,13 +514,26 @@ export default function PostingDashboard() {
                 const d = new Date(); d.setDate(d.getDate() - 7);
                 asOfDate = d.toISOString();
             }
-            const res = await postingApi.getContentDetails(activeItem.item.id, asOfDate);
-            setActiveItem(res.data);
-            fetchMasterCalendar();
-            fetchTodayStats();
+            toastSuccess('Status change undone.');
+
+            setTimeout(async () => {
+                try {
+                    const res = await postingApi.getContentDetails(activeItem.item.id, asOfDate);
+                    setActiveItem(res.data);
+                    fetchMasterCalendar(true);
+                    fetchTodayStats(true);
+                } catch (refreshErr) {
+                    console.error('Background refresh failed:', refreshErr);
+                }
+            }, 500);
         } catch (err) {
             console.error(err);
-            alert('Failed to undo status change. It might be because there is no more history to undo.');
+            setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            setPendingTasks(previousPendingTasks);
+            toastError('Failed to undo status change. It might be because there is no more history to undo.');
+        } finally {
+            setPostingId(null);
         }
     };
 
@@ -677,6 +861,12 @@ export default function PostingDashboard() {
                                     <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn"><ChevronLeft size={20} /></button>
                                     <span className="month-label">{getPeriodLabel()}</span>
                                     <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn"><ChevronRight size={20} /></button>
+                                    {isRefreshing && (
+                                        <div className="refreshing-banner" style={{ marginLeft: '12px' }}>
+                                            <Loader2 size={12} className="spinner-btn-icon" />
+                                            <span>Refreshing...</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -795,7 +985,7 @@ export default function PostingDashboard() {
                                     <span className="card-badge">Action Required</span>
                                 </div>
                                 
-                                {loading ? (
+                                {loading && pendingTasks.length === 0 ? (
                                     <div className="posting-queue">
                                         {[1, 2, 3].map(i => (
                                             <div key={i} className="queue-item" style={{ border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
@@ -838,7 +1028,11 @@ export default function PostingDashboard() {
                                                             disabled={postingId === item.id}
                                                             title="Revert to waiting"
                                                         >
-                                                            {postingId === item.id ? '...' : 'Undo'}
+                                                            {postingId === item.id ? (
+                                                                <Loader2 size={12} className="spinner-btn-icon" />
+                                                            ) : (
+                                                                'Undo'
+                                                            )}
                                                         </button>
                                                     ) : (
                                                         <button
@@ -846,7 +1040,14 @@ export default function PostingDashboard() {
                                                             onClick={() => handleMarkPosted(item.id)}
                                                             disabled={postingId === item.id}
                                                         >
-                                                            {postingId === item.id ? 'Posting...' : 'Mark as Posted'}
+                                                            {postingId === item.id ? (
+                                                                <>
+                                                                    <Loader2 size={12} className="spinner-btn-icon" style={{ marginRight: '4px' }} />
+                                                                    <span>Posting...</span>
+                                                                </>
+                                                            ) : (
+                                                                <span>Mark as Posted</span>
+                                                            )}
                                                         </button>
                                                     )}
                                                 </div>
@@ -908,7 +1109,7 @@ export default function PostingDashboard() {
                                     </div>
                                 ))}
 
-                                {loading ? (
+                                {loading && calendarData.length === 0 ? (
                                     Array.from({ length: 35 }).map((_, idx) => (
                                         <div key={idx} className="calendar-day" style={{ minHeight: '110px' }}>
                                             <Skeleton className="h-4 w-4 mb-2" />
@@ -1096,11 +1297,18 @@ export default function PostingDashboard() {
                                     {activeItem.item.status === 'WAITING FOR POSTING' && view !== 'company' && (
                                         <button
                                             className="btn-mark-posted"
-                                            style={{ width: '100%', marginTop: '24px', padding: '16px', fontSize: '16px' }}
+                                            style={{ width: '100%', marginTop: '24px', padding: '16px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                                             onClick={() => handleMarkPosted(activeItem.item.id)}
                                             disabled={postingId === activeItem.item.id}
                                         >
-                                            {postingId === activeItem.item.id ? 'Posting...' : 'Mark as Posted'}
+                                            {postingId === activeItem.item.id ? (
+                                                <>
+                                                    <Loader2 size={18} className="spinner-btn-icon" />
+                                                    <span>Posting...</span>
+                                                </>
+                                            ) : (
+                                                <span>Mark as Posted</span>
+                                            )}
                                         </button>
                                     )}
 
@@ -1130,9 +1338,19 @@ export default function PostingDashboard() {
                                                     className="btn-mark-posted"
                                                     style={{ width: '100%', padding: '12px', background: 'var(--accent)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                                                     onClick={() => handleStatusUpdate(nextStatus)}
+                                                    disabled={postingId === activeItem.item.id}
                                                 >
-                                                    Advance to {nextStatus}
-                                                    <ChevronRight size={18} />
+                                                    {postingId === activeItem.item.id ? (
+                                                        <>
+                                                            <Loader2 size={18} className="spinner-btn-icon" />
+                                                            <span>Advancing...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span>Advance to {nextStatus}</span>
+                                                            <ChevronRight size={18} />
+                                                        </>
+                                                    )}
                                                 </button>
                                             </div>
                                         );
@@ -1145,15 +1363,21 @@ export default function PostingDashboard() {
                                     <label className="detail-label" style={{ marginBottom: 0 }}>Status History</label>
                                     <button 
                                         onClick={handleUndoStatus}
+                                        disabled={postingId === activeItem.item.id}
                                         style={{ 
                                             display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
                                             background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
                                             border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', 
-                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
+                                            fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+                                            opacity: postingId === activeItem.item.id ? 0.5 : 1
                                         }}
                                     >
-                                        <Undo2 size={12} />
-                                        Undo Last Step
+                                        {postingId === activeItem.item.id ? (
+                                            <Loader2 size={12} className="spinner-btn-icon" />
+                                        ) : (
+                                            <Undo2 size={12} />
+                                        )}
+                                        <span>Undo Last Step</span>
                                     </button>
                                 </div>
                                 <div className="history-timeline" style={{ marginTop: '16px' }}>
@@ -1176,13 +1400,6 @@ export default function PostingDashboard() {
                 </div>
             )}
 
-            {/* Toast */}
-            {toast && (
-                <div className="posting-toast">
-                    <CheckCircle2 size={20} />
-                    {toast}
-                </div>
-            )}
         </div>
     );
 }

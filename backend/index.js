@@ -67,6 +67,95 @@ function enrichContentItem(item) {
     };
 }
 
+// ─── Upstash Redis Native REST Client ───
+const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+async function redisCommand(command, retries = 1) {
+    if (!UPSTASH_REDIS_REST_URL || !UPSTASH_REDIS_REST_TOKEN) {
+        console.warn('⚠️ Upstash Redis credentials not configured. Caching is disabled.');
+        return null;
+    }
+
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 2000); // 2 seconds timeout
+
+    try {
+        const response = await fetch(UPSTASH_REDIS_REST_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(command),
+            signal: controller.signal
+        });
+        clearTimeout(id);
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Upstash Redis REST API error: ${errText}`);
+        }
+        const data = await response.json();
+        return data.result;
+    } catch (error) {
+        clearTimeout(id);
+        if (retries > 0) {
+            console.warn(`⚠️ Upstash Redis error: ${error.message}. Retrying (Remaining: ${retries})...`);
+            return redisCommand(command, retries - 1);
+        } else {
+            console.warn(`[REDIS_WARNING] Cache unavailable, falling back to PostgreSQL. Error: ${error.message}`);
+            return null;
+        }
+    }
+}
+
+const RedisService = {
+    getKey(key) {
+        return `v1:${key}`;
+    },
+
+    async get(key) {
+        const fullKey = this.getKey(key);
+        const result = await redisCommand(["GET", fullKey]);
+        if (result !== null && result !== undefined) {
+            console.log(`CACHE HIT: ${key}`);
+            try {
+                return JSON.parse(result);
+            } catch (e) {
+                return result;
+            }
+        }
+        console.log(`CACHE MISS: ${key}`);
+        return null;
+    },
+
+    async set(key, value, ttlSeconds) {
+        const fullKey = this.getKey(key);
+        const stringified = JSON.stringify(value);
+        if (ttlSeconds) {
+            await redisCommand(["SET", fullKey, stringified, "EX", ttlSeconds]);
+        } else {
+            await redisCommand(["SET", fullKey, stringified]);
+        }
+    },
+
+    async del(key) {
+        const fullKey = this.getKey(key);
+        await redisCommand(["DEL", fullKey]);
+        console.log(`CACHE INVALIDATED: ${key}`);
+    },
+
+    async delMultiple(keys) {
+        const filteredKeys = keys.filter(Boolean);
+        if (filteredKeys.length > 0) {
+            const fullKeys = filteredKeys.map(k => this.getKey(k));
+            await redisCommand(["DEL", ...fullKeys]);
+            filteredKeys.forEach(k => console.log(`CACHE INVALIDATED: ${k}`));
+        }
+    }
+};
+
 const NodeCache = require("node-cache");
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
@@ -451,21 +540,12 @@ app.get('/api/gm/calendar', requireRoles(GM_ROLES), async (req, res) => {
     const { client_id, month } = req.query;
     if (!client_id || !month) return res.status(400).json({ error: 'Missing client_id or month' });
 
-    const [year, mon] = String(month).split('-');
-    const startDate = `${year}-${mon}-01T00:00:00`;
-    const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
-    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
-
-    const { data, error } = await supabase
-        .from('content_items')
-        .select('*')
-        .eq('client_id', client_id)
-        .gte('scheduled_datetime', startDate)
-        .lte('scheduled_datetime', endDate)
-        .order('scheduled_datetime');
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+    try {
+        const data = await fetchClientCalendarData(client_id, month);
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // ─── GM: Master Calendar ───
@@ -538,6 +618,7 @@ app.post('/api/gm/content', requireRoles(GM_ROLES), async (req, res) => {
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
+        await invalidateContentCaches(data[0]);
         res.json(data[0]);
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -596,7 +677,7 @@ app.post('/api/ph/freelancer-content', requireRoles(PH_ROLES), async (req, res) 
         } catch (notifErr) {
             console.error('Failed to trigger freelancer notification:', notifErr);
         }
-
+        await invalidateContentCaches(newItem);
         res.json(newItem);
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -662,6 +743,7 @@ app.put('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
+        await invalidateContentCaches(data[0], existingItem);
         res.json(data[0]);
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -670,9 +752,17 @@ app.put('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
 
 app.delete('/api/gm/content/:id', requireRoles(GM_ROLES), async (req, res) => {
     const { id } = req.params;
-    const { error } = await supabase.from('content_items').delete().eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ message: 'Deleted successfully' });
+    try {
+        const { data: existingItem } = await fetchContentOrFreelancerItem(id);
+        const { error } = await supabase.from('content_items').delete().eq('id', id);
+        if (error) return res.status(500).json({ error: error.message });
+        if (existingItem) {
+            await invalidateContentCaches(existingItem);
+        }
+        res.json({ message: 'Deleted successfully' });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
 });
 
 app.get('/api/gm/content/:id', async (req, res) => {
@@ -706,7 +796,7 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
 
     const { data: item, error: fetchError } = await supabase
         .from('content_items')
-        .select('status, content_type, client_id, assigned_to')
+        .select('status, content_type, client_id, assigned_to, scheduled_datetime, original_scheduled_datetime')
         .eq('id', id)
         .single();
 
@@ -761,12 +851,13 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
     }
 
     // Update status
-    const { error: updateError } = await supabase
+    const { data: updatedData, error: updateError } = await supabase
         .from('content_items')
         .update(updatePayload)
-        .eq('id', id);
+        .eq('id', id)
+        .select();
 
-    if (updateError) {
+    if (updateError || !updatedData || updatedData.length === 0) {
         console.error('[StatusUpdate] Update error:', updateError);
         return res.status(500).json({ error: 'Failed to update status' });
     }
@@ -787,6 +878,8 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
     } else {
         console.log('[StatusUpdate] Success logging change');
     }
+
+    await invalidateContentCaches(updatedData[0], item);
 
     res.json({ message: 'Status updated successfully' });
 });
@@ -925,6 +1018,7 @@ app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
         }
 
         myCache.del(["gm_clients", "admin_clients"]);
+        await invalidateClientCaches(data[0].id);
         res.json(data[0]);
     } catch (error) {
         console.error(`[Admin] Crash during client creation of ${email}:`, error);
@@ -972,6 +1066,7 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     }
 
     myCache.del(["gm_clients", "admin_clients"]);
+    await invalidateClientCaches(id);
     res.json(data[0]);
 });
 
@@ -1069,6 +1164,7 @@ app.delete('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res)
 
         console.log(`[Admin] Successfully hard-deleted client ${id} and all associated records.`);
         myCache.del(["gm_clients", "admin_clients", "admin_team"]);
+        await invalidateClientCaches(id);
         res.json({ message: 'Client and all associated data removed successfully' });
 
     } catch (error) {
@@ -1550,83 +1646,350 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
 });
 
 // ─── Admin: Dashboard Stats ───
+// ─── Admin: Dashboard Stats ───
 app.get('/api/admin/stats', async (req, res) => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const mon = String(now.getMonth() + 1).padStart(2, '0');
-    const startDate = `${year}-${mon}-01T00:00:00`;
-    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
-    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
-
+    const cacheKey = 'analytics:admin:current';
     try {
-        const [clientRes, itemRes, statusRes] = await Promise.all([
-            supabase.from('clients').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('is_deleted', false),
-            supabase.from('content_items').select('*', { count: 'exact', head: true }).gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate),
-            supabase.from('content_items').select('status')
-        ]);
-
-        const statusSummary = {};
-        if (statusRes.data) {
-            statusRes.data.forEach(item => { statusSummary[item.status] = (statusSummary[item.status] || 0) + 1; });
+        const cached = await RedisService.get(cacheKey);
+        if (cached !== null && cached !== undefined) {
+            return res.json(cached);
         }
 
-        res.json({
-            totalClients: clientRes.count,
-            totalItemsThisMonth: itemRes.count,
-            statusSummary
+        const now = new Date();
+        const year = now.getFullYear();
+        const mon = String(now.getMonth() + 1).padStart(2, '0');
+        const startDate = `${year}-${mon}-01T00:00:00`;
+        const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+        const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+        // Run detailed queries
+        const [
+            allClientsRes,
+            activeClientsRes,
+            itemsRes,
+            emergencyRes
+        ] = await Promise.all([
+            supabase.from('clients').select('id').eq('is_deleted', false),
+            supabase.from('clients').select('id').eq('is_active', true).eq('is_deleted', false),
+            supabase.from('content_items').select('status, content_type, scheduled_datetime').gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate),
+            supabase.from('content_items').select('id').eq('is_emergency', true).not('status', 'eq', 'POSTED')
+        ]);
+
+        if (allClientsRes.error) throw allClientsRes.error;
+        if (activeClientsRes.error) throw activeClientsRes.error;
+        if (itemsRes.error) throw itemsRes.error;
+        if (emergencyRes.error) throw emergencyRes.error;
+
+        const items = itemsRes.data || [];
+        const completedStatuses = ['POSTED', 'WAITING FOR POSTING', 'COMPLETED', 'SCHEDULED'];
+
+        const postsThisMonth = items.filter(item => ['POST', 'SPECIAL POSTER', 'SPECIAL DAY POSTER'].includes((item.content_type || '').toUpperCase())).length;
+        const reelsThisMonth = items.filter(item => ['REEL', 'YOUTUBE'].includes((item.content_type || '').toUpperCase())).length;
+        const completedTasks = items.filter(item => completedStatuses.includes((item.status || '').toUpperCase())).length;
+        const pendingTasks = items.length - completedTasks;
+
+        const statusSummary = {};
+        items.forEach(item => {
+            const s = item.status;
+            statusSummary[s] = (statusSummary[s] || 0) + 1;
         });
+
+        const statsData = {
+            totalClients: allClientsRes.data.length,
+            totalActiveClients: activeClientsRes.data.length,
+            totalItemsThisMonth: items.length, // keep legacy field name
+            totalContentItems: items.length, // add spec field name
+            postsThisMonth,
+            reelsThisMonth,
+            emergencyTasks: emergencyRes.data.length,
+            completedTasks,
+            pendingTasks,
+            statusSummary
+        };
+
+        await RedisService.set(cacheKey, statsData, 300); // 5 mins TTL
+        res.json(statsData);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
-// ─── Helper: Combined Calendar Fetch ───
-async function fetchCombinedCalendarData(startDate, endDate, client_id, content_type, extraClientIds = null, statuses = null) {
+
+// ─── GM: Dashboard Stats (Analytics) ───
+app.get('/api/gm/stats', requireRoles(GM_ROLES), async (req, res) => {
+    const cacheKey = 'analytics:gm:current';
+    try {
+        const cached = await RedisService.get(cacheKey);
+        if (cached !== null && cached !== undefined) {
+            return res.json(cached);
+        }
+
+        const now = new Date();
+        const year = now.getFullYear();
+        const mon = String(now.getMonth() + 1).padStart(2, '0');
+        const startDate = `${year}-${mon}-01T00:00:00`;
+        const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+        const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+        // Today start and end
+        const todayStr = now.toISOString().split('T')[0];
+        const todayStart = `${todayStr}T00:00:00`;
+        const todayEnd = `${todayStr}T23:59:59`;
+
+        // Next 7 days end
+        const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const next7DaysStr = next7Days.toISOString().split('T')[0];
+        const next7DaysEnd = `${next7DaysStr}T23:59:59`;
+
+        const [clientsRes, monthlyItemsRes, todayItemsRes, upcomingItemsRes] = await Promise.all([
+            supabase.from('clients').select('id').eq('is_active', true).eq('is_deleted', false),
+            supabase.from('content_items').select('status').gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate),
+            supabase.from('content_items').select('id', { count: 'exact', head: true }).gte('scheduled_datetime', todayStart).lte('scheduled_datetime', todayEnd),
+            supabase.from('content_items').select('status').gte('scheduled_datetime', todayStart).lte('scheduled_datetime', next7DaysEnd)
+        ]);
+
+        if (clientsRes.error) throw clientsRes.error;
+        if (monthlyItemsRes.error) throw monthlyItemsRes.error;
+        if (todayItemsRes.error) throw todayItemsRes.error;
+        if (upcomingItemsRes.error) throw upcomingItemsRes.error;
+
+        const completedStatuses = ['POSTED', 'WAITING FOR POSTING', 'COMPLETED', 'SCHEDULED'];
+        
+        // Status distribution
+        const statusDistribution = {};
+        (monthlyItemsRes.data || []).forEach(item => {
+            statusDistribution[item.status] = (statusDistribution[item.status] || 0) + 1;
+        });
+
+        // Upcoming deadlines (next 7 days, not completed)
+        const upcomingDeadlines = (upcomingItemsRes.data || []).filter(item => 
+            !completedStatuses.includes((item.status || '').toUpperCase())
+        ).length;
+
+        const statsData = {
+            clientCount: clientsRes.data.length,
+            monthlyContentCount: (monthlyItemsRes.data || []).length,
+            statusDistribution,
+            todayWorkload: todayItemsRes.count || 0,
+            upcomingDeadlines
+        };
+
+        await RedisService.set(cacheKey, statsData, 300); // 5 mins TTL
+        res.json(statsData);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+// ─── Helper: Hydrated Client Calendar Fetch with Caching ───
+async function fetchClientCalendarData(clientId, month) {
+    const cacheKey = `client_calendar:${clientId}:${month}`;
+    const cached = await RedisService.get(cacheKey);
+    if (cached !== null && cached !== undefined) {
+        return cached;
+    }
+
+    const [year, mon] = String(month).split('-');
+    const startDate = `${year}-${mon}-01T00:00:00`;
+    const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+
+    const { data, error } = await supabase
+        .from('content_items')
+        .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+        .eq('client_id', clientId)
+        .gte('scheduled_datetime', startDate)
+        .lte('scheduled_datetime', endDate)
+        .order('scheduled_datetime');
+
+    if (error) throw error;
+
+    const enriched = (data || []).map(enrichContentItem);
+    await RedisService.set(cacheKey, enriched, 900); // 15 mins TTL
+    return enriched;
+}
+
+// ─── Helper: Combined Calendar Fetch from Database (Unfiltered Monthly workload) ───
+async function fetchCombinedCalendarDataFromDB(startDate, endDate) {
     let contentItemsData = [];
     let freelancerTasksData = [];
 
-    // 1. Fetch from content_items
-    if (client_id !== 'freelancer') {
-        let q1 = supabase
-            .from('content_items')
-            .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
-            .gte('scheduled_datetime', startDate)
-            .lte('scheduled_datetime', endDate);
+    // 1. Fetch ALL content_items for the month
+    const q1 = supabase
+        .from('content_items')
+        .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+        .gte('scheduled_datetime', startDate)
+        .lte('scheduled_datetime', endDate);
 
-        if (client_id && client_id !== 'all') q1 = q1.eq('client_id', client_id);
-        if (extraClientIds) q1 = q1.in('client_id', extraClientIds);
-        if (content_type) q1 = q1.eq('content_type', content_type);
-        if (statuses) q1 = q1.in('status', statuses);
+    const { data: d1, error: e1 } = await q1;
+    if (e1) throw e1;
+    contentItemsData = (d1 || []).map(enrichContentItem);
 
-        const { data: d1, error: e1 } = await q1;
-        if (e1) throw e1;
-        contentItemsData = (d1 || []).map(enrichContentItem);
-    }
+    // 2. Fetch ALL freelancer_tasks for the month
+    const q2 = supabase
+        .from('freelancer_tasks')
+        .select(`*, assigned_employee:assigned_to (name, role_identifier)`)
+        .gte('scheduled_datetime', startDate)
+        .lte('scheduled_datetime', endDate);
 
-    // 2. Fetch from freelancer_tasks
-    if ((!client_id || client_id === 'all' || client_id === 'freelancer') && (!extraClientIds || client_id === 'freelancer')) {
-        let q2 = supabase
-            .from('freelancer_tasks')
-            .select(`*, assigned_employee:assigned_to (name, role_identifier)`)
-            .gte('scheduled_datetime', startDate)
-            .lte('scheduled_datetime', endDate);
-
-        if (content_type) q2 = q2.eq('content_type', content_type);
-        if (statuses) q2 = q2.in('status', statuses);
-
-        const { data: d2, error: e2 } = await q2;
-        if (e2) throw e2;
-        
-        freelancerTasksData = (d2 || []).map(task => ({
-            ...task,
-            clients: null, 
-            client_id: null,
-            is_freelancer_table: true
-        }));
-    }
+    const { data: d2, error: e2 } = await q2;
+    if (e2) throw e2;
+    
+    freelancerTasksData = (d2 || []).map(task => ({
+        ...task,
+        clients: null, 
+        client_id: null,
+        is_freelancer_table: true
+    }));
 
     const combined = [...contentItemsData, ...freelancerTasksData];
     combined.sort((a, b) => new Date(a.scheduled_datetime) - new Date(b.scheduled_datetime));
     return combined;
+}
+
+// ─── Helper: Combined Calendar Fetch with Cache-Aside & In-Memory Filtering ───
+async function fetchCombinedCalendarData(startDate, endDate, client_id, content_type, extraClientIds = null, statuses = null) {
+    const monthKey = startDate.substring(0, 7); // YYYY-MM
+    const cacheKey = `master_calendar:${monthKey}`;
+
+    let allItems = await RedisService.get(cacheKey);
+    if (allItems === null || allItems === undefined) {
+        // Fetch raw full month data from DB
+        allItems = await fetchCombinedCalendarDataFromDB(startDate, endDate);
+        // Cache it for 10 minutes (600 seconds)
+        await RedisService.set(cacheKey, allItems, 600);
+    }
+
+    // Perform in-memory filtering matching database behavior
+    let filtered = allItems;
+
+    // Filter content items and freelancer tasks separately based on client_id criteria
+    filtered = filtered.filter(item => {
+        const isFreelancer = item.is_freelancer_table;
+
+        if (isFreelancer) {
+            // Freelancer tasks filters
+            const isAllowedClient = (!client_id || client_id === 'all' || client_id === 'freelancer') && (!extraClientIds || client_id === 'freelancer');
+            if (!isAllowedClient) return false;
+        } else {
+            // Content items filters
+            if (client_id === 'freelancer') return false;
+
+            if (client_id && client_id !== 'all') {
+                if (String(item.client_id) !== String(client_id)) return false;
+            }
+            if (extraClientIds) {
+                const extraIdsStr = extraClientIds.map(String);
+                if (!extraIdsStr.includes(String(item.client_id))) return false;
+            }
+        }
+
+        // Common filters
+        if (content_type) {
+            if (item.content_type !== content_type) return false;
+        }
+        if (statuses) {
+            if (!statuses.includes(item.status)) return false;
+        }
+
+        return true;
+    });
+
+    return filtered;
+}
+
+// ─── Centralized Cache Invalidation Helper ───
+async function invalidateContentCaches(contentItem, oldContentItem = null) {
+    const keysToInvalidate = new Set();
+
+    const addKeysForItem = (item) => {
+        if (!item) return;
+
+        // Invalidate Client Calendar & Master Calendar for scheduled month
+        if (item.scheduled_datetime) {
+            const month = item.scheduled_datetime.substring(0, 7);
+            if (item.client_id) {
+                keysToInvalidate.add(`client_calendar:${item.client_id}:${month}`);
+            }
+            keysToInvalidate.add(`master_calendar:${month}`);
+        }
+
+        // Invalidate Client Calendar & Master Calendar for original scheduled month (reschedules)
+        if (item.original_scheduled_datetime) {
+            const month = item.original_scheduled_datetime.substring(0, 7);
+            if (item.client_id) {
+                keysToInvalidate.add(`client_calendar:${item.client_id}:${month}`);
+            }
+            keysToInvalidate.add(`master_calendar:${month}`);
+        }
+
+        // Invalidate Employee dashboard pending queue
+        const empId = item.assigned_to || item.employee_id || item.reel_employee_id || item.post_employee_id || item.writer_employee_id;
+        if (empId) {
+            keysToInvalidate.add(`dashboard:employee:${empId}:pending`);
+        }
+    };
+
+    addKeysForItem(contentItem);
+    addKeysForItem(oldContentItem);
+
+    // Always invalidate GM & Production Head pending task dashboard caches
+    keysToInvalidate.add('dashboard:gm:pending');
+    keysToInvalidate.add('dashboard:production_head:pending');
+
+    // Always invalidate analytics caches
+    keysToInvalidate.add('analytics:admin:current');
+    keysToInvalidate.add('analytics:gm:current');
+    keysToInvalidate.add('analytics:production_head:current');
+
+    const keysArray = Array.from(keysToInvalidate);
+    try {
+        await RedisService.delMultiple(keysArray);
+    } catch (err) {
+        console.error('⚠️ Cache invalidation failed:', err.message);
+    }
+}
+
+async function invalidateClientCaches(clientId, employeeIds = []) {
+    const keysToInvalidate = new Set([
+        'analytics:admin:current',
+        'analytics:gm:current',
+        'analytics:production_head:current',
+        'dashboard:gm:pending',
+        'dashboard:production_head:pending'
+    ]);
+
+    const now = new Date();
+    const getMonthStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonth = getMonthStr(now);
+    const prevMonth = getMonthStr(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const nextMonth = getMonthStr(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+
+    if (clientId) {
+        keysToInvalidate.add(`client_calendar:${clientId}:${currentMonth}`);
+        keysToInvalidate.add(`client_calendar:${clientId}:${prevMonth}`);
+        keysToInvalidate.add(`client_calendar:${clientId}:${nextMonth}`);
+
+        keysToInvalidate.add(`master_calendar:${currentMonth}`);
+        keysToInvalidate.add(`master_calendar:${prevMonth}`);
+        keysToInvalidate.add(`master_calendar:${nextMonth}`);
+    } else {
+        keysToInvalidate.add(`master_calendar:${currentMonth}`);
+        keysToInvalidate.add(`master_calendar:${prevMonth}`);
+        keysToInvalidate.add(`master_calendar:${nextMonth}`);
+    }
+
+    if (Array.isArray(employeeIds)) {
+        employeeIds.forEach(empId => {
+            if (empId) {
+                keysToInvalidate.add(`dashboard:employee:${empId}:pending`);
+            }
+        });
+    }
+
+    try {
+        await RedisService.delMultiple(Array.from(keysToInvalidate));
+    } catch (err) {
+        console.warn(`[REDIS_WARNING] Cache unavailable, falling back to PostgreSQL. Error: ${err.message}`);
+    }
 }
 
 // ─── Helper: Fetch Single Item (Content or Freelancer) ───
@@ -1791,11 +2154,13 @@ app.patch('/api/admin/content/:id/status', requireRoles(ADMIN_ROLES), async (req
         const { data: itemData, error: itemError, table } = await fetchContentOrFreelancerItem(id);
         if (itemError || !itemData) return res.status(404).json({ error: 'Item not found' });
 
-        const { error: updateError } = await supabase.from(table).update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
-        if (updateError) return res.status(500).json({ error: 'Failed to update status' });
+        const { data: updated, error: updateError } = await supabase.from(table).update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id).select();
+        if (updateError || !updated || updated.length === 0) return res.status(500).json({ error: 'Failed to update status' });
 
         const { error: logError } = await supabase.from('status_logs').insert([{ item_id: id, old_status: itemData.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
         if (logError) console.warn('[Admin] Failed to log status:', logError.message);
+
+        await invalidateContentCaches(updated[0], itemData);
         res.json({ message: 'Status updated successfully' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1809,10 +2174,12 @@ app.post('/api/admin/content/:id/undo-status', requireRoles(ADMIN_ROLES), async 
         const { data: latestLog, error: logFetchError } = await supabase.from('status_logs').select('*').eq('item_id', id).order('changed_at', { ascending: false }).limit(1).single();
         if (logFetchError || !latestLog) return res.status(404).json({ error: 'No history found' });
 
-        const { error: revertError } = await supabase.from(table).update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id);
-        if (revertError) return res.status(500).json({ error: 'Failed to revert' });
+        const { data: updated, error: revertError } = await supabase.from(table).update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id).select();
+        if (revertError || !updated || updated.length === 0) return res.status(500).json({ error: 'Failed to revert' });
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+
+        await invalidateContentCaches(updated[0], itemData);
         res.json({ message: 'Success', status: latestLog.old_status });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -1847,11 +2214,13 @@ app.patch('/api/coo/content/:id/status', requireRoles(COO_ROLES), async (req, re
         const { data: itemData, error: itemError, table } = await fetchContentOrFreelancerItem(id);
         if (itemError || !itemData) return res.status(404).json({ error: 'Item not found' });
 
-        const { error: updateError } = await supabase.from(table).update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
-        if (updateError) return res.status(500).json({ error: 'Failed to update status' });
+        const { data: updated, error: updateError } = await supabase.from(table).update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id).select();
+        if (updateError || !updated || updated.length === 0) return res.status(500).json({ error: 'Failed to update status' });
 
         const { error: logError } = await supabase.from('status_logs').insert([{ item_id: id, old_status: itemData.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
         if (logError) console.warn('[COO] Failed to log status:', logError.message);
+
+        await invalidateContentCaches(updated[0], itemData);
         res.json({ message: 'Status updated successfully' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1865,10 +2234,12 @@ app.post('/api/coo/content/:id/undo', requireRoles(COO_ROLES), async (req, res) 
         const { data: latestLog, error: logFetchError } = await supabase.from('status_logs').select('*').eq('item_id', id).order('changed_at', { ascending: false }).limit(1).single();
         if (logFetchError || !latestLog) return res.status(404).json({ error: 'No history found' });
 
-        const { error: revertError } = await supabase.from(table).update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id);
-        if (revertError) return res.status(500).json({ error: 'Failed to revert' });
+        const { data: updated, error: revertError } = await supabase.from(table).update({ status: latestLog.old_status, updated_at: new Date().toISOString() }).eq('id', id).select();
+        if (revertError || !updated || updated.length === 0) return res.status(500).json({ error: 'Failed to revert' });
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+
+        await invalidateContentCaches(updated[0], itemData);
         res.json({ message: 'Success', status: latestLog.old_status });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -1924,6 +2295,7 @@ app.post('/api/admin/content', requireRoles(ADMIN_ROLES), async (req, res) => {
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
+        await invalidateContentCaches(data[0]);
         res.json(enrichContentItem(data[0]));
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -1992,6 +2364,7 @@ app.put('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
+        await invalidateContentCaches(data[0], existingItem);
         res.json(data[0]);
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -2000,9 +2373,17 @@ app.put('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
 
 app.delete('/api/admin/content/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
-    const { error } = await supabase.from('content_items').delete().eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ message: 'Deleted successfully' });
+    try {
+        const { data: item } = await fetchContentOrFreelancerItem(id);
+        const { error } = await supabase.from('content_items').delete().eq('id', id);
+        if (error) return res.status(500).json({ error: error.message });
+        if (item) {
+            await invalidateContentCaches(item);
+        }
+        res.json({ message: 'Deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 
@@ -2051,6 +2432,7 @@ app.patch('/api/gm/clients/:id/assign', async (req, res) => {
             myCache.del(`tl_clients_${team_lead_id}`);
         }
         myCache.del(["gm_clients", "admin_clients"]);
+        await invalidateClientCaches(id);
 
         res.json(data[0]);
     } catch (error) {
@@ -2081,30 +2463,174 @@ app.get('/api/gm/team-leads/:id/clients', async (req, res) => {
 // PH: Monthly Stats
 app.get('/api/ph/stats', requireRoles(PH_ROLES), async (req, res) => {
     const { month } = req.query;
+    const isCurrent = !month || month === new Date().toISOString().substring(0, 7);
+    const cacheKey = isCurrent ? 'analytics:production_head:current' : null;
+
     try {
+        if (cacheKey) {
+            const cached = await RedisService.get(cacheKey);
+            if (cached !== null && cached !== undefined) {
+                return res.json(cached);
+            }
+        }
+
         const now = new Date();
         const year = month ? parseInt(String(month).split('-')[0]) : now.getFullYear();
         const mon = month ? parseInt(String(month).split('-')[1]) : now.getMonth() + 1;
 
-        const startDate = `${year}-${String(mon).padStart(2, '0')}-01`;
-        const endDate = `${year}-${String(mon).padStart(2, '0')}-${String(new Date(year, mon, 0).getDate()).padStart(2, '0')} 23:59:59`;
+        const startDate = `${year}-${String(mon).padStart(2, '0')}-01T00:00:00`;
+        const lastDay = new Date(year, mon, 0).getDate();
+        const endDate = `${year}-${String(mon).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
 
-        const { data, error } = await supabase
-            .from('content_items')
-            .select('content_type')
-            .gte('scheduled_datetime', startDate)
-            .lte('scheduled_datetime', endDate)
-            .in('status', ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL']);
+        // Today bounds
+        const todayStr = now.toISOString().split('T')[0];
+        const todayStart = `${todayStr}T00:00:00`;
+        const todayEnd = `${todayStr}T23:59:59`;
 
-        if (error) return res.status(500).json({ error: error.message });
+        // 1. Fetch all employees
+        const { data: users, error: userError } = await supabase
+            .from('users')
+            .select('user_id, name, email, role, role_identifier');
 
-        const stats = {
-            reelsCount: data.filter(i => i.content_type === 'Reel').length,
-            postsCount: data.filter(i => i.content_type === 'Post').length,
-            youtubeCount: data.filter(i => i.content_type === 'YouTube').length
+        if (userError) throw userError;
+
+        const employees = users.filter(u => {
+            const r = normalizeRole(u.role);
+            const ri = normalizeRole(u.role_identifier);
+            return ['EMPLOYEE'].includes(r) || ['EMPLOYEE'].includes(ri);
+        });
+
+        const employeeIds = employees.map(e => e.user_id).filter(Boolean);
+
+        if (employeeIds.length === 0) {
+            const emptyStats = {
+                employeeProductivity: [],
+                pendingTasks: 0,
+                completedTasks: 0,
+                assignmentCount: 0,
+                tasksAssignedToday: 0,
+                tasksCompletedToday: 0,
+                overdueTasks: 0,
+                workloadDistribution: {},
+                topPerformer: 'None',
+                leastUtilized: 'None',
+                reelsCount: 0,
+                postsCount: 0,
+                youtubeCount: 0
+            };
+            return res.json(emptyStats);
+        }
+
+        // 2. Fetch all tasks for these employees in this month
+        const [monthlyContentRes, monthlyFreelanceRes, todayContentRes, todayFreelanceRes] = await Promise.all([
+            supabase.from('content_items').select('*').in('assigned_to', employeeIds).gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate),
+            supabase.from('freelancer_tasks').select('*').in('assigned_to', employeeIds).gte('scheduled_datetime', startDate).lte('scheduled_datetime', endDate),
+            supabase.from('content_items').select('*').in('assigned_to', employeeIds).gte('scheduled_datetime', todayStart).lte('scheduled_datetime', todayEnd),
+            supabase.from('freelancer_tasks').select('*').in('assigned_to', employeeIds).gte('scheduled_datetime', todayStart).lte('scheduled_datetime', todayEnd)
+        ]);
+
+        if (monthlyContentRes.error) throw monthlyContentRes.error;
+        if (monthlyFreelanceRes.error) throw monthlyFreelanceRes.error;
+        if (todayContentRes.error) throw todayContentRes.error;
+        if (todayFreelanceRes.error) throw todayFreelanceRes.error;
+
+        const monthlyTasks = [
+            ...(monthlyContentRes.data || []).map(t => ({ ...t, is_freelancer: false })),
+            ...(monthlyFreelanceRes.data || []).map(t => ({ ...t, is_freelancer: true }))
+        ];
+
+        const todayTasks = [
+            ...(todayContentRes.data || []).map(t => ({ ...t, is_freelancer: false })),
+            ...(todayFreelanceRes.data || []).map(t => ({ ...t, is_freelancer: true }))
+        ];
+
+        const isTaskCompleted = (t) => {
+            return (t.employee_task_status || '').toUpperCase() === 'COMPLETED' || 
+                   ['POSTED', 'WAITING FOR POSTING', 'COMPLETED', 'SCHEDULED'].includes((t.status || '').toUpperCase());
         };
-        res.json(stats);
+
+        const isTaskPending = (t) => !isTaskCompleted(t);
+
+        // Calculations
+        const completedTasksCount = monthlyTasks.filter(isTaskCompleted).length;
+        const pendingTasksCount = monthlyTasks.filter(isTaskPending).length;
+        const assignmentCount = monthlyTasks.length;
+
+        const tasksAssignedToday = todayTasks.length;
+        const tasksCompletedToday = todayTasks.filter(isTaskCompleted).length;
+
+        // Overdue tasks: scheduled before today and pending
+        const overdueTasksCount = monthlyTasks.filter(t => {
+            if (!isTaskPending(t)) return false;
+            const sched = new Date(t.scheduled_datetime);
+            return !isNaN(sched.getTime()) && sched < now;
+        }).length;
+
+        // Employee Productivity & Workload details
+        const employeeProductivity = [];
+        const workloadDistribution = {};
+        let topPerformer = 'None';
+        let topCompletedCount = -1;
+        let leastUtilized = 'None';
+        let leastAssignedCount = Infinity;
+
+        employees.forEach(emp => {
+            const empTasks = monthlyTasks.filter(t => t.assigned_to === emp.user_id);
+            const empCompleted = empTasks.filter(isTaskCompleted).length;
+            const empTotal = empTasks.length;
+            const rate = empTotal > 0 ? (empCompleted / empTotal) : 0;
+
+            employeeProductivity.push({
+                employeeId: emp.user_id,
+                name: emp.name,
+                role: emp.role_identifier || emp.role,
+                assignedTasks: empTotal,
+                completedTasks: empCompleted,
+                completionRate: rate
+            });
+
+            workloadDistribution[emp.name] = empTotal;
+
+            if (empCompleted > topCompletedCount) {
+                topCompletedCount = empCompleted;
+                topPerformer = emp.name;
+            }
+
+            if (empTotal < leastAssignedCount) {
+                leastAssignedCount = empTotal;
+                leastUtilized = emp.name;
+            }
+        });
+
+        // Fallback for top performer / least utilized if no tasks exist
+        if (monthlyTasks.length === 0) {
+            topPerformer = 'None';
+            leastUtilized = employees[0]?.name || 'None';
+        }
+
+        const statsData = {
+            employeeProductivity,
+            pendingTasks: pendingTasksCount,
+            completedTasks: completedTasksCount,
+            assignmentCount,
+            tasksAssignedToday,
+            tasksCompletedToday,
+            overdueTasks: overdueTasksCount,
+            workloadDistribution,
+            topPerformer,
+            leastUtilized,
+            reelsCount: monthlyTasks.filter(t => t.content_type === 'Reel').length,
+            postsCount: monthlyTasks.filter(t => t.content_type === 'Post').length,
+            youtubeCount: monthlyTasks.filter(t => t.content_type === 'YouTube').length
+        };
+
+        if (cacheKey) {
+            await RedisService.set(cacheKey, statsData, 300); // 5 mins TTL
+        }
+
+        res.json(statsData);
     } catch (err) {
+        console.error('[PH Stats] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -2161,31 +2687,21 @@ app.get('/api/ph/calendar', requireRoles(PH_ROLES), async (req, res) => {
     if (!client_id || !month) return res.status(400).json({ error: 'Missing client_id or month' });
 
     try {
-        const [year, mon] = String(month).split('-');
-        const startDate = `${year}-${mon}-01T00:00:00`;
-        const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
-        const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        const data = await fetchClientCalendarData(client_id, month);
 
-        let query = supabase
-            .from('content_items')
-            .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
-            .eq('client_id', client_id)
-            .gte('scheduled_datetime', startDate)
-            .lte('scheduled_datetime', endDate);
-
+        let filteredData = data;
         if (view_all === 'true') {
-            // No status filter — all tasks for the client (same as GM client calendar)
+            // No status filter — all tasks for the client
         } else if (all === 'true') {
-            query = query.in('status', ['WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']);
+            const allowedStatuses = ['WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+            filteredData = filteredData.filter(item => allowedStatuses.includes(item.status));
         } else if (status) {
-            query = query.eq('status', status);
+            filteredData = filteredData.filter(item => item.status === status);
         } else {
-            query = query.eq('status', 'CONTENT APPROVED');
+            filteredData = filteredData.filter(item => item.status === 'CONTENT APPROVED');
         }
 
-        const { data, error } = await query.order('scheduled_datetime');
-        if (error) return res.status(500).json({ error: error.message });
-        res.json(data);
+        res.json(filteredData);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -2320,12 +2836,13 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
             updatePayload.employee_task_status = 'PENDING';
         }
 
-        const { error: updateError } = await supabase
+        const { data: updatedData, error: updateError } = await supabase
             .from(table)
             .update(updatePayload)
-            .eq('id', id);
+            .eq('id', id)
+            .select();
 
-        if (updateError) {
+        if (updateError || !updatedData || updatedData.length === 0) {
             console.error('[PH StatusUpdate] Update error:', updateError);
             return res.status(500).json({ error: 'Failed to update status' });
         }
@@ -2340,6 +2857,8 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
         }]);
 
         if (logError) console.warn('[PH StatusUpdate] Log error:', logError.message);
+
+        await invalidateContentCaches(updatedData[0], item);
 
         res.json({ message: 'Success', status: finalStatus });
     } catch (err) {
@@ -2365,14 +2884,16 @@ app.post('/api/ph/content/:id/undo', requireRoles(PH_ROLES), async (req, res) =>
 
         if (logFetchError || !latestLog) return res.status(404).json({ error: 'No history found' });
 
-        const { error: revertError } = await supabase
+        const { data: updatedData, error: revertError } = await supabase
             .from(table)
             .update({ status: latestLog.old_status, updated_at: new Date().toISOString() })
-            .eq('id', id);
+            .eq('id', id)
+            .select();
 
-        if (revertError) return res.status(500).json({ error: 'Failed to revert status' });
+        if (revertError || !updatedData || updatedData.length === 0) return res.status(500).json({ error: 'Failed to revert status' });
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+        await invalidateContentCaches(updatedData[0], item);
         res.json({ message: 'Success', status: latestLog.old_status });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -2401,6 +2922,16 @@ app.patch('/api/ph/content/:id/assign', requireRoles(PH_ROLES), async (req, res)
     console.log(`[PH Assign] Request for content ${id}, assign to ${assigned_to}`);
 
     try {
+        const { data: item, error: fetchError } = await supabase
+            .from('content_items')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !item) {
+            return res.status(404).json({ error: 'Content item not found' });
+        }
+
         const { data, error } = await supabase
             .from('content_items')
             .update({
@@ -2422,6 +2953,7 @@ app.patch('/api/ph/content/:id/assign', requireRoles(PH_ROLES), async (req, res)
         }
 
         console.log(`[PH Assign] Successfully assigned ${id} to ${assigned_to}`);
+        await invalidateContentCaches(data[0], item);
         res.json(data[0]);
     } catch (err) {
         console.error('[PH Assign] Exception:', err);
@@ -2522,6 +3054,7 @@ app.patch('/api/ph/clients/:id/assign-employee', requireRoles(PH_ROLES), async (
         }
 
         myCache.del(["gm_clients", "admin_clients", "ph_clients"]);
+        await invalidateClientCaches(id, [employee_id, unassign_id]);
         res.json(data[0]);
     } catch (err) {
         console.error('[PH ClientAssign] Exception:', err);
@@ -2646,6 +3179,7 @@ app.patch('/api/content-head/clients/:id/assign-writer', requireRoles(CONTENT_HE
         }
 
         myCache.del(["gm_clients", "admin_clients", "ph_clients"]);
+        await invalidateClientCaches(id, [employee_id, unassign_id]);
         res.json(data[0]);
     } catch (err) {
         console.error('[Content Head ClientAssign] Exception:', err);
@@ -2736,7 +3270,16 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
     const userId = req.user.id;
     const { month } = req.query;
 
+    const cacheKey = !month ? `dashboard:employee:${userId}:pending` : null;
+
     try {
+        if (cacheKey) {
+            const cached = await RedisService.get(cacheKey);
+            if (cached !== null && cached !== undefined) {
+                return res.json(cached);
+            }
+        }
+
         let startDate, endDate;
         if (month) {
             const [year, mon] = String(month).split('-');
@@ -2841,6 +3384,9 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
         // Final Sort
         combined.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
 
+        if (cacheKey) {
+            await RedisService.set(cacheKey, combined, 300); // 5 minutes TTL
+        }
         res.json(combined);
     } catch (err) {
         console.error('[EmployeeTasks] Combined Fetch Error:', err.message);
@@ -2881,6 +3427,7 @@ app.patch('/api/employee/tasks/:id/status', requireRoles(EMPLOYEE_ROLES), async 
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
+        await invalidateContentCaches(data[0], item);
         res.json(data[0]);
     } catch (err) {
         console.error('[EmployeeTasks] Status Update Error:', err.message);
@@ -2937,24 +3484,13 @@ app.get('/api/tl/calendar', requireRoles(TL_ROLES), async (req, res) => {
         }
     }
 
-    const [year, mon] = String(month).split('-');
-    const startDate = `${year}-${mon}-01T00:00:00`;
-    const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
-    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
-
-    const { data, error } = await supabase
-        .from('content_items')
-        .select('*')
-        .eq('client_id', client_id)
-        .gte('scheduled_datetime', startDate)
-        .lte('scheduled_datetime', endDate)
-        .order('scheduled_datetime');
-
-    if (error) {
-        console.error('[TL Calendar] DB Error:', error.message);
+    try {
+        const data = await fetchClientCalendarData(client_id, month);
+        res.json(data);
+    } catch (error) {
+        console.error('[TL Calendar] Error:', error.message);
         return res.status(500).json({ error: error.message });
     }
-    res.json(data);
 });
 
 // ─── Team Lead: Content Management ───
@@ -3349,31 +3885,23 @@ app.get('/api/posting/calendar', requireRoles(POSTING_ROLES), async (req, res) =
     const { client_id, month, status, all } = req.query;
     if (!client_id || !month) return res.status(400).json({ error: 'Missing client_id or month' });
 
-    const [year, mon] = String(month).split('-');
-    const startDate = `${year}-${mon}-01T00:00:00`;
-    const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
-    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+    try {
+        const data = await fetchClientCalendarData(client_id, month);
 
-    let query = supabase
-        .from('content_items')
-        .select(`*, clients (company_name, team_lead:team_lead_id (name))`)
-        .eq('client_id', client_id)
-        .gte('scheduled_datetime', startDate)
-        .lte('scheduled_datetime', endDate);
+        let filteredData = data;
+        // Strictly filter by status unless 'all' is explicitly requested
+        if (all === 'true') {
+            // No status filter
+        } else if (status) {
+            filteredData = filteredData.filter(item => item.status === status);
+        } else {
+            filteredData = filteredData.filter(item => item.status === 'WAITING FOR POSTING');
+        }
 
-    // Strictly filter by status unless 'all' is explicitly requested
-    if (all === 'true') {
-        // No status filter
-    } else if (status) {
-        query = query.eq('status', status);
-    } else {
-        query = query.eq('status', 'WAITING FOR POSTING');
+        res.json(filteredData);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    const { data, error } = await query.order('scheduled_datetime');
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
 });
 
 // Posting Team: Master Calendar (filtered to WAITING FOR POSTING only)
@@ -3445,13 +3973,14 @@ app.patch('/api/posting/content/:id/status', requireRoles(POSTING_ROLES), async 
     const { id } = req.params;
     const { new_status, note, changed_by } = req.body;
     try {
-        const { data: item, error: fetchError } = await supabase.from('content_items').select('status, content_type').eq('id', id).single();
+        const { data: item, error: fetchError } = await supabase.from('content_items').select('*').eq('id', id).single();
         if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
 
-        const { error: updateError } = await supabase.from('content_items').update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id);
-        if (updateError) return res.status(500).json({ error: 'Failed to update status' });
+        const { data: updatedData, error: updateError } = await supabase.from('content_items').update({ status: new_status, updated_at: new Date().toISOString() }).eq('id', id).select();
+        if (updateError || !updatedData || updatedData.length === 0) return res.status(500).json({ error: 'Failed to update status' });
 
         await supabase.from('status_logs').insert([{ item_id: id, old_status: item.status, new_status: new_status, note: note || null, changed_by: changed_by || req.user.id }]);
+        await invalidateContentCaches(updatedData[0], item);
         res.json({ message: 'Status updated successfully' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3465,7 +3994,7 @@ app.patch('/api/posting/content/:id/post', requireRoles(POSTING_ROLES), async (r
         // Fetch current item
         const { data: item, error: fetchError } = await supabase
             .from('content_items')
-            .select('status, content_type')
+            .select('*')
             .eq('id', id)
             .single();
 
@@ -3481,15 +4010,16 @@ app.patch('/api/posting/content/:id/post', requireRoles(POSTING_ROLES), async (r
         }
 
         // Update status to POSTED with timestamp
-        const { error: updateError } = await supabase
+        const { data: updatedData, error: updateError } = await supabase
             .from('content_items')
             .update({
                 status: 'POSTED',
                 updated_at: new Date().toISOString()
             })
-            .eq('id', id);
+            .eq('id', id)
+            .select();
 
-        if (updateError) {
+        if (updateError || !updatedData || updatedData.length === 0) {
             return res.status(500).json({ error: 'Failed to update status' });
         }
 
@@ -3506,6 +4036,8 @@ app.patch('/api/posting/content/:id/post', requireRoles(POSTING_ROLES), async (r
             console.error('[PostingTeam] Log error:', logError);
         }
 
+        await invalidateContentCaches(updatedData[0], item);
+
         res.json({ message: 'Content marked as POSTED successfully' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -3516,6 +4048,9 @@ app.patch('/api/posting/content/:id/post', requireRoles(POSTING_ROLES), async (r
 app.post('/api/posting/content/:id/undo', requireRoles(POSTING_ROLES), async (req, res) => {
     const { id } = req.params;
     try {
+        const { data: item, error: fetchError } = await supabase.from('content_items').select('*').eq('id', id).single();
+        if (fetchError || !item) return res.status(404).json({ error: 'Item not found' });
+
         const { data: latestLog, error: logFetchError } = await supabase
             .from('status_logs')
             .select('*')
@@ -3527,14 +4062,16 @@ app.post('/api/posting/content/:id/undo', requireRoles(POSTING_ROLES), async (re
 
         if (logFetchError || !latestLog) return res.status(404).json({ error: 'No recent posting history found' });
 
-        const { error: revertError } = await supabase
+        const { data: updatedData, error: revertError } = await supabase
             .from('content_items')
             .update({ status: 'WAITING FOR POSTING', updated_at: new Date().toISOString() })
-            .eq('id', id);
+            .eq('id', id)
+            .select();
 
-        if (revertError) return res.status(500).json({ error: 'Failed to revert status' });
+        if (revertError || !updatedData || updatedData.length === 0) return res.status(500).json({ error: 'Failed to revert status' });
 
         await supabase.from('status_logs').delete().eq('log_id', latestLog.log_id);
+        await invalidateContentCaches(updatedData[0], item);
         res.json({ message: 'Success', status: 'WAITING FOR POSTING' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -3771,11 +4308,11 @@ app.post('/api/emergency/:id/toggle', async (req, res) => {
         // Get current state
         const { data: item, error: fetchErr } = await supabase
             .from('content_items')
-            .select('is_emergency')
+            .select('*')
             .eq('id', id)
             .single();
 
-        if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+        if (fetchErr || !item) return res.status(500).json({ error: fetchErr?.message || 'Item not found' });
 
         const newState = !item.is_emergency;
         const updateData = {
@@ -3784,12 +4321,14 @@ app.post('/api/emergency/:id/toggle', async (req, res) => {
             emergency_marked_at: newState ? new Date().toISOString() : null
         };
 
-        const { error } = await supabase
+        const { data: updatedData, error } = await supabase
             .from('content_items')
             .update(updateData)
-            .eq('id', id);
+            .eq('id', id)
+            .select();
 
         if (error) return res.status(500).json({ error: error.message });
+        await invalidateContentCaches(updatedData[0], item);
         res.json({ success: true, is_emergency: newState });
     } catch (err) {
         console.error('Emergency toggle error:', err);
@@ -3842,6 +4381,20 @@ app.get('/api/dashboard/pending-important', authenticateUser, async (req, res) =
     try {
         const resolvedRole = await getRequesterRole(req.user);
         const userId = req.user.id;
+
+        let cacheKey = null;
+        if (resolvedRole === 'GENERAL MANAGER' || resolvedRole === 'GM') {
+            cacheKey = 'dashboard:gm:pending';
+        } else if (resolvedRole === 'PRODUCTION HEAD') {
+            cacheKey = 'dashboard:production_head:pending';
+        }
+
+        if (cacheKey) {
+            const cached = await RedisService.get(cacheKey);
+            if (cached !== null && cached !== undefined) {
+                return res.json(cached);
+            }
+        }
         
         const now = new Date();
         const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
@@ -3873,6 +4426,10 @@ app.get('/api/dashboard/pending-important', authenticateUser, async (req, res) =
 
         const { data, error } = await query.order('scheduled_datetime', { ascending: false });
         if (error) throw error;
+
+        if (cacheKey) {
+            await RedisService.set(cacheKey, data, 300); // 5 minutes TTL
+        }
         res.json(data);
     } catch (err) {
         console.error('[Pending Important API] Error:', err);
@@ -4123,6 +4680,7 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
 
         myCache.del("admin_clients");
         myCache.del("gm_clients");
+        await invalidateClientCaches();
 
         res.json({ message: 'Client onboarded successfully', client_email: request.email });
 

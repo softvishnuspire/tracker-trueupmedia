@@ -1,6 +1,37 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-06-08 (Client Calendar Redirection & Browser Back Support)
+## Latest Changes — 2026-06-08 (Optimistic UI & Double Loading Skeletons Refactoring)
+- **Goal**: Implement optimistic UI updates with rollbacks, loading skeletons on first load, refreshing indicators/background revalidation, Mobile-Desktop responsive glassmorphism toast placement, and compilation/prerendering error fixes across calendars and dashboards.
+- **Affected Files**:
+    - `frontend/src/app/admin/client-calendar/[id]/page.tsx`
+    - `frontend/src/app/coo/client-calendar/[id]/page.tsx`
+    - `frontend/src/app/ph/dashboard/page.tsx`
+    - `frontend/src/app/posting/dashboard/page.tsx`
+- **System Impact**: Resolves client-calendar syntax issues by restoring missing closing `</div>` tags on calendar cards/grids. Adds missing `Loader2` imports from `'lucide-react'` in `ph/dashboard/page.tsx` to prevent ReferenceErrors. Cleans up deprecated local toast components in `posting/dashboard/page.tsx` in favor of centralized responsive, glassmorphic toast notification wrappers. Restores complete frontend compilation under Next.js production build (`npm run build`).
+
+## Previous Changes — 2026-06-08 (GM Calendar Content Item Background Color Fix)
+- **Goal**: Resolve the transparent background color issue for calendar content items (specifically YouTube and Pending tasks) in the General Manager (GM) panel client and master calendars.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/gm.css`
+- **System Impact**: Defines high-contrast CSS rules for `.content-item.youtube` and `.content-item.pending` in `gm.css`, restoring the visual theme for these task types on the GM calendar views so they do not render with transparent backgrounds.
+
+## Previous Changes — 2026-06-08 (URL Sync Loop & Auth Concurrent Lock Theft Fix)
+- **Goal**: Resolve the React "Maximum update depth exceeded" and Supabase "Lock was released because another request stole it" runtime errors across role-based dashboards by decoupling the URL search parameters synchronization and the client auth check logic.
+- **Affected Files**:
+    - `frontend/src/app/gm/dashboard/page.tsx`
+    - `frontend/src/app/ph/dashboard/page.tsx`
+    - `frontend/src/app/posting/dashboard/page.tsx`
+    - `frontend/src/app/tl/dashboard/page.tsx`
+    - `frontend/src/app/content-head/dashboard/page.tsx`
+- **System Impact**: Resolves infinite React state update loop errors during browser history synchronization by introducing a React useRef `latestState` to store the active dashboard parameters (`view`, `selectedClient`, `activeItemId`, `isDetailsOpen`). Decouples the popstate event listener dependency array, checking parameters safely without triggers. Also decouples Supabase auth (`auth.getUser()`) calls from component dependency loops to execute exactly once upon page initialization or component mount. This stops the simultaneous lock-theft and abort errors from competing calls to Supabase.
+
+## Previous Changes — 2026-06-08 (Upstash Redis Caching Implementation)
+- **Goal**: Implement high-performance Redis caching using Upstash Redis to reduce PostgreSQL database load, improve API response times, and prevent repeated execution of expensive queries for client calendars, master calendar, pending tasks, and dashboard analytics.
+- **Affected Files**:
+    - `backend/index.js`
+- **System Impact**: Integrates a lightweight, native REST client wrapper for Upstash Redis with a 2-second timeout and 1-retry fallback. Automatically caches client calendars (`v1:client_calendar:{id}:{month}`) for 15 minutes, master calendars (`v1:master_calendar:{month}`) for 10 minutes, employee and manager pending dashboards (`v1:dashboard:...`) for 5 minutes, and operational stats/analytics (`v1:analytics:...`) for 5 minutes. Implements database mutation hooks (creates, edits, status updates, assignments, emergency toggles, and deletions) that automatically trigger cache invalidation for all affected cache keys, including employee pending task caches for both old and new assignees on task reassignments. Gracefully falls back to PostgreSQL with `[REDIS_WARNING]` logs if Redis is unreachable.
+
+## Previous Changes — 2026-06-08 (Client Calendar Redirection & Browser Back Support)
 - **Goal**: Make the client name clickable at the top of the task details modal across all role-based dashboards/calendars to redirect the user to that client's calendar view, and support browser "Back" navigation restoration.
 - **Affected Files**:
     - `frontend/src/app/globals.css`

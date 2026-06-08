@@ -27,16 +27,25 @@ import {
     ChevronDown,
     Check,
     CalendarClock,
-    Undo2
+    Undo2,
+    AlertTriangle,
+    ShieldAlert,
+    Loader2
 } from 'lucide-react';
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
-import { ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import { formatIST } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 
 export default function CooCompanyCalendar() {
+    const { startLoading, stopLoading } = usePageLoading();
+    const { success: toastSuccess, error: toastError } = useToast();
+    const performOptimisticAction = useOptimisticAction();
+
     const DISPLAY_OFFSET_DAYS = 7;
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
@@ -45,6 +54,8 @@ export default function CooCompanyCalendar() {
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [actionId, setActionId] = useState<string | null>(null);
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date; items: ContentItem[] } | null>(null);
@@ -64,8 +75,17 @@ export default function CooCompanyCalendar() {
         fetchClients();
     }, []);
 
-    const fetchMasterData = useCallback(async () => {
-        setLoading(true);
+    const fetchMasterData = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        } else {
+            setIsRefreshing(true);
+        }
         try {
             const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
             const responses = await Promise.all(
@@ -82,13 +102,17 @@ export default function CooCompanyCalendar() {
             setCalendarData(dedupedById);
         } catch (err) {
             console.error(err);
+            toastError('Failed to refresh calendar data.');
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [currentMonth, selectedClient, selectedType]);
+    }, [currentMonth, selectedClient, selectedType, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
-        fetchMasterData();
+        const isSilent = calendarData.length > 0;
+        fetchMasterData(isSilent);
     }, [fetchMasterData]);
 
     useEffect(() => {
@@ -180,26 +204,84 @@ export default function CooCompanyCalendar() {
 
     const handleStatusUpdate = async (newStatus: string) => {
         if (!selectedItem) return;
+        const targetId = selectedItem.item.id;
+        setActionId(`status-${targetId}`);
+        const currentNote = statusNote;
         try {
-            await cooApi.updateStatus(selectedItem.item.id, newStatus, statusNote.trim() || undefined);
-            const res = await cooApi.getContentDetails(selectedItem.item.id);
-            setSelectedItem(res.data);
-            setStatusNote('');
-            fetchMasterData();
-        } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to update status');
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    const updatedItem = { ...selectedItem.item, status: newStatus };
+                    setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                    setStatusNote('');
+                },
+                action: () => cooApi.updateStatus(targetId, newStatus, currentNote.trim() || undefined),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                    setStatusNote(currentNote);
+                },
+                successMessage: `Advanced to ${newStatus}.`,
+                errorMessage: 'Failed to update status.',
+                refresh: () => {
+                    fetchMasterData(true);
+                    cooApi.getContentDetails(targetId).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
         }
     };
 
     const handleUndoStatus = async () => {
         if (!selectedItem) return;
         if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        const targetId = selectedItem.item.id;
+        setActionId(`undo-${targetId}`);
         try {
-            await cooApi.undoStatus(selectedItem.item.id);
-            const res = await cooApi.getContentDetails(selectedItem.item.id);
-            setSelectedItem(res.data);
-            fetchMasterData();
-        } catch (err) { alert('Failed to undo status change'); }
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    let revertedStatus = 'WAITING FOR APPROVAL';
+                    if (selectedItem.history && selectedItem.history.length > 1) {
+                        revertedStatus = selectedItem.history[1].status;
+                    }
+                    const updatedItem = { ...selectedItem.item, status: revertedStatus };
+                    setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                },
+                action: () => cooApi.undoStatus(targetId),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: 'Status change undone.',
+                errorMessage: 'Failed to undo status change.',
+                refresh: () => {
+                    fetchMasterData(true);
+                    cooApi.getContentDetails(targetId).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
     };
 
     const monthStatusCounts = calendarData.reduce(
@@ -297,6 +379,12 @@ export default function CooCompanyCalendar() {
                         <button onClick={handleNext} className="month-btn">
                             <ChevronRight size={20} />
                         </button>
+                        {isRefreshing && (
+                            <div className="refreshing-banner" style={{ marginLeft: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                <Loader2 size={12} className="spinner-btn-icon" />
+                                <span>Refreshing...</span>
+                            </div>
+                        )}
                     </div>
 
                     <ScheduleExport
@@ -365,7 +453,7 @@ export default function CooCompanyCalendar() {
                         </div>
                     ))}
 
-                    {loading ? (
+                    {loading && calendarData.length === 0 ? (
                         <>
                             {Array.from({ length: 35 }).map((_, idx) => (
                                 <div key={idx} className="calendar-day opacity-50" style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}>
@@ -612,10 +700,20 @@ export default function CooCompanyCalendar() {
                                             />
                                             <button
                                                 onClick={() => handleStatusUpdate(nextStatus)}
+                                                disabled={actionId !== null}
                                                 style={{ width: '100%', padding: '12px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
                                             >
-                                                Advance to {nextStatus}
-                                                <ChevronRight size={18} />
+                                                {actionId === `status-${selectedItem.item.id}` ? (
+                                                    <>
+                                                        Advancing...
+                                                        <Loader2 size={16} className="spinner-btn-icon" />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        Advance to {nextStatus}
+                                                        <ChevronRight size={18} />
+                                                    </>
+                                                )}
                                             </button>
                                         </div>
                                     );
@@ -623,8 +721,17 @@ export default function CooCompanyCalendar() {
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                     <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
-                                    <button onClick={handleUndoStatus} className="btn-undo" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px' }}>
-                                        <Undo2 size={14} />
+                                    <button 
+                                        onClick={handleUndoStatus} 
+                                        disabled={actionId !== null}
+                                        className="btn-undo" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px' }}
+                                    >
+                                        {actionId === `undo-${selectedItem.item.id}` ? (
+                                            <Loader2 size={14} className="spinner-btn-icon" />
+                                        ) : (
+                                            <Undo2 size={14} />
+                                        )}
                                         Undo Last Action
                                     </button>
                                 </div>

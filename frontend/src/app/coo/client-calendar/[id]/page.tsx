@@ -26,16 +26,23 @@ import {
     Calendar as CalendarIcon,
     ArrowLeft,
     Check,
-    CalendarClock
+    CalendarClock,
+    ShieldAlert,
+    Loader2
 } from 'lucide-react';
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
-import { ShieldAlert } from 'lucide-react';
 import { formatIST } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
-
-
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CooClientCalendarPage() {
+    const { startLoading, stopLoading } = usePageLoading();
+    const { success: toastSuccess, error: toastError } = useToast();
+    const performOptimisticAction = useOptimisticAction();
+
     const params = useParams();
     const router = useRouter();
     const clientId = params.id as string;
@@ -45,6 +52,8 @@ export default function CooClientCalendarPage() {
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [actionId, setActionId] = useState<string | null>(null);
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date; items: ContentItem[] } | null>(null);
@@ -59,8 +68,17 @@ export default function CooClientCalendarPage() {
         }
     }, [clientId]);
 
-    const fetchCalendarData = useCallback(async () => {
-        setLoading(true);
+    const fetchCalendarData = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        } else {
+            setIsRefreshing(true);
+        }
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await cooApi.getMasterCalendar(currentMonthStr, clientId);
@@ -74,15 +92,22 @@ export default function CooClientCalendarPage() {
             }
         } catch (err) {
             console.error(err);
+            toastError('Failed to refresh calendar data.');
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [currentMonth, clientId, client?.batch_type]);
+    }, [currentMonth, clientId, client?.batch_type, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
         fetchClientInfo();
-        fetchCalendarData();
-    }, [fetchClientInfo, fetchCalendarData]);
+    }, [fetchClientInfo]);
+
+    useEffect(() => {
+        const isSilent = calendarData.length > 0;
+        fetchCalendarData(isSilent);
+    }, [fetchCalendarData]);
 
     const isBiMonthly = (client?.batch_type || '1-1') === '15-15';
 
@@ -174,24 +199,39 @@ export default function CooClientCalendarPage() {
 
     const handleToggleEmergency = async () => {
         if (!selectedItem) return;
+        const targetId = selectedItem.item.id;
+        const nextEmergency = !selectedItem.item.is_emergency;
+        setActionId(`toggle-emergency-${targetId}`);
         try {
-            const res: any = await emergencyApi.toggle(selectedItem.item.id);
-            if (res.data.success) {
-                setSelectedItem({
-                    ...selectedItem,
-                    item: {
-                        ...selectedItem.item,
-                        is_emergency: res.data.is_emergency
-                    }
-                });
-                setCalendarData((prev) => prev.map((item) =>
-                    item.id === selectedItem.item.id
-                        ? { ...item, is_emergency: res.data.is_emergency }
-                        : item
-                ));
-            }
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    const updatedItem = { ...selectedItem.item, is_emergency: nextEmergency };
+                    setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                },
+                action: () => emergencyApi.toggle(targetId),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: nextEmergency ? 'Emergency flag enabled.' : 'Emergency flag disabled.',
+                errorMessage: 'Failed to toggle emergency flag.',
+                refresh: () => {
+                    fetchCalendarData(true);
+                    cooApi.getContentDetails(targetId).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
         } catch (err) {
-            console.error('Error toggling emergency:', err);
+            console.error(err);
+        } finally {
+            setActionId(null);
         }
     };
 
@@ -264,6 +304,12 @@ export default function CooClientCalendarPage() {
                             <button onClick={handleNext} className="month-btn">
                                 <ChevronRight size={20} />
                             </button>
+                            {isRefreshing && (
+                                <div className="refreshing-banner" style={{ marginLeft: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                    <Loader2 size={12} className="spinner-btn-icon" />
+                                    <span>Refreshing...</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -320,8 +366,6 @@ export default function CooClientCalendarPage() {
                 </div>
             </div>
 
-            {loading && <div className="loading-bar">Updating calendar...</div>}
-
             <div className="calendar-card">
                 <div className="calendar-grid" style={{ gridTemplateRows: viewMode === 'week' ? 'auto 1fr' : 'repeat(6, 1fr)' }}>
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
@@ -331,59 +375,73 @@ export default function CooClientCalendarPage() {
                         </div>
                     ))}
 
-                    {days.map((day, idx) => {
-                        const isOutOfPeriod = !isDayInPeriod(day);
-                        const dayContent = isOutOfPeriod
-                            ? []
-                            : calendarData.filter((item) => {
-                                const itemDate = parseISO(item.scheduled_datetime);
-                                return isSameDay(itemDate, day);
-                             });
-
-                        return (
-                            <div
-                                key={idx}
-                                onClick={() => {
-                                    if (dayContent.length > 0) {
-                                        if (window.innerWidth <= 768) {
-                                            setDailyAgenda({ date: day, items: dayContent });
-                                        } else {
-                                            handleItemClick(dayContent[0]);
-                                        }
-                                    }
-                                }}
-                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (dayContent.length > 0 && !isOutOfPeriod) ? 'pointer' : 'default' }}
-                            >
-                                <span className="day-number">{format(day, 'd')}</span>
-                                <div className="day-items desktop-only">
-                                     {dayContent.map((item) => (
-                                         <div
-                                             key={item.id}
-                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                             className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                         >
-                                             {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                             <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                                 {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
-                                                 {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-                                             </span>
-                                         </div>
-                                     ))}
-                                 </div>
-                                 <div className="mobile-day-indicators">
-                                     {dayContent.map((item) => (
-                                         <div
-                                             key={item.id}
-                                             className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
-                                         >
-                                             {item.content_type.substring(0, 4).toUpperCase()}
-                                         </div>
-                                     ))}
+                    {loading && calendarData.length === 0 ? (
+                        <>
+                            {Array.from({ length: 35 }).map((_, idx) => (
+                                <div key={idx} className="calendar-day opacity-50" style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}>
+                                    <Skeleton className="h-4 w-4 mb-2" style={{ height: '16px', width: '16px', marginBottom: '8px', background: 'rgba(255, 255, 255, 0.05)' }} />
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <Skeleton className="h-4 w-full rounded" style={{ height: '16px', width: '100%', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }} />
+                                        <Skeleton className="h-4 w-3/4 rounded" style={{ height: '16px', width: '75%', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }} />
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            ))}
+                        </>
+                    ) : (
+                        days.map((day, idx) => {
+                            const isOutOfPeriod = !isDayInPeriod(day);
+                            const dayContent = isOutOfPeriod
+                                ? []
+                                : calendarData.filter((item) => {
+                                    const itemDate = parseISO(item.scheduled_datetime);
+                                    return isSameDay(itemDate, day);
+                                 });
+
+                            return (
+                                <div
+                                    key={idx}
+                                    onClick={() => {
+                                        if (dayContent.length > 0) {
+                                            if (window.innerWidth <= 768) {
+                                                setDailyAgenda({ date: day, items: dayContent });
+                                            } else {
+                                                handleItemClick(dayContent[0]);
+                                            }
+                                        }
+                                    }}
+                                    className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                    style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (dayContent.length > 0 && !isOutOfPeriod) ? 'pointer' : 'default' }}
+                                >
+                                    <span className="day-number">{format(day, 'd')}</span>
+                                    <div className="day-items desktop-only">
+                                         {dayContent.map((item) => (
+                                             <div
+                                                 key={item.id}
+                                                 onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
+                                                 className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                             >
+                                                 {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                 <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                                     {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                     {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                                 </span>
+                                             </div>
+                                         ))}
+                                     </div>
+                                     <div className="mobile-day-indicators">
+                                         {dayContent.map((item) => (
+                                             <div
+                                                 key={item.id}
+                                                 className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                             >
+                                                 {item.content_type.substring(0, 4).toUpperCase()}
+                                             </div>
+                                         ))}
+                                    </div>
+                                 </div>
+                            );
+                        })
+                    )}
                 </div>
             </div>
 
@@ -562,6 +620,7 @@ export default function CooClientCalendarPage() {
                                     </div>
                                     <button
                                         onClick={handleToggleEmergency}
+                                        disabled={actionId !== null}
                                         style={{
                                             width: '44px',
                                             height: '24px',
@@ -581,8 +640,15 @@ export default function CooClientCalendarPage() {
                                             position: 'absolute',
                                             top: '2px',
                                             left: selectedItem.item.is_emergency ? '22px' : '2px',
-                                            transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
-                                        }}></div>
+                                            transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            {actionId === `toggle-emergency-${selectedItem.item.id}` && (
+                                                <Loader2 size={10} className="spinner-btn-icon" style={{ color: selectedItem.item.is_emergency ? '#ef4444' : 'var(--text-primary)' }} />
+                                            )}
+                                        </div>
                                     </button>
                                 </div>
 

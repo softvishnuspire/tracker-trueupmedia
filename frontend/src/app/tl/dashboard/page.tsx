@@ -40,7 +40,8 @@ import {
     Menu,
     CalendarClock,
     Undo2,
-    Filter
+    Filter,
+    Loader2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { tlApi, gmApi, emergencyApi, dashboardApi, ContentItem, PocNote, StatusHistoryItem, settingsApi } from '@/lib/api';
@@ -49,6 +50,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
 
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
@@ -87,6 +90,15 @@ export default function TLDashboard() {
     const [isPocEditing, setIsPocEditing] = useState(false);
     const [pocEditNoteText, setPocEditNoteText] = useState('');
     const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
+    
+    const { success: toastSuccess, error: toastError } = useToast();
+    const { startLoading, stopLoading } = usePageLoading();
+    
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isSavingPoc, setIsSavingPoc] = useState(false);
+    const [isUpdatingPoc, setIsUpdatingPoc] = useState(false);
+    const [isDeletingPoc, setIsDeletingPoc] = useState(false);
+    const [updatingId, setUpdatingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (calendarData.length > 0) {
@@ -143,9 +155,16 @@ export default function TLDashboard() {
         return client?.batch_type || '1-1';
     };
 
-    const fetchClientCalendar = useCallback(async () => {
+    const fetchClientCalendar = useCallback(async (isSilent = false) => {
         if (!user || !selectedClient || selectedClient === 'all') return;
-        setLoading(true);
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const client = clients.find(c => c.id === selectedClient);
             const is1515 = client?.batch_type === '15-15';
@@ -169,15 +188,25 @@ export default function TLDashboard() {
             setCalendarData(data);
         } catch (err) { 
             console.error('Error fetching calendar:', err);
+            toastError('Failed to refresh client calendar.');
         } finally { 
             setLoading(false); 
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [user, selectedClient, currentMonth, clients]);
+    }, [user, selectedClient, currentMonth, clients, calendarData.length]);
 
 
-    const fetchMasterCalendar = useCallback(async () => {
+    const fetchMasterCalendar = useCallback(async (isSilent = false) => {
         if (!user) return;
-        setLoading(true);
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const clientId = view === 'dashboard' ? undefined : (selectedClient === 'all' ? undefined : selectedClient);
             if (view === 'company') {
@@ -215,22 +244,39 @@ export default function TLDashboard() {
             
             setEmergencyTasks(emergencyRes.data || []);
             setPendingTasks(pendingRes.data || []);
-        } catch (err) { console.error(err); } finally { setLoading(false); }
-    }, [user, selectedClient, currentMonth, view]);
+        } catch (err) { 
+            console.error(err); 
+            toastError('Failed to refresh master calendar.');
+        } finally { 
+            setLoading(false); 
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [user, selectedClient, currentMonth, view, calendarData.length]);
 
-    const fetchPocNotes = useCallback(async () => {
+    const fetchPocNotes = useCallback(async (isSilent = false) => {
         if (!user) return;
-        setLoading(true);
+        if (!isSilent) {
+            startLoading();
+            if (pocNotes.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await tlApi.getPocNotes(currentMonthStr, user.id);
             setPocNotes(res.data || []);
         } catch (err) {
             console.error('Error fetching POC notes:', err);
+            toastError('Failed to refresh POC notes.');
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [user, currentMonth]);
+    }, [user, currentMonth, pocNotes.length]);
 
     useEffect(() => {
         if (user) {
@@ -259,6 +305,11 @@ export default function TLDashboard() {
         fetchSettings();
     }, []);
 
+    const latestState = React.useRef({ view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen });
+    useEffect(() => {
+        latestState.current = { view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen };
+    }, [view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+
     useEffect(() => {
         const syncStateFromUrl = () => {
             const params = new URLSearchParams(window.location.search);
@@ -266,14 +317,16 @@ export default function TLDashboard() {
             const clientIdParam = params.get('clientId') || 'all';
             const taskIdParam = params.get('taskId') || '';
 
-            if (viewParam !== view) {
+            const currentState = latestState.current;
+
+            if (viewParam !== currentState.view) {
                 setView(viewParam as any);
             }
-            if (clientIdParam !== selectedClient) {
+            if (clientIdParam !== currentState.selectedClient) {
                 setSelectedClient(clientIdParam);
             }
             if (taskIdParam) {
-                if (activeItem?.item?.id !== taskIdParam) {
+                if (currentState.activeItemId !== taskIdParam) {
                     const fetchAndOpen = async () => {
                         try {
                             const res = await gmApi.getContentDetails(taskIdParam);
@@ -284,11 +337,11 @@ export default function TLDashboard() {
                         }
                     };
                     fetchAndOpen();
-                } else if (!isDetailsOpen) {
+                } else if (!currentState.isDetailsOpen) {
                     setIsDetailsOpen(true);
                 }
             } else {
-                if (isDetailsOpen) {
+                if (currentState.isDetailsOpen) {
                     setIsDetailsOpen(false);
                 }
             }
@@ -302,7 +355,7 @@ export default function TLDashboard() {
         return () => {
             window.removeEventListener('popstate', syncStateFromUrl);
         };
-    }, [loading, view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+    }, [loading]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -338,8 +391,9 @@ export default function TLDashboard() {
         }
     }, [isDetailsOpen, view, selectedClient]);
 
+    // Dedicated Auth & Profile Check (Runs once on mount)
     useEffect(() => {
-        const init = async () => {
+        const checkUser = async () => {
             setLoading(true);
             try {
                 const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -365,15 +419,21 @@ export default function TLDashboard() {
 
                 setUser(authUser);
                 setProfile(profileData);
-                await fetchClients(authUser.id);
             } catch (err) {
                 console.error('Initialization error:', err);
             } finally {
                 setLoading(false);
             }
         };
-        init();
-    }, [fetchClients, supabase]);
+        checkUser();
+    }, [supabase]);
+
+    // Dedicated Client Fetch (Runs when user is available)
+    useEffect(() => {
+        if (user) {
+            fetchClients(user.id);
+        }
+    }, [user, fetchClients]);
 
     const handlePocDayClick = (date: Date) => {
         setSelectedPocDate(date);
@@ -384,6 +444,7 @@ export default function TLDashboard() {
     const handleSavePocNote = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !selectedPocDate || !selectedPocClient || !pocNoteText.trim()) return;
+        setIsSavingPoc(true);
         try {
             await tlApi.addPocNote({
                 tlId: user.id,
@@ -393,10 +454,13 @@ export default function TLDashboard() {
             });
             setIsPocModalOpen(false);
             setPocNoteText('');
-            await fetchPocNotes();
+            toastSuccess('POC note saved successfully!');
+            await fetchPocNotes(true);
         } catch (err) {
             console.error('Error saving POC note:', err);
-            alert('Failed to save note');
+            toastError('Failed to save POC note.');
+        } finally {
+            setIsSavingPoc(false);
         }
     };
 
@@ -410,6 +474,7 @@ export default function TLDashboard() {
     const handleUpdatePocNote = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedPocNote || !pocEditNoteText.trim()) return;
+        setIsUpdatingPoc(true);
         try {
             const actorId = user?.id || profile?.user_id;
             const res = await tlApi.updatePocNote(selectedPocNote.id, {
@@ -418,24 +483,31 @@ export default function TLDashboard() {
             });
             setIsPocEditing(false);
             setSelectedPocNote(res.data);
-            await fetchPocNotes();
+            toastSuccess('POC note updated successfully!');
+            await fetchPocNotes(true);
         } catch (err) {
             console.error('Error updating POC note:', err);
-            alert('Failed to update note');
+            toastError('Failed to update POC note.');
+        } finally {
+            setIsUpdatingPoc(false);
         }
     };
 
     const handleDeletePocNote = async () => {
         if (!selectedPocNote) return;
         if (!window.confirm('Are you sure you want to delete this POC note? This action cannot be undone.')) return;
+        setIsDeletingPoc(true);
         try {
             await tlApi.deletePocNote(selectedPocNote.id);
             setIsPocDetailsOpen(false);
             setSelectedPocNote(null);
-            await fetchPocNotes();
+            toastSuccess('POC note deleted successfully!');
+            await fetchPocNotes(true);
         } catch (err) {
             console.error('Error deleting POC note:', err);
-            alert('Failed to delete note');
+            toastError('Failed to delete POC note.');
+        } finally {
+            setIsDeletingPoc(false);
         }
     };
 
@@ -492,38 +564,80 @@ export default function TLDashboard() {
     };
 
     const handleStatusUpdate = async (newStatus: string) => {
+        if (!activeItem) return;
+        setUpdatingId(activeItem.item.id);
+
+        const previousActiveItem = { ...activeItem };
+        const previousCalendarData = [...calendarData];
+
+        // Optimistic UI updates
+        const updatedItem = { ...activeItem.item, status: newStatus };
+        setActiveItem({
+            ...activeItem,
+            item: updatedItem
+        });
+        setCalendarData((prev) => prev.map(item => 
+            item.id === activeItem.item.id ? updatedItem : item
+        ));
+
         try {
-            // Get the current authenticated user ID directly to ensure it's not null
             const { data: { user: authUser } } = await supabase.auth.getUser();
             const actorId = authUser?.id || profile?.user_id || user?.user_id;
-            
-            console.log('Updating status:', { newStatus, note: statusNote, actorId });
-            
-            if (!activeItem) return;
             await gmApi.updateStatus(activeItem.item.id, newStatus, statusNote.trim() || undefined, actorId);
-            
-            if (!activeItem) return;
-            const res = await gmApi.getContentDetails(activeItem.item.id);
+            toastSuccess(`Status updated to ${newStatus}`);
+            setStatusNote('');
 
-            setActiveItem(res.data);
-            if (isMasterMode) fetchMasterCalendar(); else fetchClientCalendar();
+            // Background refresh debounced
+            setTimeout(async () => {
+                try {
+                    const res = await gmApi.getContentDetails(activeItem.item.id);
+                    setActiveItem(res.data);
+                    if (isMasterMode) fetchMasterCalendar(true); else fetchClientCalendar(true);
+                } catch (err) {
+                    console.error('Background refresh failed:', err);
+                }
+            }, 500);
+
         } catch (err: any) {
             console.error('Status update error:', err);
-            alert(err.response?.data?.error || 'Failed to update status');
+            // Rollback
+            setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            toastError(err.response?.data?.error || 'Failed to update status');
+        } finally {
+            setUpdatingId(null);
         }
     };
 
     const handleUndoStatus = async () => {
         if (!activeItem) return;
-        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        setUpdatingId(activeItem.item.id);
+
+        const previousActiveItem = { ...activeItem };
+        const previousCalendarData = [...calendarData];
+
         try {
             await tlApi.undoStatus(activeItem.item.id);
-            const res = await gmApi.getContentDetails(activeItem.item.id);
-            setActiveItem(res.data);
-            if (isMasterMode) fetchMasterCalendar(); else fetchClientCalendar();
+            toastSuccess('Status change undone.');
+
+            // Background refresh debounced
+            setTimeout(async () => {
+                try {
+                    const res = await gmApi.getContentDetails(activeItem.item.id);
+                    setActiveItem(res.data);
+                    if (isMasterMode) fetchMasterCalendar(true); else fetchClientCalendar(true);
+                } catch (err) {
+                    console.error('Background refresh failed:', err);
+                }
+            }, 500);
+
         } catch (err) {
             console.error(err);
-            alert('Failed to undo status change. It might be because there is no more history to undo.');
+            setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            toastError('Failed to undo status change.');
+        } finally {
+            setUpdatingId(null);
         }
     };
 
@@ -934,6 +1048,12 @@ export default function TLDashboard() {
                                 {getPeriodLabel()}
                             </span>
                             <button onClick={handleNext} className="month-btn"><ChevronRight size={18}/></button>
+                            {isRefreshing && (
+                                <div className="refreshing-banner" style={{ marginLeft: '12px' }}>
+                                    <Loader2 size={12} className="spinner-btn-icon" />
+                                    <span>Refreshing...</span>
+                                </div>
+                            )}
                         </div>
                         {(view === 'client' || view === 'master' || view === 'company') && (
                             <ScheduleExport 
@@ -1292,7 +1412,7 @@ export default function TLDashboard() {
                                     </div>
                                 ))}
 
-                                {loading ? (
+                                {loading && calendarData.length === 0 ? (
                                     <>
                                         {Array.from({ length: 35 }).map((_, idx) => (
                                             <div key={idx} className="calendar-day opacity-50" style={{ minHeight: '110px' }}>
@@ -1627,15 +1747,26 @@ export default function TLDashboard() {
                                                                 onClick={() => handleStatusUpdate(nextStatus)}
                                                                 className="btn-add"
                                                                 style={{ flex: 1, justifyContent: 'center', padding: '12px' }}
+                                                                disabled={updatingId === activeItem.item.id}
                                                             >
-                                                                <span>Advance to {nextStatus}</span>
-                                                                <ArrowRight size={18}/>
+                                                                {updatingId === activeItem.item.id ? (
+                                                                    <>
+                                                                        <Loader2 size={16} className="spinner-btn-icon" />
+                                                                        <span>Updating...</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <span>Advance to {nextStatus}</span>
+                                                                        <ArrowRight size={18}/>
+                                                                    </>
+                                                                )}
                                                             </button>
                                                             <button 
                                                                 onClick={handleUndoStatus}
                                                                 className="btn-add"
                                                                 style={{ width: '44px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: 0, justifyContent: 'center' }}
                                                                 title="Undo Last Step"
+                                                                disabled={updatingId === activeItem.item.id}
                                                             >
                                                                 <Undo2 size={18} />
                                                             </button>
@@ -1670,6 +1801,7 @@ export default function TLDashboard() {
                                 <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
                                 <button 
                                     onClick={handleUndoStatus}
+                                    disabled={updatingId === activeItem.item.id}
                                     style={{ 
                                         display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
                                         background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
@@ -1677,7 +1809,11 @@ export default function TLDashboard() {
                                         fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
                                     }}
                                 >
-                                    <Undo2 size={12} />
+                                    {updatingId === activeItem.item.id ? (
+                                        <Loader2 size={12} className="spinner-btn-icon" />
+                                    ) : (
+                                        <Undo2 size={12} />
+                                    )}
                                     Undo Last Step
                                 </button>
                             </div>
@@ -1818,9 +1954,18 @@ export default function TLDashboard() {
                                     required
                                 />
                             </div>
-                            <button type="submit" className="btn-primary">
-                                <Plus size={16} />
-                                Save Note
+                            <button type="submit" className="btn-primary" disabled={isSavingPoc}>
+                                {isSavingPoc ? (
+                                    <>
+                                        <Loader2 size={16} className="spinner-btn-icon" />
+                                        Saving Note...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus size={16} />
+                                        Save Note
+                                    </>
+                                )}
                             </button>
                         </form>
                     </div>
@@ -1880,16 +2025,31 @@ export default function TLDashboard() {
                             </div>
 
                             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                                <button type="submit" className="btn-primary" style={{ flex: 1 }}>
-                                    Save Changes
+                                <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={isUpdatingPoc}>
+                                    {isUpdatingPoc ? (
+                                        <>
+                                            <Loader2 size={16} className="spinner-btn-icon" />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        'Save Changes'
+                                    )}
                                 </button>
                                 <button 
                                     type="button" 
                                     onClick={handleDeletePocNote} 
                                     className="btn-add"
                                     style={{ flex: 1, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                                    disabled={isDeletingPoc}
                                 >
-                                    Delete Note
+                                    {isDeletingPoc ? (
+                                        <>
+                                            <Loader2 size={16} className="spinner-btn-icon" />
+                                            Deleting...
+                                        </>
+                                    ) : (
+                                        'Delete Note'
+                                    )}
                                 </button>
                             </div>
 

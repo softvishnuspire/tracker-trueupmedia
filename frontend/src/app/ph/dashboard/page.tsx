@@ -44,7 +44,8 @@ import {
     Mail,
     Search,
     Plus,
-    Eye
+    Eye,
+    Loader2
 } from 'lucide-react';
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -54,6 +55,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
 import './ph.css';
 
 // Using imported ContentItem from @/lib/api
@@ -69,9 +72,11 @@ export default function ProductionHeadDashboard() {
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [loading, setLoading] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [actionId, setActionId] = useState<string | null>(null);
-    const [toast, setToast] = useState<string | null>(null);
+    const { success: toastSuccess, error: toastError } = useToast();
+    const { startLoading, stopLoading } = usePageLoading();
     const [activeItem, setActiveItem] = useState<any>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [statusNote, setStatusNote] = useState('');
@@ -117,7 +122,15 @@ export default function ProductionHeadDashboard() {
         } catch (err) { console.error('Error fetching employees:', err); }
     }, []);
 
-    const fetchTodayStats = useCallback(async () => {
+    const fetchTodayStats = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const clientId = selectedClient === 'all' ? undefined : selectedClient;
             const res = await phApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), clientId, undefined);
@@ -193,8 +206,15 @@ export default function ProductionHeadDashboard() {
                 monthPending: mPending,
                 pendingShoots: pShoots
             }));
-        } catch (err) { console.error('Error fetching dashboard lists:', err); }
-    }, [selectedClient]);
+        } catch (err) { 
+            console.error('Error fetching dashboard lists:', err); 
+            toastError('Failed to refresh stats.');
+        } finally {
+            setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [selectedClient, calendarData.length]);
 
     const selectedClientData = clients.find(c => c.id === selectedClient);
     const isBiMonthlyView = (view === 'client' || view === 'viewTaskClient' || view === 'master' || view === 'dashboard') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
@@ -223,9 +243,16 @@ export default function ProductionHeadDashboard() {
         return date >= startOfDay(periodStart) && date <= endOfDay(periodEnd);
     }, [currentMonth, isBiMonthlyView, periodStart, periodEnd]);
 
-    const fetchClientCalendar = useCallback(async () => {
+    const fetchClientCalendar = useCallback(async (isSilent = false) => {
         if (selectedClient === 'all') return;
-        setLoading(true);
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const client = clients.find(c => c.id === selectedClient);
             const is1515 = client?.batch_type === '15-15';
@@ -247,13 +274,27 @@ export default function ProductionHeadDashboard() {
             }
             
             setCalendarData(data);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    }, [selectedClient, currentMonth, clients]);
+        } catch (err) { 
+            console.error(err); 
+            toastError('Failed to load client calendar.');
+        }
+        finally { 
+            setLoading(false); 
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [selectedClient, currentMonth, clients, calendarData.length]);
 
-    const fetchViewTaskClientCalendar = useCallback(async () => {
+    const fetchViewTaskClientCalendar = useCallback(async (isSilent = false) => {
         if (selectedClient === 'all') return;
-        setLoading(true);
+        if (!isSilent) {
+            startLoading();
+            if (viewTaskCalendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const client = clients.find(c => c.id === selectedClient);
             const is1515 = client?.batch_type === '15-15';
@@ -275,12 +316,27 @@ export default function ProductionHeadDashboard() {
             }
 
             setViewTaskCalendarData(data);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    }, [selectedClient, currentMonth, clients]);
+        } catch (err) { 
+            console.error(err); 
+            toastError('Failed to load client task calendar.');
+        }
+        finally { 
+            setLoading(false); 
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [selectedClient, currentMonth, clients, viewTaskCalendarData.length]);
 
-    const fetchMasterCalendar = useCallback(async () => {
-        setLoading(true);
+    const fetchMasterCalendar = useCallback(async (isSilent = false) => {
+        if (!user) return;
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             let asOfDate;
             if (view === 'company') {
@@ -308,9 +364,16 @@ export default function ProductionHeadDashboard() {
             }
             
             setCalendarData(data);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    }, [view, selectedClient, currentMonth, clients]);
+        } catch (err) { 
+            console.error(err); 
+            toastError('Failed to load master calendar.');
+        }
+        finally { 
+            setLoading(false); 
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [view, selectedClient, currentMonth, clients, calendarData.length, user]);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -349,11 +412,6 @@ export default function ProductionHeadDashboard() {
 
 
     useEffect(() => {
-        const fetchUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) setUser(user);
-        };
-        fetchUser();
         fetchClients();
         fetchTodayStats();
 
@@ -370,7 +428,12 @@ export default function ProductionHeadDashboard() {
             }
         };
         fetchSettings();
-    }, [supabase.auth, fetchClients, fetchTodayStats]);
+    }, [fetchClients, fetchTodayStats]);
+
+    const latestState = React.useRef({ view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen });
+    useEffect(() => {
+        latestState.current = { view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen };
+    }, [view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
 
     useEffect(() => {
         const syncStateFromUrl = () => {
@@ -379,14 +442,16 @@ export default function ProductionHeadDashboard() {
             const clientIdParam = params.get('clientId') || 'all';
             const taskIdParam = params.get('taskId') || '';
 
-            if (viewParam !== view) {
+            const currentState = latestState.current;
+
+            if (viewParam !== currentState.view) {
                 setView(viewParam as any);
             }
-            if (clientIdParam !== selectedClient) {
+            if (clientIdParam !== currentState.selectedClient) {
                 setSelectedClient(clientIdParam);
             }
             if (taskIdParam) {
-                if (activeItem?.item?.id !== taskIdParam) {
+                if (currentState.activeItemId !== taskIdParam) {
                     const fetchAndOpen = async () => {
                         try {
                             const res = await phApi.getContentDetails(taskIdParam);
@@ -397,11 +462,11 @@ export default function ProductionHeadDashboard() {
                         }
                     };
                     fetchAndOpen();
-                } else if (!isDetailsOpen) {
+                } else if (!currentState.isDetailsOpen) {
                     setIsDetailsOpen(true);
                 }
             } else {
-                if (isDetailsOpen) {
+                if (currentState.isDetailsOpen) {
                     setIsDetailsOpen(false);
                 }
             }
@@ -415,7 +480,7 @@ export default function ProductionHeadDashboard() {
         return () => {
             window.removeEventListener('popstate', syncStateFromUrl);
         };
-    }, [loading, view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+    }, [loading]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -472,25 +537,48 @@ export default function ProductionHeadDashboard() {
 
     const handleAssignEmployee = async (userId: string) => {
         if (!activeItem) return;
+        setActionId(activeItem.item.id);
+
+        const previousActiveItem = { ...activeItem };
+        const previousCalendarData = [...calendarData];
+        const previousPendingTasks = [...pendingTasks];
+
+        // Optimistic UI updates
+        const updatedItem = { ...activeItem.item, assigned_to: userId || null };
+        if (userId) {
+            const emp = employees.find(e => e.user_id === userId);
+            updatedItem.assigned_employee = emp ? { name: emp.name } : undefined;
+        } else {
+            updatedItem.assigned_employee = undefined;
+        }
+
+        setActiveItem({ ...activeItem, item: updatedItem });
+        setCalendarData(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+        setPendingTasks(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+
         try {
             await phApi.assignEmployee(activeItem.item.id, userId);
-            setToast('Assignment updated successfully');
-            
-            // Update local state
-            const updatedItem = { ...activeItem.item, assigned_to: userId || null };
-            if (userId) {
-                const emp = employees.find(e => e.user_id === userId);
-                updatedItem.assigned_employee = emp ? { name: emp.name } : undefined;
-            } else {
-                updatedItem.assigned_employee = undefined;
-            }
-            
-            setActiveItem({ ...activeItem, item: updatedItem });
-            setCalendarData(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
-            setPendingTasks(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+            toastSuccess('Employee assigned successfully!');
+
+            // Silently sync in background
+            setTimeout(async () => {
+                try {
+                    await fetchTodayStats(true);
+                    if (view === 'client') await fetchClientCalendar(true);
+                    else if (view === 'master' || view === 'company') await fetchMasterCalendar(true);
+                } catch (err) {
+                    console.error('Background refresh failed:', err);
+                }
+            }, 500);
         } catch (err: any) {
             console.error('Assignment error:', err);
-            setToast(err.response?.data?.error || 'Failed to update assignment');
+            // Rollback
+            setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            setPendingTasks(previousPendingTasks);
+            toastError(err.response?.data?.error || 'Failed to update assignment.');
+        } finally {
+            setActionId(null);
         }
     };
 
@@ -501,48 +589,91 @@ export default function ProductionHeadDashboard() {
 
     const handleUpdateStatus = async (id: string, nextStatus: string) => {
         setActionId(id);
+        const previousActiveItem = activeItem ? { ...activeItem } : null;
+        const previousCalendarData = [...calendarData];
+        const previousPendingTasks = [...pendingTasks];
+
+        // Optimistic UI updates
+        if (activeItem && activeItem.item.id === id) {
+            setActiveItem({
+                ...activeItem,
+                item: { ...activeItem.item, status: nextStatus }
+            });
+        }
+        setCalendarData(prev => prev.map(item => 
+            item.id === id ? { ...item, status: nextStatus } : item
+        ));
+        setPendingTasks(prev => prev.map(item => 
+            item.id === id ? { ...item, status: nextStatus } : item
+        ));
+
         try {
             const actorId = user?.id;
             await phApi.updateStatus(id, nextStatus, undefined, actorId);
-            setToast(`Status updated to ${nextStatus}`);
-            setTimeout(() => setToast(null), 3000);
+            toastSuccess(`Status updated to ${nextStatus}`);
             
-            await Promise.all([
-                fetchTodayStats(),
-                view === 'client' ? fetchClientCalendar() : Promise.resolve(),
-                view === 'master' ? fetchMasterCalendar() : Promise.resolve(),
-                view === 'company' ? fetchMasterCalendar() : Promise.resolve()
-            ]);
-            
-            if (activeItem?.item?.id === id) {
-                const res = await phApi.getContentDetails(id);
-                setActiveItem(res.data);
-            }
+            // Background Refresh debounced
+            setTimeout(async () => {
+                try {
+                    await fetchTodayStats(true);
+                    if (view === 'client') await fetchClientCalendar(true);
+                    else if (view === 'master' || view === 'company') await fetchMasterCalendar(true);
+                    
+                    if (activeItem?.item?.id === id) {
+                        const res = await phApi.getContentDetails(id);
+                        setActiveItem(res.data);
+                    }
+                } catch (err) {
+                    console.error('Background refresh failed:', err);
+                }
+            }, 500);
         } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to update status');
-        } finally { setActionId(null); }
+            console.error('Failed to update status:', err);
+            // Rollback
+            if (previousActiveItem) setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            setPendingTasks(previousPendingTasks);
+            toastError(err.response?.data?.error || 'Failed to update status');
+        } finally {
+            setActionId(null);
+        }
     };
 
     const handleUndo = async (id: string) => {
         setActionId(id);
+        const previousActiveItem = activeItem ? { ...activeItem } : null;
+        const previousCalendarData = [...calendarData];
+        const previousPendingTasks = [...pendingTasks];
+
         try {
             await phApi.undoStatus(id);
-            setToast('Status reverted');
-            setTimeout(() => setToast(null), 3000);
-            
-            await Promise.all([
-                fetchTodayStats(),
-                view === 'client' ? fetchClientCalendar() : Promise.resolve(),
-                view === 'master' ? fetchMasterCalendar() : Promise.resolve()
-            ]);
+            toastSuccess('Status change reverted.');
 
-            if (activeItem?.item?.id === id) {
-                const res = await phApi.getContentDetails(id);
-                setActiveItem(res.data);
-            }
+            // Background Refresh debounced
+            setTimeout(async () => {
+                try {
+                    await fetchTodayStats(true);
+                    if (view === 'client') await fetchClientCalendar(true);
+                    else if (view === 'master' || view === 'company') await fetchMasterCalendar(true);
+
+                    if (activeItem?.item?.id === id) {
+                        const res = await phApi.getContentDetails(id);
+                        setActiveItem(res.data);
+                    }
+                } catch (err) {
+                    console.error('Background refresh failed:', err);
+                }
+            }, 500);
         } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to undo status');
-        } finally { setActionId(null); }
+            console.error('Failed to undo status:', err);
+            // Rollback
+            if (previousActiveItem) setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            setPendingTasks(previousPendingTasks);
+            toastError(err.response?.data?.error || 'Failed to undo status change.');
+        } finally {
+            setActionId(null);
+        }
     };
 
 
@@ -1207,7 +1338,7 @@ export default function ProductionHeadDashboard() {
                                     </div>
                                 ))}
 
-                                {loading ? (
+                                {loading && activeCalendarData.length === 0 ? (
                                     Array.from({ length: 35 }).map((_, idx) => (
                                         <div key={idx} className="calendar-day" style={{ minHeight: '110px' }}>
                                             <Skeleton className="h-4 w-4 mb-2" /><Skeleton className="h-4 w-full" />
@@ -1327,18 +1458,36 @@ export default function ProductionHeadDashboard() {
                                                             onClick={async (e) => {
                                                                 e.stopPropagation();
                                                                 if (confirm(`Unassign ${client.company_name} from ${emp.name}?`)) {
+                                                                    const previousClients = [...clients];
+                                                                    
+                                                                    // Optimistic state update
+                                                                    setClients(prev => prev.map(c => {
+                                                                        if (c.id === client.id) {
+                                                                            const updated = { ...c };
+                                                                            if (emp.role_identifier === 'REEL') updated.reel_employee_id = null;
+                                                                            else if (emp.role_identifier === 'POST') updated.post_employee_id = null;
+                                                                            else updated.employee_id = null;
+                                                                            return updated;
+                                                                        }
+                                                                        return c;
+                                                                    }));
+
                                                                     try {
                                                                         await phApi.assignEmployeeToClient(client.id, null, emp.user_id);
-                                                                        // Refresh data
-                                                                        const cRes = await phApi.getClients();
-                                                                        setClients(cRes.data);
-                                                                        fetchTodayStats();
-                                                                        fetchMasterCalendar();
-                                                                        fetchClientCalendar();
-                                                                        setToast(`Unassigned ${client.company_name}`);
-                                                                        setTimeout(() => setToast(null), 3000);
+                                                                        toastSuccess(`Unassigned ${client.company_name}`);
+                                                                        
+                                                                        // Silently refresh in background
+                                                                        setTimeout(async () => {
+                                                                            const cRes = await phApi.getClients();
+                                                                            setClients(cRes.data);
+                                                                            fetchTodayStats(true);
+                                                                            fetchMasterCalendar(true);
+                                                                            fetchClientCalendar(true);
+                                                                        }, 500);
                                                                     } catch (err) {
                                                                         console.error(err);
+                                                                        setClients(previousClients);
+                                                                        toastError('Failed to unassign client.');
                                                                     }
                                                                 }
                                                             }}
@@ -1395,24 +1544,40 @@ export default function ProductionHeadDashboard() {
                                                 key={client.id} 
                                                 className={`client-selection-item ${isAlreadyAssigned ? 'already-assigned' : ''}`}
                                                 onClick={async () => {
-                                                    if (isAlreadyAssigned) return;
-                                                    console.log(`[Assign] Attempting to assign client ${client.id} to employee ${assigningToEmployee.user_id}`);
-                                                    try {
-                                                        const res = await phApi.assignEmployeeToClient(client.id, assigningToEmployee.user_id);
-                                                        console.log('[Assign] Success:', res.data);
-                                                        // Refresh data
-                                                        const cRes = await phApi.getClients();
-                                                        setClients(cRes.data);
-                                                        fetchTodayStats();
-                                                        fetchMasterCalendar();
-                                                        fetchClientCalendar();
-                                                        setToast(`Assigned ${client.company_name} to ${assigningToEmployee.name}`);
-                                                        setTimeout(() => setToast(null), 3000);
-                                                        setIsAssignModalOpen(false);
-                                                    } catch (err: any) {
-                                                        alert(err.response?.data?.error || 'Failed to assign client');
-                                                    }
-                                                }}
+                                                     if (isAlreadyAssigned) return;
+                                                     const previousClients = [...clients];
+
+                                                     // Optimistic state update
+                                                     setClients(prev => prev.map(c => {
+                                                         if (c.id === client.id) {
+                                                             const updated = { ...c };
+                                                             if (assigningToEmployee.role_identifier === 'REEL') updated.reel_employee_id = assigningToEmployee.user_id;
+                                                             else if (assigningToEmployee.role_identifier === 'POST') updated.post_employee_id = assigningToEmployee.user_id;
+                                                             else updated.employee_id = assigningToEmployee.user_id;
+                                                             return updated;
+                                                         }
+                                                         return c;
+                                                     }));
+                                                     setIsAssignModalOpen(false);
+
+                                                     try {
+                                                         await phApi.assignEmployeeToClient(client.id, assigningToEmployee.user_id);
+                                                         toastSuccess(`Assigned ${client.company_name} to ${assigningToEmployee.name}`);
+                                                         
+                                                         // Silently refresh in background
+                                                         setTimeout(async () => {
+                                                             const cRes = await phApi.getClients();
+                                                             setClients(cRes.data);
+                                                             fetchTodayStats(true);
+                                                             fetchMasterCalendar(true);
+                                                             fetchClientCalendar(true);
+                                                         }, 500);
+                                                     } catch (err: any) {
+                                                         console.error(err);
+                                                         setClients(previousClients);
+                                                         toastError(err.response?.data?.error || 'Failed to assign client');
+                                                     }
+                                                 }}
                                                 style={{ 
                                                     padding: '12px 16px', 
                                                     borderRadius: '10px', 
@@ -1685,30 +1850,20 @@ export default function ProductionHeadDashboard() {
                                                 <button 
                                                     className="btn-mark-posted"
                                                     style={{ width: '100%', padding: '12px', background: 'var(--accent)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                                                    onClick={async () => {
-                                                        try {
-                                                            await phApi.updateStatus(activeItem.item.id, nextStatus, statusNote.trim() || undefined);
-                                                            let asOfDate;
-                                                            if (view === 'company') {
-                                                                const d = new Date(); d.setDate(d.getDate() - 7);
-                                                                asOfDate = d.toISOString();
-                                                            }
-                                                            const res = await phApi.getContentDetails(activeItem.item.id, asOfDate);
-                                                            setActiveItem(res.data);
-                                                            setStatusNote('');
-                                                            
-                                                            // Refresh data
-                                                            fetchTodayStats();
-                                                            if (view === 'client') fetchClientCalendar();
-                                                            else fetchMasterCalendar();
-                                                        } catch (err: any) { 
-                                                            console.error(err);
-                                                            alert(err.response?.data?.error || 'Failed to update status'); 
-                                                        }
-                                                    }}
+                                                    onClick={() => handleUpdateStatus(activeItem.item.id, nextStatus)}
+                                                    disabled={actionId === activeItem.item.id}
                                                 >
-                                                    Advance to {nextStatus}
-                                                    <ChevronRight size={18} />
+                                                    {actionId === activeItem.item.id ? (
+                                                        <>
+                                                            <Loader2 size={16} className="spinner-btn-icon" />
+                                                            <span>Advancing...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            Advance to {nextStatus}
+                                                            <ChevronRight size={18} />
+                                                        </>
+                                                    )}
                                                 </button>
                                             </div>
                                         );
@@ -1723,6 +1878,7 @@ export default function ProductionHeadDashboard() {
                                     {view !== 'viewTaskClient' && (
                                     <button 
                                         onClick={() => handleUndo(activeItem.item.id)}
+                                        disabled={actionId === activeItem.item.id}
                                         style={{ 
                                             display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
                                             background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
@@ -1730,7 +1886,11 @@ export default function ProductionHeadDashboard() {
                                             fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
                                         }}
                                     >
-                                        <Undo2 size={12} />
+                                        {actionId === activeItem.item.id ? (
+                                            <Loader2 size={12} className="spinner-btn-icon" />
+                                        ) : (
+                                            <Undo2 size={12} />
+                                        )}
                                         Undo Last Step
                                     </button>
                                     )}
@@ -1795,8 +1955,13 @@ export default function ProductionHeadDashboard() {
                 </div>
             )}
 
-            {toast && (
-                <div className="posting-toast"><CheckCircle2 size={20} />{toast}</div>
+            {isRefreshing && (
+                <div style={{ position: 'fixed', bottom: '24px', left: '24px', zIndex: 999 }}>
+                    <div className="refreshing-banner">
+                        <Loader2 size={12} className="spinner-btn-icon" />
+                        <span>Refreshing Data...</span>
+                    </div>
+                </div>
             )}
         </div>
     );

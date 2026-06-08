@@ -5,13 +5,16 @@ import Link from 'next/link';
 import { 
   Calendar, ShieldAlert, FileText, Video, ArrowRight, 
   X, Undo2, Edit2, Trash2, ChevronDown, Filter, ChevronLeft, ChevronRight, Clock, Check,
-  Layers, Film, MessageSquare, Activity, Users, Globe
+  Layers, Film, MessageSquare, Activity, Users, Globe, Loader2
 } from 'lucide-react';
 import { adminApi, emergencyApi, gmApi, dashboardApi, ContentItem, StatusHistoryItem, PocNote } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { endOfWeek, format, isSameDay, isSameMonth, parseISO, startOfWeek, startOfMonth, endOfMonth, subMonths, addMonths, startOfDay, endOfDay } from 'date-fns';
 import { createClient } from '@/utils/supabase/client';
 import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import '../../gm/dashboard/gm.css';
 
 interface ContentDetails {
@@ -20,10 +23,16 @@ interface ContentDetails {
 }
 
 export default function AdminDashboard() {
+  const { startLoading, stopLoading } = usePageLoading();
+  const { success: toastSuccess, error: toastError } = useToast();
+  const performOptimisticAction = useOptimisticAction();
+
   const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
   const [globalCalendarData, setGlobalCalendarData] = useState<ContentItem[]>([]);
   const [pocNotes, setPocNotes] = useState<PocNote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
   const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
@@ -142,8 +151,17 @@ export default function AdminDashboard() {
     }
   }, [currentMonth, clients]);
 
-  const fetchDashboardData = useCallback(async () => {
-    setLoading(true);
+  const fetchDashboardData = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
+      startLoading();
+      if (calendarData.length === 0) {
+        setLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+    } else {
+      setIsRefreshing(true);
+    }
     try {
       let currentClients = clients;
       if (currentClients.length === 0) {
@@ -174,13 +192,17 @@ export default function AdminDashboard() {
     } catch (err: unknown) {
       console.error('Failed to load dashboard data:', err instanceof Error ? err.message : String(err));
       setError(err instanceof Error ? err.message : String(err));
+      toastError('Failed to refresh dashboard data.');
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
+      if (!isSilent) stopLoading();
     }
-  }, [selectedClient, currentMonth, clients, fetchClientCalendarData, fetchDashboardLists]);
+  }, [selectedClient, currentMonth, clients, calendarData.length, fetchClientCalendarData, fetchDashboardLists, startLoading, stopLoading, toastError]);
 
   useEffect(() => {
-    fetchDashboardData();
+    const isSilent = calendarData.length > 0;
+    fetchDashboardData(isSilent);
   }, [fetchDashboardData]);
 
   useEffect(() => {
@@ -256,70 +278,215 @@ export default function AdminDashboard() {
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (!activeItem) return;
+    const targetId = activeItem.item.id;
+    setActionId(`status-${targetId}`);
+    const currentNote = statusNote;
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      await gmApi.updateStatus(activeItem.item.id, newStatus, statusNote, user?.id);
-      
-      // Refresh details
-      const res = await adminApi.getContentDetails(activeItem.item.id);
-      setActiveItem(res.data);
-      setStatusNote('');
-      fetchDashboardData(); // Refresh the whole dashboard to update stats
-    } catch (err: unknown) {
-      if (err instanceof Error) alert(err.message);
-      else alert(String(err));
+      await performOptimisticAction({
+        backup: () => ({
+          calendar: [...calendarData],
+          globalCalendar: [...globalCalendarData],
+          active: { ...activeItem },
+          emergency: [...emergencyTasks],
+          pending: [...pendingTasks]
+        }),
+        update: () => {
+          const updatedItem = { ...activeItem.item, status: newStatus };
+          setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setGlobalCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setEmergencyTasks(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setPendingTasks(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setActiveItem({
+            ...activeItem,
+            item: updatedItem
+          });
+          setStatusNote('');
+        },
+        action: () => gmApi.updateStatus(targetId, newStatus, currentNote.trim() || undefined, user?.id),
+        rollback: (backup) => {
+          setCalendarData(backup.calendar);
+          setGlobalCalendarData(backup.globalCalendar);
+          setActiveItem(backup.active);
+          setEmergencyTasks(backup.emergency);
+          setPendingTasks(backup.pending);
+          setStatusNote(currentNote);
+        },
+        successMessage: `Advanced to ${newStatus}.`,
+        errorMessage: 'Failed to update status.',
+        refresh: () => {
+          fetchDashboardData(true);
+          adminApi.getContentDetails(targetId).then(res => setActiveItem(res.data)).catch(console.error);
+        }
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionId(null);
     }
   };
 
   const handleUndoStatus = async () => {
     if (!activeItem) return;
     if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+    const targetId = activeItem.item.id;
+    setActionId(`undo-${targetId}`);
     try {
-      await adminApi.undoStatus(activeItem.item.id);
-      const res = await adminApi.getContentDetails(activeItem.item.id);
-      setActiveItem(res.data);
-      fetchDashboardData();
+      await performOptimisticAction({
+        backup: () => ({
+          calendar: [...calendarData],
+          globalCalendar: [...globalCalendarData],
+          active: { ...activeItem },
+          emergency: [...emergencyTasks],
+          pending: [...pendingTasks]
+        }),
+        update: () => {
+          let revertedStatus = 'WAITING FOR APPROVAL';
+          if (activeItem.history && activeItem.history.length > 1) {
+            revertedStatus = activeItem.history[1].status;
+          }
+          const updatedItem = { ...activeItem.item, status: revertedStatus };
+          setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setGlobalCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setEmergencyTasks(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setPendingTasks(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setActiveItem({
+            ...activeItem,
+            item: updatedItem
+          });
+        },
+        action: () => adminApi.undoStatus(targetId),
+        rollback: (backup) => {
+          setCalendarData(backup.calendar);
+          setGlobalCalendarData(backup.globalCalendar);
+          setActiveItem(backup.active);
+          setEmergencyTasks(backup.emergency);
+          setPendingTasks(backup.pending);
+        },
+        successMessage: 'Status change undone.',
+        errorMessage: 'Failed to undo status change.',
+        refresh: () => {
+          fetchDashboardData(true);
+          adminApi.getContentDetails(targetId).then(res => setActiveItem(res.data)).catch(console.error);
+        }
+      });
     } catch (err) {
       console.error(err);
-      alert('Failed to undo status change.');
+    } finally {
+      setActionId(null);
     }
   };
 
   const handleToggleEmergency = async () => {
     if (!activeItem) return;
+    const targetId = activeItem.item.id;
+    setActionId(`emergency-${targetId}`);
     try {
-      const res = await emergencyApi.toggle(activeItem.item.id) as { data: { success: boolean } };
-      if (res.data.success) {
-        const detailsRes = await adminApi.getContentDetails(activeItem.item.id);
-        setActiveItem(detailsRes.data);
-        fetchDashboardLists();
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error) alert(err.message);
-      else alert(String(err));
+      await performOptimisticAction({
+        backup: () => ({
+          calendar: [...calendarData],
+          globalCalendar: [...globalCalendarData],
+          active: { ...activeItem },
+          emergency: [...emergencyTasks],
+          pending: [...pendingTasks]
+        }),
+        update: () => {
+          const updatedItem = { ...activeItem.item, is_emergency: !activeItem.item.is_emergency };
+          setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setGlobalCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setActiveItem({
+            ...activeItem,
+            item: updatedItem
+          });
+          if (updatedItem.is_emergency) {
+            setEmergencyTasks(prev => {
+              if (prev.some(x => x.id === targetId)) return prev;
+              return [updatedItem, ...prev];
+            });
+          } else {
+            setEmergencyTasks(prev => prev.filter(x => x.id !== targetId));
+          }
+        },
+        action: () => emergencyApi.toggle(targetId),
+        rollback: (backup) => {
+          setCalendarData(backup.calendar);
+          setGlobalCalendarData(backup.globalCalendar);
+          setActiveItem(backup.active);
+          setEmergencyTasks(backup.emergency);
+          setPendingTasks(backup.pending);
+        },
+        successMessage: `Emergency status toggled.`,
+        errorMessage: 'Failed to toggle emergency status.',
+        refresh: () => {
+          fetchDashboardData(true);
+          adminApi.getContentDetails(targetId).then(res => setActiveItem(res.data)).catch(console.error);
+        }
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionId(null);
     }
   };
 
   const handleSaveEdit = async () => {
     if (!activeItem) return;
+    const targetId = activeItem.item.id;
+    setActionId(`edit-${targetId}`);
+    const currentForm = { ...formData };
     try {
       const datePart = formatISTForm(activeItem.item.scheduled_datetime, 'yyyy-MM-dd');
       const scheduled_datetime = convertISTToUTC(datePart, formData.time);
-      
-      await adminApi.updateContent(activeItem.item.id, {
-        title: formData.title,
-        description: formData.description,
-        content_type: formData.content_type,
-        scheduled_datetime
+      await performOptimisticAction({
+        backup: () => ({
+          calendar: [...calendarData],
+          globalCalendar: [...globalCalendarData],
+          active: { ...activeItem },
+          emergency: [...emergencyTasks],
+          pending: [...pendingTasks]
+        }),
+        update: () => {
+          const updatedItem = {
+            ...activeItem.item,
+            title: formData.title,
+            description: formData.description,
+            content_type: formData.content_type,
+            scheduled_datetime
+          };
+          setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setGlobalCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setEmergencyTasks(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setPendingTasks(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+          setActiveItem({
+            ...activeItem,
+            item: updatedItem
+          });
+          setIsRescheduling(false);
+        },
+        action: () => adminApi.updateContent(targetId, {
+          title: currentForm.title,
+          description: currentForm.description,
+          content_type: currentForm.content_type,
+          scheduled_datetime
+        }),
+        rollback: (backup) => {
+          setCalendarData(backup.calendar);
+          setGlobalCalendarData(backup.globalCalendar);
+          setActiveItem(backup.active);
+          setEmergencyTasks(backup.emergency);
+          setPendingTasks(backup.pending);
+        },
+        successMessage: 'Content updated successfully.',
+        errorMessage: 'Failed to update content.',
+        refresh: () => {
+          fetchDashboardData(true);
+          adminApi.getContentDetails(targetId).then(res => setActiveItem(res.data)).catch(console.error);
+        }
       });
-      
-      const res = await adminApi.getContentDetails(activeItem.item.id);
-      setActiveItem(res.data);
-      setIsRescheduling(false);
-      fetchDashboardData();
-    } catch (err: unknown) {
-      if (err instanceof Error) alert(err.message);
-      else alert(String(err));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionId(null);
     }
   };
 
@@ -418,6 +585,12 @@ export default function AdminDashboard() {
             <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}><ChevronLeft size={20} /></button>
             <span className="month-label" style={{ fontWeight: 700, fontSize: '14px', minWidth: '140px', textAlign: 'center' }}>{getPeriodLabel()}</span>
             <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}><ChevronRight size={20} /></button>
+            {isRefreshing && (
+              <div className="refreshing-banner" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                <Loader2 size={12} className="spinner-btn-icon" />
+                <span>Refreshing...</span>
+              </div>
+            )}
         </div>
       </header>
 
@@ -428,7 +601,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {loading ? (
+      {loading && calendarData.length === 0 ? (
         <div className="premium-stats-grid" style={{ marginTop: '12px' }}>
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="premium-stat-card">
@@ -898,6 +1071,7 @@ export default function AdminDashboard() {
                         </div>
                         <button 
                             onClick={handleToggleEmergency}
+                            disabled={actionId !== null}
                             style={{
                                 width: '42px',
                                 height: '22px',
@@ -906,7 +1080,8 @@ export default function AdminDashboard() {
                                 border: `1px solid ${activeItem.item.is_emergency ? '#ef4444' : 'var(--border)'}`,
                                 position: 'relative',
                                 cursor: 'pointer',
-                                transition: 'all 0.3s ease'
+                                transition: 'all 0.3s ease',
+                                opacity: actionId === `emergency-${activeItem.item.id}` ? 0.5 : 1
                             }}
                         >
                             <div style={{
@@ -964,13 +1139,23 @@ export default function AdminDashboard() {
                               }}
                               rows={2}
                             />
-                            <button
+                             <button
                               onClick={() => handleStatusUpdate(nextStatus)}
+                              disabled={actionId !== null}
                               className="btn-primary"
-                              style={{ padding: '10px' }}
+                              style={{ padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                             >
-                              Advance to {nextStatus}
-                              <ArrowRight size={16} />
+                              {actionId === `status-${activeItem.item.id}` ? (
+                                <>
+                                  Advancing...
+                                  <Loader2 size={16} className="spinner-btn-icon" />
+                                </>
+                              ) : (
+                                <>
+                                  Advance to {nextStatus}
+                                  <ArrowRight size={16} />
+                                </>
+                              )}
                             </button>
                           </div>
                         );
@@ -1008,6 +1193,7 @@ export default function AdminDashboard() {
                   {activeItem.history.length > 0 && (
                     <button 
                       onClick={handleUndoStatus}
+                      disabled={actionId !== null}
                       className="undo-btn"
                       style={{ 
                         display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', 
@@ -1016,7 +1202,11 @@ export default function AdminDashboard() {
                         fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
                       }}
                     >
-                      <Undo2 size={14} />
+                      {actionId === `undo-${activeItem.item.id}` ? (
+                        <Loader2 size={14} className="spinner-btn-icon" />
+                      ) : (
+                        <Undo2 size={14} />
+                      )}
                       Undo Last Step
                     </button>
                   )}
@@ -1134,7 +1324,21 @@ export default function AdminDashboard() {
               </div>
               <div className="modal-footer">
                 <button className="btn-secondary" onClick={() => setIsRescheduling(false)}>Cancel</button>
-                <button className="btn-primary" onClick={handleSaveEdit}>Save Changes</button>
+                 <button 
+                  className="btn-primary" 
+                  onClick={handleSaveEdit}
+                  disabled={actionId !== null}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  {actionId === `edit-${activeItem.item.id}` ? (
+                    <>
+                      Saving...
+                      <Loader2 size={16} className="spinner-btn-icon" />
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
               </div>
             </div>
           </div>

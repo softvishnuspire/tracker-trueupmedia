@@ -27,18 +27,24 @@ import {
     Filter,
     ChevronDown,
     Check,
-    CalendarClock
+    CalendarClock,
+    ShieldAlert,
+    Loader2
 } from 'lucide-react';
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
-import { ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
-
-
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 
 export default function CooMasterCalendar() {
+    const { startLoading, stopLoading } = usePageLoading();
+    const { success: toastSuccess, error: toastError } = useToast();
+    const performOptimisticAction = useOptimisticAction();
+
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [selectedType, setSelectedType] = useState<string>('all');
@@ -46,6 +52,8 @@ export default function CooMasterCalendar() {
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [actionId, setActionId] = useState<string | null>(null);
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date; items: ContentItem[] } | null>(null);
@@ -62,8 +70,17 @@ export default function CooMasterCalendar() {
         fetchClients();
     }, []);
 
-    const fetchMasterData = useCallback(async () => {
-        setLoading(true);
+    const fetchMasterData = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        } else {
+            setIsRefreshing(true);
+        }
         try {
             const res = await cooApi.getMasterCalendar(
                 format(currentMonth, 'yyyy-MM'),
@@ -73,13 +90,17 @@ export default function CooMasterCalendar() {
             setCalendarData(res.data);
         } catch (err) {
             console.error(err);
+            toastError('Failed to refresh calendar data.');
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [currentMonth, selectedClient, selectedType]);
+    }, [currentMonth, selectedClient, selectedType, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
-        fetchMasterData();
+        const isSilent = calendarData.length > 0;
+        fetchMasterData(isSilent);
     }, [fetchMasterData]);
 
     useEffect(() => {
@@ -170,24 +191,39 @@ export default function CooMasterCalendar() {
 
     const handleToggleEmergency = async () => {
         if (!selectedItem) return;
+        const targetId = selectedItem.item.id;
+        const nextEmergency = !selectedItem.item.is_emergency;
+        setActionId(`toggle-emergency-${targetId}`);
         try {
-            const res: any = await emergencyApi.toggle(selectedItem.item.id);
-            if (res.data.success) {
-                setSelectedItem({
-                    ...selectedItem,
-                    item: {
-                        ...selectedItem.item,
-                        is_emergency: res.data.is_emergency
-                    }
-                });
-                setCalendarData((prev) => prev.map((item) =>
-                    item.id === selectedItem.item.id
-                        ? { ...item, is_emergency: res.data.is_emergency }
-                        : item
-                ));
-            }
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    const updatedItem = { ...selectedItem.item, is_emergency: nextEmergency };
+                    setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                },
+                action: () => emergencyApi.toggle(targetId),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: nextEmergency ? 'Emergency flag enabled.' : 'Emergency flag disabled.',
+                errorMessage: 'Failed to toggle emergency flag.',
+                refresh: () => {
+                    fetchMasterData(true);
+                    cooApi.getContentDetails(targetId).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
         } catch (err) {
-            console.error('Error toggling emergency:', err);
+            console.error(err);
+        } finally {
+            setActionId(null);
         }
     };
 
@@ -304,6 +340,12 @@ export default function CooMasterCalendar() {
                         <button onClick={handleNext} className="month-btn">
                             <ChevronRight size={20} />
                         </button>
+                        {isRefreshing && (
+                            <div className="refreshing-banner" style={{ marginLeft: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                <Loader2 size={12} className="spinner-btn-icon" />
+                                <span>Refreshing...</span>
+                            </div>
+                        )}
                     </div>
 
                     <ScheduleExport
@@ -368,7 +410,7 @@ export default function CooMasterCalendar() {
                         </div>
                     ))}
 
-                    {loading ? (
+                    {loading && calendarData.length === 0 ? (
                         <>
                             {Array.from({ length: 35 }).map((_, idx) => (
                                 <div key={idx} className="calendar-day opacity-50" style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}>
@@ -621,6 +663,7 @@ export default function CooMasterCalendar() {
                                     </div>
                                     <button
                                         onClick={handleToggleEmergency}
+                                        disabled={actionId !== null}
                                         style={{
                                             width: '44px',
                                             height: '24px',
@@ -640,8 +683,15 @@ export default function CooMasterCalendar() {
                                             position: 'absolute',
                                             top: '2px',
                                             left: selectedItem.item.is_emergency ? '22px' : '2px',
-                                            transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
-                                        }}></div>
+                                            transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            {actionId === `toggle-emergency-${selectedItem.item.id}` && (
+                                                <Loader2 size={10} className="spinner-btn-icon" style={{ color: selectedItem.item.is_emergency ? '#ef4444' : 'var(--text-primary)' }} />
+                                            )}
+                                        </div>
                                     </button>
                                 </div>
 

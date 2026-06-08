@@ -330,3 +330,157 @@ a {
   opacity: 0.9;
 }
 
+/* ─── Premium Toast System CSS ─── */
+.toast-container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 9999;
+  max-width: 420px;
+  width: calc(100% - 48px);
+  pointer-events: none;
+}
+
+.premium-toast {
+  pointer-events: auto;
+  padding: 14px 20px;
+  border-radius: 14px;
+  background: rgba(12, 18, 32, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.premium-toast.success {
+  border-left: 4px solid var(--success);
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.2) rgba(16, 185, 129, 0.2) rgba(16, 185, 129, 0.2) var(--success);
+}
+
+.premium-toast.warning {
+  border-left: 4px solid var(--warning);
+  background: rgba(245, 158, 11, 0.06);
+  border-color: rgba(245, 158, 11, 0.2) rgba(245, 158, 11, 0.2) rgba(245, 158, 11, 0.2) var(--warning);
+}
+
+.premium-toast.error {
+  border-left: 4px solid var(--danger);
+  background: rgba(239, 68, 68, 0.06);
+  border-color: rgba(239, 68, 68, 0.2) rgba(239, 68, 68, 0.2) rgba(239, 68, 68, 0.2) var(--danger);
+}
+
+.premium-toast.info {
+  border-left: 4px solid var(--accent);
+  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.2) rgba(99, 102, 241, 0.2) rgba(99, 102, 241, 0.2) var(--accent);
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateY(-20px) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.toast-exit {
+  animation: toast-slide-out 0.2s ease-in forwards;
+}
+
+@keyframes toast-slide-out {
+  from {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-20px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* ─── Top Edge Global Progress Bar ─── */
+.top-progress-bar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  z-index: 10000;
+  background: transparent;
+  pointer-events: none;
+}
+
+.top-progress-bar {
+  height: 100%;
+  background: linear-gradient(95deg, var(--accent), var(--accent-secondary), var(--success));
+  box-shadow: 0 0 10px var(--accent-glow);
+  width: 0%;
+  transition: width 0.4s cubic-bezier(0.08, 0.8, 0.1, 1);
+}
+
+.top-progress-bar.loading {
+  animation: top-progress-anim 8s cubic-bezier(0.08, 0.8, 0.1, 1) forwards;
+}
+
+@keyframes top-progress-anim {
+  0% { width: 0%; }
+  10% { width: 25%; }
+  30% { width: 50%; }
+  60% { width: 75%; }
+  90% { width: 92%; }
+  100% { width: 95%; }
+}
+
+.top-progress-bar.finished {
+  width: 100% !important;
+  opacity: 0;
+  transition: width 0.2s ease-out, opacity 0.3s ease-out 0.2s;
+}
+
+/* ─── Spin animation for loading state inside button ─── */
+.spinner-btn-icon {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Subtle refreshing banner ─── */
+.refreshing-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+

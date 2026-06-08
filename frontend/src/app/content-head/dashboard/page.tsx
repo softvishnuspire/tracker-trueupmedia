@@ -20,12 +20,17 @@ import {
     ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Globe, Calendar as CalendarIcon, 
     FileText, Video, CheckCircle2, X, LogOut, Filter, Menu, Clock, ShieldAlert, Check, 
     AlertTriangle, ArrowRight, CalendarClock, Undo2, Lock, ListFilter, Play,
-    Users, Plus, Search, Mail, User as UserIcon, Trophy, Target, Briefcase, Trash2, TrendingUp, Building2
+    Users, Plus, Search, Mail, User as UserIcon, Trophy, Target, Briefcase, Trash2, TrendingUp, Building2,
+    Loader2
 } from 'lucide-react';
 import { gmApi, emergencyApi, settingsApi, adminApi, contentHeadApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { useDebouncedRefresh } from '@/hooks/useDebouncedRefresh';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getClientAbbreviation, formatIST, getISTDate } from '@/lib/utils';
@@ -48,6 +53,13 @@ interface ContentItem {
 }
 
 export default function ContentHeadDashboard() {
+    const { success: toastSuccess, error: toastError } = useToast();
+    const { startLoading, stopLoading } = usePageLoading();
+    const performOptimisticAction = useOptimisticAction();
+    const debounceRefresh = useDebouncedRefresh();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [creatingWriter, setCreatingWriter] = useState(false);
+
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'employees'>('dashboard');
     const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [approvedTasks, setApprovedTasks] = useState<ContentItem[]>([]);
@@ -58,7 +70,6 @@ export default function ContentHeadDashboard() {
     const [loading, setLoading] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [actionId, setActionId] = useState<string | null>(null);
-    const [toast, setToast] = useState<string | null>(null);
     const [activeItem, setActiveItem] = useState<any>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [statusNote, setStatusNote] = useState('');
@@ -166,8 +177,17 @@ export default function ContentHeadDashboard() {
         }
     }, []);
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
+    const fetchData = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        } else {
+            setIsRefreshing(true);
+        }
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const client = clients.find(c => c.id === selectedClient);
@@ -207,28 +227,31 @@ export default function ContentHeadDashboard() {
             setApprovedTasks(filteredItems.filter(item => (item.status || '').toUpperCase() === 'CONTENT APPROVED'));
         } catch (err) {
             console.error('Error fetching calendar data:', err);
+            toastError('Failed to refresh data.');
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [selectedClient, currentMonth, clients, isDayInPeriod]);
+    }, [selectedClient, currentMonth, clients, isDayInPeriod, startLoading, stopLoading, toastError, calendarData.length]);
 
     useEffect(() => {
         const checkUser = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { user } } = await supabase.auth.getUser();
             
-            if (!session) {
+            if (!user) {
                 router.push('/');
                 return;
             }
-            setUser(session.user);
+            setUser(user);
             
             const { data: profile } = await supabase
                 .from('users')
                 .select('role, role_identifier')
-                .eq('user_id', session.user.id)
+                .eq('user_id', user.id)
                 .single();
             
-            const role = profile?.role_identifier || profile?.role || session.user.user_metadata?.role;
+            const role = profile?.role_identifier || profile?.role || user.user_metadata?.role;
             const upperRole = role?.toUpperCase();
             setUserRole(upperRole);
             
@@ -240,7 +263,7 @@ export default function ContentHeadDashboard() {
             }
         };
         checkUser();
-    }, [router, supabase]);
+    }, [supabase, router]);
 
     useEffect(() => {
         fetchClients();
@@ -256,6 +279,11 @@ export default function ContentHeadDashboard() {
         }
     }, [view, fetchWritersData]);
 
+    const latestState = React.useRef({ view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen });
+    useEffect(() => {
+        latestState.current = { view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen };
+    }, [view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+
     useEffect(() => {
         const syncStateFromUrl = () => {
             const params = new URLSearchParams(window.location.search);
@@ -263,14 +291,16 @@ export default function ContentHeadDashboard() {
             const clientIdParam = params.get('clientId') || 'all';
             const taskIdParam = params.get('taskId') || '';
 
-            if (viewParam !== view) {
+            const currentState = latestState.current;
+
+            if (viewParam !== currentState.view) {
                 setView(viewParam as any);
             }
-            if (clientIdParam !== selectedClient) {
+            if (clientIdParam !== currentState.selectedClient) {
                 setSelectedClient(clientIdParam);
             }
             if (taskIdParam) {
-                if (activeItem?.item?.id !== taskIdParam) {
+                if (currentState.activeItemId !== taskIdParam) {
                     const fetchAndOpen = async () => {
                         try {
                             const res = await gmApi.getContentDetails(taskIdParam);
@@ -281,11 +311,11 @@ export default function ContentHeadDashboard() {
                         }
                     };
                     fetchAndOpen();
-                } else if (!isDetailsOpen) {
+                } else if (!currentState.isDetailsOpen) {
                     setIsDetailsOpen(true);
                 }
             } else {
-                if (isDetailsOpen) {
+                if (currentState.isDetailsOpen) {
                     setIsDetailsOpen(false);
                 }
             }
@@ -299,7 +329,7 @@ export default function ContentHeadDashboard() {
         return () => {
             window.removeEventListener('popstate', syncStateFromUrl);
         };
-    }, [loading, view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+    }, [loading]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -337,40 +367,106 @@ export default function ContentHeadDashboard() {
 
     const handleApproveContent = async (id: string) => {
         setActionId(id);
+        const actorId = user?.id;
+        const note = statusNote.trim() || undefined;
+        setStatusNote('');
+
         try {
-            const actorId = user?.id;
-            await gmApi.updateStatus(id, 'CONTENT APPROVED', statusNote.trim() || undefined, actorId);
-            setToast('Content approved successfully!');
-            setStatusNote('');
-            setTimeout(() => setToast(null), 3000);
-            
-            await fetchData();
-            
-            if (activeItem?.item?.id === id) {
-                const res = await gmApi.getContentDetails(id);
-                setActiveItem(res.data);
-            }
-        } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to approve content');
-        } finally { setActionId(null); }
+            await performOptimisticAction({
+                backup: () => ({
+                    pending: [...pendingTasks],
+                    approved: [...approvedTasks],
+                    calendar: [...calendarData],
+                    active: activeItem ? { ...activeItem } : null
+                }),
+                update: () => {
+                    const item = pendingTasks.find(t => t.id === id) || calendarData.find(t => t.id === id);
+                    if (item) {
+                        const updatedItem = { ...item, status: 'CONTENT APPROVED' };
+                        setPendingTasks(prev => prev.filter(t => t.id !== id));
+                        if (!approvedTasks.some(t => t.id === id)) {
+                            setApprovedTasks(prev => [...prev, updatedItem]);
+                        }
+                        setCalendarData(prev => prev.map(t => t.id === id ? updatedItem : t));
+                        if (activeItem?.item?.id === id) {
+                            setActiveItem({
+                                ...activeItem,
+                                item: updatedItem
+                            });
+                        }
+                    }
+                },
+                action: () => gmApi.updateStatus(id, 'CONTENT APPROVED', note, actorId),
+                rollback: (backup) => {
+                    setPendingTasks(backup.pending);
+                    setApprovedTasks(backup.approved);
+                    setCalendarData(backup.calendar);
+                    if (backup.active) setActiveItem(backup.active);
+                },
+                successMessage: 'Content approved successfully!',
+                errorMessage: 'Failed to approve content',
+                refresh: () => {
+                    fetchData(true);
+                    if (activeItem?.item?.id === id) {
+                        gmApi.getContentDetails(id).then(res => setActiveItem(res.data)).catch(console.error);
+                    }
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
     };
 
     const handleUndoApproval = async (id: string) => {
         setActionId(id);
         try {
-            await gmApi.undoStatus(id);
-            setToast('Approval undone, task status reverted.');
-            setTimeout(() => setToast(null), 3000);
-            
-            await fetchData();
-
-            if (activeItem?.item?.id === id) {
-                const res = await gmApi.getContentDetails(id);
-                setActiveItem(res.data);
-            }
-        } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to revert approval');
-        } finally { setActionId(null); }
+            await performOptimisticAction({
+                backup: () => ({
+                    pending: [...pendingTasks],
+                    approved: [...approvedTasks],
+                    calendar: [...calendarData],
+                    active: activeItem ? { ...activeItem } : null
+                }),
+                update: () => {
+                    const item = approvedTasks.find(t => t.id === id) || calendarData.find(t => t.id === id);
+                    if (item) {
+                        const updatedItem = { ...item, status: 'WAITING FOR APPROVAL' };
+                        setApprovedTasks(prev => prev.filter(t => t.id !== id));
+                        if (!pendingTasks.some(t => t.id === id)) {
+                            setPendingTasks(prev => [...prev, updatedItem]);
+                        }
+                        setCalendarData(prev => prev.map(t => t.id === id ? updatedItem : t));
+                        if (activeItem?.item?.id === id) {
+                            setActiveItem({
+                                ...activeItem,
+                                item: updatedItem
+                            });
+                        }
+                    }
+                },
+                action: () => gmApi.undoStatus(id),
+                rollback: (backup) => {
+                    setPendingTasks(backup.pending);
+                    setApprovedTasks(backup.approved);
+                    setCalendarData(backup.calendar);
+                    if (backup.active) setActiveItem(backup.active);
+                },
+                successMessage: 'Approval undone, task status reverted.',
+                errorMessage: 'Failed to revert approval',
+                refresh: () => {
+                    fetchData(true);
+                    if (activeItem?.item?.id === id) {
+                        gmApi.getContentDetails(id).then(res => setActiveItem(res.data)).catch(console.error);
+                    }
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
     };
 
     const handleItemClick = async (item: ContentItem) => {
@@ -424,34 +520,47 @@ export default function ContentHeadDashboard() {
 
     const handleCreateWriter = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
+        setCreatingWriter(true);
         try {
             await contentHeadApi.createWriter(writerForm);
-            setToast('Content Writer created successfully!');
+            toastSuccess('Content Writer created successfully!');
             setWriterForm({ name: '', email: '', password: '' });
             setShowCreateWriterModal(false);
             await fetchWritersData();
-            setTimeout(() => setToast(null), 3000);
         } catch (err: any) {
-            alert(err.response?.data?.error || err.message || 'Failed to create writer');
+            const errMsg = err.response?.data?.error || err.message || 'Failed to create writer';
+            toastError(errMsg);
         } finally {
-            setLoading(false);
+            setCreatingWriter(false);
         }
     };
 
     const handleAssignClient = async (clientId: string, writerId: string) => {
-        setLoading(true);
+        setActionId(`assign-${clientId}-${writerId}`);
+        setShowAssignClientModal(false);
+        setSelectedWriterForAssignment(null);
+
         try {
-            await contentHeadApi.assignWriterToClient(clientId, writerId, null);
-            setToast('Client assigned to writer successfully!');
-            setShowAssignClientModal(false);
-            setSelectedWriterForAssignment(null);
-            await Promise.all([fetchClients(), fetchWritersData()]);
-            setTimeout(() => setToast(null), 3000);
-        } catch (err: any) {
-            alert(err.response?.data?.error || err.message || 'Failed to assign client');
+            await performOptimisticAction({
+                backup: () => [...clients],
+                update: () => {
+                    setClients(prev => prev.map(c => c.id === clientId ? { ...c, writer_employee_id: writerId } : c));
+                },
+                action: () => contentHeadApi.assignWriterToClient(clientId, writerId, null),
+                rollback: (backup) => {
+                    setClients(backup);
+                },
+                successMessage: 'Client assigned to writer successfully!',
+                errorMessage: 'Failed to assign client',
+                refresh: () => {
+                    fetchClients();
+                    fetchWritersData();
+                }
+            });
+        } catch (err) {
+            console.error(err);
         } finally {
-            setLoading(false);
+            setActionId(null);
         }
     };
 
@@ -459,16 +568,29 @@ export default function ContentHeadDashboard() {
         if (!confirm('Are you sure you want to unassign this client? Tasks currently in the writing phase will also be unassigned.')) {
             return;
         }
-        setLoading(true);
+        setActionId(`unassign-${clientId}-${writerId}`);
+
         try {
-            await contentHeadApi.assignWriterToClient(clientId, null, writerId);
-            setToast('Client unassigned from writer.');
-            await Promise.all([fetchClients(), fetchWritersData()]);
-            setTimeout(() => setToast(null), 3000);
-        } catch (err: any) {
-            alert(err.response?.data?.error || err.message || 'Failed to unassign client');
+            await performOptimisticAction({
+                backup: () => [...clients],
+                update: () => {
+                    setClients(prev => prev.map(c => c.id === clientId ? { ...c, writer_employee_id: null } : c));
+                },
+                action: () => contentHeadApi.assignWriterToClient(clientId, null, writerId),
+                rollback: (backup) => {
+                    setClients(backup);
+                },
+                successMessage: 'Client unassigned from writer.',
+                errorMessage: 'Failed to unassign client',
+                refresh: () => {
+                    fetchClients();
+                    fetchWritersData();
+                }
+            });
+        } catch (err) {
+            console.error(err);
         } finally {
-            setLoading(false);
+            setActionId(null);
         }
     };
 
@@ -488,16 +610,37 @@ export default function ContentHeadDashboard() {
         if (!confirm(`Are you sure you want to delete Content Writer "${name}"? This action cannot be undone.`)) {
             return;
         }
-        setLoading(true);
+        setActionId(`delete-${writerId}`);
+
         try {
-            await contentHeadApi.deleteWriter(writerId);
-            setToast('Content Writer deleted successfully.');
-            await fetchWritersData();
-            setTimeout(() => setToast(null), 3000);
-        } catch (err: any) {
-            alert(err.response?.data?.error || err.message || 'Failed to delete writer');
+            await performOptimisticAction({
+                backup: () => ({
+                    writers: [...writers],
+                    clients: [...clients],
+                    productivity: [...writerProductivity]
+                }),
+                update: () => {
+                    setWriters(prev => prev.filter(w => w.user_id !== writerId));
+                    setClients(prev => prev.map(c => c.writer_employee_id === writerId ? { ...c, writer_employee_id: null } : c));
+                    setWriterProductivity(prev => prev.filter(p => p.id !== writerId));
+                },
+                action: () => contentHeadApi.deleteWriter(writerId),
+                rollback: (backup) => {
+                    setWriters(backup.writers);
+                    setClients(backup.clients);
+                    setWriterProductivity(backup.productivity);
+                },
+                successMessage: 'Content Writer deleted successfully.',
+                errorMessage: 'Failed to delete writer',
+                refresh: () => {
+                    fetchWritersData();
+                    fetchClients();
+                }
+            });
+        } catch (err) {
+            console.error(err);
         } finally {
-            setLoading(false);
+            setActionId(null);
         }
     };
 
@@ -710,11 +853,16 @@ export default function ContentHeadDashboard() {
                 <header className="page-header">
                     <div className="header-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                         <div className="header-info">
-                            <h1 className="page-title">
+                            <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {view === 'dashboard' && "Approval Queue"}
                                 {view === 'client' && 'Client Calendar'}
                                 {view === 'master' && 'Master Calendar'}
                                 {view === 'employees' && 'Writer Management'}
+                                {isRefreshing && (
+                                    <div className="refreshing-banner" style={{ margin: 0, padding: 0 }}>
+                                        <Loader2 size={16} className="spinner-btn-icon" />
+                                    </div>
+                                )}
                             </h1>
                             <p className="page-subtitle">
                                 {view === 'dashboard' && `${format(new Date(), 'EEEE, MMMM d')} — Review copy & scripts`}
@@ -752,6 +900,12 @@ export default function ContentHeadDashboard() {
                                     <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn"><ChevronLeft size={20} /></button>
                                     <span className="month-label">{getPeriodLabel()}</span>
                                     <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn"><ChevronRight size={20} /></button>
+                                    {isRefreshing && (
+                                        <div className="refreshing-banner" style={{ marginLeft: '12px' }}>
+                                            <Loader2 size={12} className="spinner-btn-icon" />
+                                            <span>Refreshing...</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -835,7 +989,7 @@ export default function ContentHeadDashboard() {
                             </div>
 
                             {isClientStatsExpanded && (
-                                loading ? (
+                                loading && clientStats.length === 0 ? (
                                     <div className="posting-queue">
                                         <Skeleton className="h-14 w-full" />
                                         <Skeleton className="h-14 w-full" />
@@ -916,7 +1070,7 @@ export default function ContentHeadDashboard() {
                                 </span>
                             </div>
                             
-                            {loading ? (
+                            {loading && pendingTasks.length === 0 ? (
                                 <div className="posting-queue">
                                     <Skeleton className="h-14 w-full" />
                                 </div>
@@ -963,7 +1117,14 @@ export default function ContentHeadDashboard() {
                                                     onClick={() => handleApproveContent(item.id)}
                                                     disabled={actionId === item.id}
                                                 >
-                                                    {actionId === item.id ? 'Approving...' : 'Approve'}
+                                                    {actionId === item.id ? (
+                                                        <>
+                                                            <Loader2 size={12} className="spinner-btn-icon" style={{ marginRight: '4px' }} />
+                                                            <span>Approving...</span>
+                                                        </>
+                                                    ) : (
+                                                        <span>Approve</span>
+                                                    )}
                                                 </button>
                                             </div>
                                         </div>
@@ -982,7 +1143,7 @@ export default function ContentHeadDashboard() {
                                 </span>
                             </div>
 
-                            {loading ? (
+                            {loading && approvedTasks.length === 0 ? (
                                 <div className="posting-queue">
                                     <Skeleton className="h-14 w-full" />
                                 </div>
@@ -1014,7 +1175,14 @@ export default function ContentHeadDashboard() {
                                                     onClick={() => handleUndoApproval(item.id)}
                                                     disabled={actionId === item.id}
                                                 >
-                                                    {actionId === item.id ? 'Reverting...' : 'Undo Approval'}
+                                                    {actionId === item.id ? (
+                                                        <>
+                                                            <Loader2 size={12} className="spinner-btn-icon" style={{ marginRight: '4px' }} />
+                                                            <span>Reverting...</span>
+                                                        </>
+                                                    ) : (
+                                                        <span>Undo Approval</span>
+                                                    )}
                                                 </button>
                                             </div>
                                         </div>
@@ -1050,7 +1218,7 @@ export default function ContentHeadDashboard() {
                                 </div>
                             ))}
 
-                            {loading ? (
+                            {loading && calendarData.length === 0 ? (
                                 Array.from({ length: 35 }).map((_, idx) => (
                                     <div key={idx} className="calendar-day" style={{ minHeight: '120px' }}>
                                         <Skeleton className="h-6 w-8 mb-2" />
@@ -1224,7 +1392,7 @@ export default function ContentHeadDashboard() {
                         </div>
 
                         {/* Writers Grid */}
-                        {loadingWriters ? (
+                        {loadingWriters && writers.length === 0 ? (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                                 <Skeleton className="h-64 w-full rounded-2xl" />
                                 <Skeleton className="h-64 w-full rounded-2xl" />
@@ -1264,8 +1432,13 @@ export default function ContentHeadDashboard() {
                                                         className="btn-icon delete"
                                                         style={{ flexShrink: 0 }}
                                                         title="Delete Writer"
+                                                        disabled={actionId === `delete-${writer.user_id}`}
                                                     >
-                                                        <Trash2 size={14} />
+                                                        {actionId === `delete-${writer.user_id}` ? (
+                                                            <Loader2 size={14} className="spinner-btn-icon" />
+                                                        ) : (
+                                                            <Trash2 size={14} />
+                                                        )}
                                                     </button>
                                                 </div>
 
@@ -1286,8 +1459,13 @@ export default function ContentHeadDashboard() {
                                                                         onClick={() => handleUnassignClient(client.id, writer.user_id)}
                                                                         style={{ background: 'transparent', border: 'none', color: '#0d9488', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center', fontSize: '14px', fontWeight: 800 }}
                                                                         title="Unassign Client"
+                                                                        disabled={actionId === `unassign-${client.id}-${writer.user_id}`}
                                                                     >
-                                                                        &times;
+                                                                        {actionId === `unassign-${client.id}-${writer.user_id}` ? (
+                                                                            <Loader2 size={10} className="spinner-btn-icon" />
+                                                                        ) : (
+                                                                            <>&times;</>
+                                                                        )}
                                                                     </button>
                                                                 </div>
                                                             ))
@@ -1444,8 +1622,12 @@ export default function ContentHeadDashboard() {
                                                     onClick={() => handleApproveContent(activeItem.item.id)}
                                                     disabled={actionId === activeItem.item.id}
                                                 >
-                                                    <Check size={18} />
-                                                    {actionId === activeItem.item.id ? 'Approving...' : 'Approve Content'}
+                                                    {actionId === activeItem.item.id ? (
+                                                        <Loader2 size={18} className="spinner-btn-icon" />
+                                                    ) : (
+                                                        <Check size={18} />
+                                                    )}
+                                                    <span>{actionId === activeItem.item.id ? 'Approving...' : 'Approve Content'}</span>
                                                 </button>
                                             </>
                                         ) : activeItem.item.status === 'CONTENT APPROVED' ? (
@@ -1454,8 +1636,12 @@ export default function ContentHeadDashboard() {
                                                 onClick={() => handleUndoApproval(activeItem.item.id)}
                                                 disabled={actionId === activeItem.item.id}
                                             >
-                                                <Undo2 size={18} />
-                                                {actionId === activeItem.item.id ? 'Undoing...' : 'Undo Approval'}
+                                                {actionId === activeItem.item.id ? (
+                                                    <Loader2 size={18} className="spinner-btn-icon" />
+                                                ) : (
+                                                    <Undo2 size={18} />
+                                                )}
+                                                <span>{actionId === activeItem.item.id ? 'Undoing...' : 'Undo Approval'}</span>
                                             </button>
                                         ) : (
                                             <div className={`workflow-status-badge ${isApprovedByContentHead(activeItem.item.status) ? 'approved' : 'other'}`}>
@@ -1560,8 +1746,9 @@ export default function ContentHeadDashboard() {
                             </div>
                             <div className="modal-footer">
                                 <button type="button" className="btn-secondary" onClick={() => setShowCreateWriterModal(false)}>Cancel</button>
-                                <button type="submit" className="btn-primary" disabled={loading} style={{ width: 'auto', padding: '10px 24px' }}>
-                                    {loading ? 'Creating...' : 'Create Account'}
+                                <button type="submit" className="btn-primary" disabled={creatingWriter} style={{ width: 'auto', padding: '10px 24px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                    {creatingWriter && <Loader2 size={16} className="spinner-btn-icon" />}
+                                    <span>{creatingWriter ? 'Creating...' : 'Create Account'}</span>
                                 </button>
                             </div>
                         </form>
@@ -1641,13 +1828,6 @@ export default function ContentHeadDashboard() {
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* Toast Notifications */}
-            {toast && (
-                <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#0d9488', color: 'white', padding: '12px 24px', borderRadius: '10px', boxShadow: '0 8px 32px rgba(13, 148, 136, 0.3)', zIndex: 3000, fontWeight: 700 }}>
-                    {toast}
                 </div>
             )}
         </div>

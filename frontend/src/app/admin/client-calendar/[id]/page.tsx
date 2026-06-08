@@ -32,23 +32,34 @@ import {
     CalendarClock,
     Undo2,
     AlertTriangle,
-    ShieldAlert
+    ShieldAlert,
+    Loader2
 } from 'lucide-react';
 import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import ScheduleExport from '@/components/ScheduleExport';
 import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ClientCalendarPage() {
     const params = useParams();
     const router = useRouter();
     const clientId = params.id as string;
 
+    const { startLoading, stopLoading } = usePageLoading();
+    const { success: toastSuccess, error: toastError } = useToast();
+    const performOptimisticAction = useOptimisticAction();
+
     const [client, setClient] = useState<Client | null>(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [actionId, setActionId] = useState<string | null>(null);
     const [selectedItem, setSelectedItem] = useState<{ item: ContentItem; history: StatusHistoryItem[] } | null>(null);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
@@ -72,8 +83,17 @@ export default function ClientCalendarPage() {
         } catch (err) { console.error(err); }
     }, [clientId]);
 
-    const fetchCalendarData = useCallback(async () => {
-        setLoading(true);
+    const fetchCalendarData = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        } else {
+            setIsRefreshing(true);
+        }
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await adminApi.getMasterCalendar(currentMonthStr, clientId);
@@ -86,13 +106,24 @@ export default function ClientCalendarPage() {
             } else {
                 setCalendarData(res.data);
             }
-        } catch (err) { console.error(err); } finally { setLoading(false); }
-    }, [currentMonth, clientId, client?.batch_type]);
+        } catch (err) { 
+            console.error(err); 
+            toastError('Failed to refresh calendar data.');
+        } finally { 
+            setLoading(false); 
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [currentMonth, clientId, client?.batch_type, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
         fetchClientInfo();
-        fetchCalendarData();
-    }, [fetchClientInfo, fetchCalendarData]);
+    }, [fetchClientInfo]);
+
+    useEffect(() => {
+        const isSilent = calendarData.length > 0;
+        fetchCalendarData(isSilent);
+    }, [fetchCalendarData]);
 
     // For 15-15 clients, the period spans from 15th of current month to 15th of next month
     const isBiMonthly = (client?.batch_type || '1-1') === '15-15';
@@ -210,47 +241,113 @@ export default function ClientCalendarPage() {
 
     const handleDeleteContent = async (id: string) => {
         if (!window.confirm('Are you sure you want to delete this content item?')) return;
+        setActionId(`delete-${id}`);
         try {
-            await adminApi.deleteContent(id);
-            setSelectedItem(null);
-            fetchCalendarData();
-        } catch (err) { console.error(err); alert('Failed to delete content'); }
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: selectedItem ? { ...selectedItem } : null,
+                    dayTasks: [...dayTasks]
+                }),
+                update: () => {
+                    setCalendarData(prev => prev.filter(item => item.id !== id));
+                    setDayTasks(prev => prev.filter(item => item.id !== id));
+                    setSelectedItem(null);
+                },
+                action: () => adminApi.deleteContent(id),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setDayTasks(backup.dayTasks);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: 'Content deleted successfully.',
+                errorMessage: 'Failed to delete content.',
+                refresh: () => fetchCalendarData(true)
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
     };
 
     const handleUndoStatus = async () => {
         if (!selectedItem) return;
         if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        setActionId(`undo-${selectedItem.item.id}`);
         try {
-            await adminApi.undoStatus(selectedItem.item.id);
-            const res = await adminApi.getContentDetails(selectedItem.item.id);
-            setSelectedItem(res.data);
-            fetchCalendarData();
-        } catch (err) { 
-            console.error(err); 
-            alert('Failed to undo status change. It might be because there is no more history to undo.'); 
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    let revertedStatus = 'WAITING FOR APPROVAL';
+                    if (selectedItem.history && selectedItem.history.length > 1) {
+                        revertedStatus = selectedItem.history[1].status;
+                    }
+                    const updatedItem = { ...selectedItem.item, status: revertedStatus };
+                    setCalendarData(prev => prev.map(item => item.id === selectedItem.item.id ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                },
+                action: () => adminApi.undoStatus(selectedItem.item.id),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: 'Status change undone.',
+                errorMessage: 'Failed to undo status change.',
+                refresh: () => {
+                    fetchCalendarData(true);
+                    adminApi.getContentDetails(selectedItem.item.id).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
         }
     };
 
     const handleToggleEmergency = async () => {
         if (!selectedItem) return;
+        const targetId = selectedItem.item.id;
+        const nextEmergency = !selectedItem.item.is_emergency;
+        setActionId(`toggle-emergency-${targetId}`);
         try {
-            const res: any = await emergencyApi.toggle(selectedItem.item.id);
-            if (res.data.success) {
-                setSelectedItem({
-                    ...selectedItem,
-                    item: {
-                        ...selectedItem.item,
-                        is_emergency: res.data.is_emergency
-                    }
-                });
-                // Update calendar data
-                setCalendarData(prev => prev.map(item => 
-                    item.id === selectedItem.item.id 
-                        ? { ...item, is_emergency: res.data.is_emergency } 
-                        : item
-                ));
-            }
-        } catch (err) { console.error('Error toggling emergency:', err); }
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    const updatedItem = { ...selectedItem.item, is_emergency: nextEmergency };
+                    setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                },
+                action: () => emergencyApi.toggle(targetId),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: nextEmergency ? 'Emergency flag enabled.' : 'Emergency flag disabled.',
+                errorMessage: 'Failed to toggle emergency flag.',
+                refresh: () => {
+                    fetchCalendarData(true);
+                    adminApi.getContentDetails(targetId).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
     };
 
     const handleAddContent = async (e: React.FormEvent) => {
@@ -375,6 +472,12 @@ export default function ClientCalendarPage() {
                             <button onClick={handleNext} className="month-btn">
                                 <ChevronRight size={20}/>
                             </button>
+                            {isRefreshing && (
+                                <div className="refreshing-banner" style={{ marginLeft: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                    <Loader2 size={12} className="spinner-btn-icon" />
+                                    <span>Refreshing...</span>
+                                </div>
+                            )}
                         </div>
 
                         <ScheduleExport 
@@ -438,8 +541,6 @@ export default function ClientCalendarPage() {
                 </div>
             </div>
 
-            {loading && <div className="loading-bar">Updating calendar...</div>}
-
             <div className="calendar-card">
                 <div className="calendar-grid" style={{ gridTemplateRows: viewMode === 'week' ? 'auto 1fr' : 'repeat(6, 1fr)' }}>
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -449,105 +550,119 @@ export default function ClientCalendarPage() {
                         </div>
                     ))}
 
-                    {days.map((day, idx) => {
-                        const isOutOfPeriod = !isDayInPeriod(day);
-                        const dayContent = isOutOfPeriod
-                            ? []
-                            : calendarData.filter(item => {
-                                const itemDate = getISTDate(item.scheduled_datetime);
-                                return isSameDay(itemDate, day);
-                            });
+                    {loading && calendarData.length === 0 ? (
+                        <>
+                            {Array.from({ length: 35 }).map((_, idx) => (
+                                <div key={idx} className="calendar-day opacity-50" style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}>
+                                    <Skeleton className="h-4 w-4 mb-2" style={{ height: '16px', width: '16px', marginBottom: '8px', background: 'rgba(255, 255, 255, 0.05)' }} />
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <Skeleton className="h-4 w-full rounded" style={{ height: '16px', width: '100%', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }} />
+                                        <Skeleton className="h-4 w-3/4 rounded" style={{ height: '16px', width: '75%', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)' }} />
+                                    </div>
+                                </div>
+                            ))}
+                        </>
+                    ) : (
+                        days.map((day, idx) => {
+                            const isOutOfPeriod = !isDayInPeriod(day);
+                            const dayContent = isOutOfPeriod
+                                ? []
+                                : calendarData.filter(item => {
+                                    const itemDate = getISTDate(item.scheduled_datetime);
+                                    return isSameDay(itemDate, day);
+                                });
 
-                        return (
-                            <div
-                                key={idx}
-                                onClick={() => {
-                                    if (isOutOfPeriod) return;
-                                    if (dayContent.length > 0) {
-                                        if (window.innerWidth <= 768) {
-                                            setDailyAgenda({ date: day, items: dayContent });
+                            return (
+                                <div
+                                    key={idx}
+                                    onClick={() => {
+                                        if (isOutOfPeriod) return;
+                                        if (dayContent.length > 0) {
+                                            if (window.innerWidth <= 768) {
+                                                setDailyAgenda({ date: day, items: dayContent });
+                                            } else {
+                                                handleItemClick(dayContent[0]);
+                                            }
                                         } else {
-                                            handleItemClick(dayContent[0]);
-                                        }
-                                    } else {
-                                        setFormData({
-                                            ...formData,
-                                            scheduled_datetime: format(day, "yyyy-MM-dd") + 'T10:00'
-                                        });
-                                        setShowAddModal(true);
-                                    }
-                                }}
-                                className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                style={{
-                                    minHeight: viewMode === 'week' ? '300px' : '110px',
-                                    cursor: isOutOfPeriod ? 'default' : 'pointer',
-                                    position: 'relative'
-                                }}
-                            >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                    <span className="day-number">{format(day, 'd')}</span>
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
                                             setFormData({
                                                 ...formData,
                                                 scheduled_datetime: format(day, "yyyy-MM-dd") + 'T10:00'
                                             });
                                             setShowAddModal(true);
-                                        }}
-                                        className="add-task-btn"
-                                        style={{
-                                            background: 'rgba(255, 255, 255, 0.05)',
-                                            border: '1px solid var(--border)',
-                                            borderRadius: '6px',
-                                            padding: '4px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: 'var(--text-muted)',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s ease'
-                                        }}
-                                        title="Add Task"
-                                    >
-                                        <Plus size={14} />
-                                    </button>
-                                </div>
-                                 <div className="day-items desktop-only">
-                                     {dayContent.map(item => (
-                                         <div 
-                                             key={item.id}
-                                             onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
-                                             className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
-                                         >
-                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
-                                                 {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                 <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
-                                                     {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
-                                                     {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-                                                 </span>
-                                                 {item.status === 'POSTED' ? (
-                                                     <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
-                                                 ) : (
-                                                     <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                                                 )}
+                                        }
+                                    }}
+                                    className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                    style={{
+                                        minHeight: viewMode === 'week' ? '300px' : '110px',
+                                        cursor: isOutOfPeriod ? 'default' : 'pointer',
+                                        position: 'relative'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                        <span className="day-number">{format(day, 'd')}</span>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFormData({
+                                                    ...formData,
+                                                    scheduled_datetime: format(day, "yyyy-MM-dd") + 'T10:00'
+                                                });
+                                                setShowAddModal(true);
+                                            }}
+                                            className="add-task-btn"
+                                            style={{
+                                                background: 'rgba(255, 255, 255, 0.05)',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: '6px',
+                                                padding: '4px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: 'var(--text-muted)',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s ease'
+                                            }}
+                                            title="Add Task"
+                                        >
+                                            <Plus size={14} />
+                                        </button>
+                                    </div>
+                                     <div className="day-items desktop-only">
+                                         {dayContent.map(item => (
+                                             <div 
+                                                 key={item.id}
+                                                 onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
+                                                 className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                             >
+                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+                                                     {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1 }}>
+                                                         {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                         {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                                     </span>
+                                                     {item.status === 'POSTED' ? (
+                                                         <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                     ) : (
+                                                         <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                     )}
+                                                 </div>
                                              </div>
-                                         </div>
-                                     ))}
-                                 </div>
-                                 <div className="mobile-day-indicators">
-                                     {dayContent.map(item => (
-                                         <div 
-                                             key={item.id}
-                                             className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
-                                         >
-                                             {item.content_type.includes('Special') ? '🎉' : item.content_type.substring(0, 4).toUpperCase()}
-                                         </div>
-                                     ))}
-                                 </div>
-                            </div>
-                        );
-                    })}
+                                         ))}
+                                     </div>
+                                     <div className="mobile-day-indicators">
+                                         {dayContent.map(item => (
+                                             <div 
+                                                 key={item.id}
+                                                 className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                             >
+                                                 {item.content_type.includes('Special') ? '🎉' : item.content_type.substring(0, 4).toUpperCase()}
+                                             </div>
+                                         ))}
+                                     </div>
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
             </div>
 
@@ -678,6 +793,7 @@ export default function ClientCalendarPage() {
                                     className="btn-icon" 
                                     title="Edit Content"
                                     style={{ color: 'var(--accent)' }}
+                                    disabled={actionId !== null}
                                 >
                                     <Edit size={18} />
                                 </button>
@@ -686,10 +802,15 @@ export default function ClientCalendarPage() {
                                     className="btn-icon" 
                                     title="Delete Content"
                                     style={{ color: '#ef4444' }}
+                                    disabled={actionId !== null}
                                 >
-                                    <Trash2 size={18} />
+                                    {actionId === `delete-${selectedItem.item.id}` ? (
+                                        <Loader2 size={18} className="spinner-btn-icon" />
+                                    ) : (
+                                        <Trash2 size={18} />
+                                    )}
                                 </button>
-                                <button onClick={() => setSelectedItem(null)} className="modal-close"><X size={20}/></button>
+                                <button onClick={() => setSelectedItem(null)} className="modal-close" disabled={actionId !== null}><X size={20}/></button>
                             </div>
                         </div>
                         
@@ -770,6 +891,7 @@ export default function ClientCalendarPage() {
                                     </div>
                                     <button
                                         onClick={handleToggleEmergency}
+                                        disabled={actionId !== null}
                                         style={{
                                             width: '44px',
                                             height: '24px',
@@ -789,8 +911,15 @@ export default function ClientCalendarPage() {
                                             position: 'absolute',
                                             top: '2px',
                                             left: selectedItem.item.is_emergency ? '22px' : '2px',
-                                            transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
-                                        }}></div>
+                                            transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            {actionId === `toggle-emergency-${selectedItem.item.id}` && (
+                                                <Loader2 size={10} className="spinner-btn-icon" style={{ color: selectedItem.item.is_emergency ? '#ef4444' : 'var(--text-primary)' }} />
+                                            )}
+                                        </div>
                                     </button>
                                 </div>
 
@@ -798,6 +927,7 @@ export default function ClientCalendarPage() {
                                     <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
                                     <button 
                                         onClick={handleUndoStatus}
+                                        disabled={actionId !== null}
                                         style={{ 
                                             display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', 
                                             background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', 
@@ -805,7 +935,11 @@ export default function ClientCalendarPage() {
                                             fontSize: '11px', fontWeight: 700, cursor: 'pointer' 
                                         }}
                                     >
-                                        <Undo2 size={12} />
+                                        {actionId === `undo-${selectedItem.item.id}` ? (
+                                            <Loader2 size={12} className="spinner-btn-icon" />
+                                        ) : (
+                                            <Undo2 size={12} />
+                                        )}
                                         Undo Last Step
                                     </button>
                                 </div>
@@ -959,7 +1093,7 @@ export default function ClientCalendarPage() {
                 </div>
             )}
 
-            <style jsx>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes slideUp {
                     from { transform: translate(-50%, 20px); opacity: 0; }
                     to { transform: translate(-50%, 0); opacity: 1; }
@@ -968,7 +1102,7 @@ export default function ClientCalendarPage() {
                     background: var(--primary) !important;
                     color: white !important;
                 }
-            `}</style>
+            ` }} />
         </div>
     );
 }

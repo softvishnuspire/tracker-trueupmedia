@@ -60,7 +60,8 @@ import {
     UserCircle2,
     Briefcase,
     Trophy,
-    Download
+    Download,
+    Loader2
 } from 'lucide-react';
 import {
     gmApi,
@@ -86,6 +87,8 @@ import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
 import NotificationBell from '@/components/NotificationBell';
 import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
@@ -142,6 +145,11 @@ interface TeamLead extends TeamMember {
 
 export default function GMDashboard() {
     const DISPLAY_OFFSET_DAYS = 7;
+    const { success: toastSuccess, error: toastError } = useToast();
+    const { startLoading, stopLoading } = usePageLoading();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [updatingId, setUpdatingId] = useState<string | null>(null);
+
     const [clients, setClients] = useState<Client[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('');
     const [clientSearchQuery, setClientSearchQuery] = useState('');
@@ -270,8 +278,16 @@ export default function GMDashboard() {
 
 
 
-    const fetchClientCalendar = useCallback(async (clientId: string) => {
+    const fetchClientCalendar = useCallback(async (clientId: string, isSilent = false) => {
         if (!clientId) return [];
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             const client = clients.find(c => c.id === clientId);
             const is1515 = client?.batch_type === '15-15';
@@ -295,11 +311,24 @@ export default function GMDashboard() {
             return data;
         } catch (error) {
             console.error('Error fetching client calendar:', error);
+            toastError('Failed to refresh client calendar.');
             return [];
+        } finally {
+            setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [currentMonth, clients]);
+    }, [currentMonth, clients, calendarData.length, startLoading, stopLoading, toastError]);
 
-    const fetchMasterCalendar = useCallback(async () => {
+    const fetchMasterCalendar = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        }
         try {
             if (view === 'company') {
                 const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
@@ -351,9 +380,14 @@ export default function GMDashboard() {
             return data;
         } catch (error) {
             console.error('Error fetching master calendar:', error);
+            toastError('Failed to refresh master calendar.');
             return [];
+        } finally {
+            setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [currentMonth, view, selectedClient, selectedType, clients]);
+    }, [currentMonth, view, selectedClient, selectedType, clients, calendarData.length, startLoading, stopLoading, toastError]);
 
     const fetchGlobalData = useCallback(async () => {
         try {
@@ -364,21 +398,25 @@ export default function GMDashboard() {
         }
     }, [currentMonth]);
 
-    const fetchTrackingStats = useCallback(async (date = trackingDate) => {
-        setTrackingLoading(true);
+    const fetchTrackingStats = useCallback(async (date = trackingDate, isSilent = false) => {
+        if (!isSilent) {
+            if (!trackingStats) {
+                setTrackingLoading(true);
+            }
+        } else {
+            setTrackingLoading(true);
+        }
         try {
             const res = await adminApi.getTrackingStats(date);
             setTrackingStats(res.data);
         } catch (err: any) {
             console.error('Error fetching tracking stats:', err);
-            const detailMsg = err.response?.data?.details || err.response?.data?.error;
-            if (detailMsg) {
-                alert(`API Error: ${detailMsg}`);
-            }
+            const detailMsg = err.response?.data?.details || err.response?.data?.error || 'Failed to refresh tracking stats.';
+            toastError(detailMsg);
         } finally {
             setTrackingLoading(false);
         }
-    }, [trackingDate]);
+    }, [trackingDate, trackingStats, toastError]);
 
     useEffect(() => {
         if (view === 'master' || view === 'company') {
@@ -418,6 +456,11 @@ export default function GMDashboard() {
         fetchSettings();
     }, []);
 
+    const latestState = React.useRef({ view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen });
+    useEffect(() => {
+        latestState.current = { view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen };
+    }, [view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+
     useEffect(() => {
         const syncStateFromUrl = () => {
             const params = new URLSearchParams(window.location.search);
@@ -425,14 +468,16 @@ export default function GMDashboard() {
             const clientIdParam = params.get('clientId') || '';
             const taskIdParam = params.get('taskId') || '';
 
-            if (viewParam !== view) {
+            const currentState = latestState.current;
+
+            if (viewParam !== currentState.view) {
                 setView(viewParam as any);
             }
-            if (clientIdParam !== selectedClient) {
+            if (clientIdParam !== currentState.selectedClient) {
                 setSelectedClient(clientIdParam);
             }
             if (taskIdParam) {
-                if (activeItem?.item?.id !== taskIdParam) {
+                if (currentState.activeItemId !== taskIdParam) {
                     const fetchAndOpen = async () => {
                         try {
                             const res = await gmApi.getContentDetails(taskIdParam);
@@ -443,11 +488,11 @@ export default function GMDashboard() {
                         }
                     };
                     fetchAndOpen();
-                } else if (!isDetailsOpen) {
+                } else if (!currentState.isDetailsOpen) {
                     setIsDetailsOpen(true);
                 }
             } else {
-                if (isDetailsOpen) {
+                if (currentState.isDetailsOpen) {
                     setIsDetailsOpen(false);
                 }
             }
@@ -461,7 +506,7 @@ export default function GMDashboard() {
         return () => {
             window.removeEventListener('popstate', syncStateFromUrl);
         };
-    }, [loading, view, selectedClient, activeItem?.item?.id, isDetailsOpen]);
+    }, [loading]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -497,21 +542,32 @@ export default function GMDashboard() {
         }
     }, [isDetailsOpen, view, selectedClient]);
 
-    const fetchPocNotes = useCallback(async () => {
-        setLoading(true);
+    const fetchPocNotes = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (pocNotes.length === 0) setLoading(true);
+            else setIsRefreshing(true);
+        }
         try {
             const clientId = selectedPocClient === 'all' ? undefined : selectedPocClient;
             const res = await gmApi.getPocNotes(format(currentMonth, 'yyyy-MM'), undefined, clientId);
             setPocNotes(res.data || []);
         } catch (err) {
             console.error('Error fetching POC notes:', err);
+            toastError('Failed to refresh POC notes.');
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
         }
-    }, [currentMonth, selectedPocClient]);
+    }, [currentMonth, selectedPocClient, pocNotes.length, startLoading, stopLoading, toastError]);
 
-    const fetchTeamLeads = useCallback(async () => {
-        setLoading(true);
+    const fetchTeamLeads = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (teamLeads.length === 0) setLoading(true);
+            else setIsRefreshing(true);
+        }
         try {
             const res = await gmApi.getTeamLeads();
             // For each team lead, fetch their assigned clients
@@ -520,8 +576,15 @@ export default function GMDashboard() {
                 return { ...lead, clients: clientsRes.data };
             }));
             setTeamLeads(leadsWithClients);
-        } catch (err) { console.error(err); } finally { setLoading(false); }
-    }, []);
+        } catch (err) {
+            console.error(err);
+            toastError('Failed to refresh team leads.');
+        } finally {
+            setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [teamLeads.length, startLoading, stopLoading, toastError]);
 
     const isItemCompleted = (item: ContentItem) => {
         const s = (item.status || '').toUpperCase();
@@ -592,17 +655,24 @@ export default function GMDashboard() {
         month: { total: 0, completed: 0, percentage: 0 }
     });
 
-    const fetchDashboardStats = useCallback(async () => {
-        setLoading(true);
-        try {
-            let calendarData = [];
-            if (selectedClient && selectedClient !== 'all') {
-                calendarData = await fetchClientCalendar(selectedClient);
+    const fetchDashboardStats = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
             } else {
-                calendarData = await fetchMasterCalendar();
+                setIsRefreshing(true);
+            }
+        }
+        try {
+            let data = [];
+            if (selectedClient && selectedClient !== 'all') {
+                data = await fetchClientCalendar(selectedClient, isSilent);
+            } else {
+                data = await fetchMasterCalendar(isSilent);
             }
 
-            const periodData = calendarData.filter((item: ContentItem) => isDayInPeriod(parseISO(item.scheduled_datetime)));
+            const periodData = data.filter((item: ContentItem) => isDayInPeriod(parseISO(item.scheduled_datetime)));
 
             const breakdown = periodData.reduce((acc: Record<string, number>, item: ContentItem) => {
                 acc[item.status] = (acc[item.status] || 0) + 1;
@@ -612,7 +682,7 @@ export default function GMDashboard() {
 
             // Calculate today's stats
             const today = new Date();
-            const todayItems = calendarData.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
+            const todayItems = data.filter((item: ContentItem) => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
             const completedToday = todayItems.filter((item: ContentItem) => isItemCompleted(item)).length;
 
@@ -626,7 +696,7 @@ export default function GMDashboard() {
             // Master Week
             const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
             const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-            const weekItems = calendarData.filter((item: ContentItem) => {
+            const weekItems = data.filter((item: ContentItem) => {
                 const itemDate = parseISO(item.scheduled_datetime);
                 return itemDate >= weekStart && itemDate <= weekEnd;
             });
@@ -691,14 +761,14 @@ export default function GMDashboard() {
                 shootDoneReels,
                 shootDonePosts,
                 contentApprovedCount,
-                weeksPending: calendarData.filter((item: ContentItem) => {
+                weeksPending: data.filter((item: ContentItem) => {
                     const itemDate = parseISO(item.scheduled_datetime);
                     const now = new Date();
                     const sevenDaysFromNow = endOfDay(addDays(now, 7));
                     return itemDate >= startOfDay(now) && itemDate <= sevenDaysFromNow && !isItemCompleted(item);
                 }).length
             });
-            setCalendarData(calendarData);
+            setCalendarData(data);
 
             // Fetch all dashboard lists
             const [emergencyRes, pendingRes] = await Promise.all([
@@ -708,11 +778,21 @@ export default function GMDashboard() {
 
             setEmergencyTasks(emergencyRes.data || []);
             setPendingTasks(pendingRes.data || []);
-        } catch (err) { console.error(err); } finally { setLoading(false); }
-    }, [clients.length, teamLeads.length, selectedClient, fetchClientCalendar, fetchMasterCalendar, isDayInPeriod]);
+        } catch (err) {
+            console.error(err);
+            toastError('Failed to refresh dashboard stats.');
+        } finally {
+            setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [clients.length, teamLeads.length, selectedClient, fetchClientCalendar, fetchMasterCalendar, isDayInPeriod, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
         fetchClients();
+    }, [fetchClients]);
+
+    useEffect(() => {
         const fetchUserEffect = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -729,7 +809,7 @@ export default function GMDashboard() {
             }
         };
         fetchUserEffect();
-    }, [fetchClients, supabase]);
+    }, [supabase]);
 
 
     const days = viewMode === 'month'
@@ -955,75 +1035,217 @@ export default function GMDashboard() {
 
     const handleDeleteContent = async (id: string) => {
         if (!window.confirm('Are you sure you want to delete this content item?')) return;
+        setUpdatingId(id);
+        const previousCalendarData = [...calendarData];
+        const previousEmergencyTasks = [...emergencyTasks];
+        const previousPendingTasks = [...pendingTasks];
+
+        // Optimistically remove
+        setCalendarData(prev => prev.filter(item => item.id !== id));
+        setEmergencyTasks(prev => prev.filter(item => item.id !== id));
+        setPendingTasks(prev => prev.filter(item => item.id !== id));
+        setIsDetailsOpen(false);
+        toastSuccess('Content item deleted successfully.');
+
         try {
             await gmApi.deleteContent(id);
-            setIsDetailsOpen(false);
-            if (view === 'master') fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
-        } catch (err) { console.error(err); alert('Failed to delete content'); }
+            setTimeout(() => {
+                if (view === 'master') fetchMasterCalendar(true).then(setCalendarData);
+                else fetchClientCalendar(selectedClient, true).then(setCalendarData);
+                fetchDashboardStats(true);
+            }, 500);
+        } catch (err: any) {
+            console.error(err);
+            setCalendarData(previousCalendarData);
+            setEmergencyTasks(previousEmergencyTasks);
+            setPendingTasks(previousPendingTasks);
+            toastError(err.response?.data?.error || 'Failed to delete content');
+        } finally {
+            setUpdatingId(null);
+        }
     };
 
     const handleStatusUpdate = async (newStatus: string) => {
         if (!activeItem) return;
+        setUpdatingId(activeItem.item.id);
+
+        const previousActiveItem = { ...activeItem };
+        const previousCalendarData = [...calendarData];
+        const previousEmergencyTasks = [...emergencyTasks];
+        const previousPendingTasks = [...pendingTasks];
+
+        // Optimistic UI updates
+        const updatedItem = { ...activeItem.item, status: newStatus };
+        setActiveItem({
+            ...activeItem,
+            item: updatedItem
+        });
+        setCalendarData(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        setEmergencyTasks(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        setPendingTasks(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        toastSuccess(`Status updated to ${newStatus}`);
+
         try {
-            // Get the current authenticated user ID directly to ensure it's not null
             const { data: { user: authUser } } = await supabase.auth.getUser();
             const actorId = authUser?.id || user?.id;
-
-            console.log('Updating status (GM):', { newStatus, note: statusNote, actorId });
-
-            // Pass the note - ensure it's trimmed and not just empty
             await gmApi.updateStatus(activeItem.item.id, newStatus, statusNote.trim() || undefined, actorId);
+            setStatusNote('');
 
-            const res = await gmApi.getContentDetails(activeItem.item.id);
-            setActiveItem(res.data);
-            setStatusNote(''); // Clear note after update
-            if (isMasterMode) fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
+            setTimeout(async () => {
+                try {
+                    const res = await gmApi.getContentDetails(activeItem.item.id);
+                    setActiveItem(res.data);
+                    if (isMasterMode) fetchMasterCalendar(true).then(setCalendarData);
+                    else fetchClientCalendar(selectedClient, true).then(setCalendarData);
+                    fetchDashboardStats(true);
+                } catch (refreshErr) {
+                    console.error('Background refresh failed:', refreshErr);
+                }
+            }, 500);
         } catch (err: any) {
             console.error('Status update error (GM):', err);
-            alert(err.response?.data?.error || 'Failed to update status');
+            setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            setEmergencyTasks(previousEmergencyTasks);
+            setPendingTasks(previousPendingTasks);
+            toastError(err.response?.data?.error || 'Failed to update status');
+        } finally {
+            setUpdatingId(null);
         }
     };
 
     const handleUndoStatus = async () => {
         if (!activeItem) return;
+        setUpdatingId(activeItem.item.id);
+
+        const previousActiveItem = { ...activeItem };
+        const previousCalendarData = [...calendarData];
+        const previousEmergencyTasks = [...emergencyTasks];
+        const previousPendingTasks = [...pendingTasks];
+
+        // Optimistic UI updates (using second-to-last history item if available)
+        let revertedStatus = activeItem.item.status;
+        if (activeItem.history && activeItem.history.length > 1) {
+            revertedStatus = activeItem.history[1].status;
+        }
+        const updatedItem = { ...activeItem.item, status: revertedStatus };
+        setActiveItem({
+            ...activeItem,
+            item: updatedItem
+        });
+        setCalendarData(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        setEmergencyTasks(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        setPendingTasks(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        toastSuccess('Undoing last status change...');
+
         try {
             await gmApi.undoStatus(activeItem.item.id);
-            const res = await gmApi.getContentDetails(activeItem.item.id);
-            setActiveItem(res.data);
-            if (isMasterMode) fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
-        } catch (err) {
+            toastSuccess('Status change undone.');
+
+            setTimeout(async () => {
+                try {
+                    const res = await gmApi.getContentDetails(activeItem.item.id);
+                    setActiveItem(res.data);
+                    if (isMasterMode) fetchMasterCalendar(true).then(setCalendarData);
+                    else fetchClientCalendar(selectedClient, true).then(setCalendarData);
+                    fetchDashboardStats(true);
+                } catch (refreshErr) {
+                    console.error('Background refresh failed:', refreshErr);
+                }
+            }, 500);
+        } catch (err: any) {
             console.error(err);
+            setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            setEmergencyTasks(previousEmergencyTasks);
+            setPendingTasks(previousPendingTasks);
+            toastError('Failed to undo status change.');
+        } finally {
+            setUpdatingId(null);
         }
     };
 
     const handleToggleEmergency = async () => {
         if (!activeItem) return;
+        setUpdatingId(activeItem.item.id);
+
+        const previousActiveItem = { ...activeItem };
+        const previousCalendarData = [...calendarData];
+        const previousEmergencyTasks = [...emergencyTasks];
+
+        const updatedItem = { ...activeItem.item, is_emergency: !activeItem.item.is_emergency };
+        setActiveItem({
+            ...activeItem,
+            item: updatedItem
+        });
+        setCalendarData(prev => prev.map(item => item.id === activeItem.item.id ? updatedItem : item));
+        if (updatedItem.is_emergency) {
+            if (!emergencyTasks.some(t => t.id === updatedItem.id)) {
+                setEmergencyTasks(prev => [updatedItem, ...prev]);
+            }
+        } else {
+            setEmergencyTasks(prev => prev.filter(t => t.id !== updatedItem.id));
+        }
+        toastSuccess(`Emergency status toggled to ${updatedItem.is_emergency ? 'ON' : 'OFF'}`);
+
         try {
             const res: any = await emergencyApi.toggle(activeItem.item.id);
             if (res.data.success) {
-                const detailsRes = await gmApi.getContentDetails(activeItem.item.id);
-                setActiveItem(detailsRes.data);
-
-                // Refresh calendars
-                if (view === 'master') fetchMasterCalendar().then(setCalendarData);
-                else if (view === 'client') fetchClientCalendar(selectedClient).then(setCalendarData);
-
-                // Always refresh dashboard stats to update emergency list
-                fetchDashboardStats();
+                setTimeout(async () => {
+                    try {
+                        const detailsRes = await gmApi.getContentDetails(activeItem.item.id);
+                        setActiveItem(detailsRes.data);
+                        if (view === 'master') fetchMasterCalendar(true).then(setCalendarData);
+                        else if (view === 'client') fetchClientCalendar(selectedClient, true).then(setCalendarData);
+                        fetchDashboardStats(true);
+                    } catch (refreshErr) {
+                        console.error(refreshErr);
+                    }
+                }, 500);
+            } else {
+                throw new Error('Toggle failed on server');
             }
         } catch (err: any) {
             console.error('Emergency toggle error:', err);
-            alert(err.response?.data?.error || 'Failed to toggle emergency status');
+            setActiveItem(previousActiveItem);
+            setCalendarData(previousCalendarData);
+            setEmergencyTasks(previousEmergencyTasks);
+            toastError(err.response?.data?.error || 'Failed to toggle emergency status');
+        } finally {
+            setUpdatingId(null);
         }
     };
 
     const handleAssignClient = async (clientId: string, teamLeadId: string) => {
+        const previousTeamLeads = [...teamLeads];
+        const previousClients = [...clients];
+
+        const clientObj = clients.find(c => c.id === clientId);
+        if (clientObj) {
+            setTeamLeads(prev => prev.map(lead => {
+                let updatedClients = lead.clients ? lead.clients.filter(c => c.id !== clientId) : [];
+                if (lead.user_id === teamLeadId) {
+                    updatedClients = [...updatedClients, clientObj];
+                }
+                return { ...lead, clients: updatedClients };
+            }));
+            toastSuccess('Client assigned successfully.');
+        }
+
         try {
             await gmApi.assignClient(clientId, teamLeadId);
-            fetchTeamLeads();
-            fetchClients();
             setIsAssignModalOpen(false);
-        } catch (err) { alert('Error assigning client'); }
+
+            setTimeout(() => {
+                fetchTeamLeads(true);
+                fetchClients();
+            }, 500);
+        } catch (err) {
+            console.error(err);
+            setTeamLeads(previousTeamLeads);
+            setClients(previousClients);
+            toastError('Error assigning client');
+        }
     };
 
     const handleLogout = async () => {
@@ -1041,38 +1263,65 @@ export default function GMDashboard() {
     const handleUpdatePocNote = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedPocNote || !pocEditNoteText.trim()) return;
+        setUpdatingId('poc-submitting');
+
+        const previousPocNotes = [...pocNotes];
+        const previousSelectedPocNote = { ...selectedPocNote };
+
+        const updatedPocNote = { ...selectedPocNote, note_text: pocEditNoteText.trim() };
+        setPocNotes(prev => prev.map(note => note.id === selectedPocNote.id ? updatedPocNote : note));
+        setSelectedPocNote(updatedPocNote);
+        setIsPocEditing(false);
+        toastSuccess('POC Note updated.');
+
         try {
             const actorId = user?.id;
             const res = await tlApi.updatePocNote(selectedPocNote.id, {
                 note_text: pocEditNoteText.trim(),
                 actor_id: actorId
             });
-            setIsPocEditing(false);
-            setSelectedPocNote(res.data);
-            await fetchPocNotes();
+
+            setTimeout(() => {
+                setSelectedPocNote(res.data);
+                fetchPocNotes(true);
+            }, 500);
         } catch (err) {
             console.error('Error updating POC note:', err);
-            alert('Failed to update note');
+            setPocNotes(previousPocNotes);
+            setSelectedPocNote(previousSelectedPocNote);
+            toastError('Failed to update note');
+        } finally {
+            setUpdatingId(null);
         }
     };
 
     const handleDeletePocNote = async () => {
         if (!selectedPocNote) return;
         if (!window.confirm('Are you sure you want to delete this POC note? This action cannot be undone.')) return;
+
+        const previousPocNotes = [...pocNotes];
+
+        setPocNotes(prev => prev.filter(note => note.id !== selectedPocNote.id));
+        setIsPocDetailsOpen(false);
+        setSelectedPocNote(null);
+        toastSuccess('POC Note deleted.');
+
         try {
             await tlApi.deletePocNote(selectedPocNote.id);
-            setIsPocDetailsOpen(false);
-            setSelectedPocNote(null);
-            await fetchPocNotes();
+            setTimeout(() => {
+                fetchPocNotes(true);
+            }, 500);
         } catch (err) {
             console.error('Error deleting POC note:', err);
-            alert('Failed to delete note');
+            setPocNotes(previousPocNotes);
+            toastError('Failed to delete note');
         }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const scheduled_datetime = convertISTToUTC(format(selectedDate!, 'yyyy-MM-dd'), formData.time);
+        setUpdatingId('submitting');
         try {
             if (editingItem) {
                 await gmApi.updateContent(editingItem.id, {
@@ -1081,6 +1330,7 @@ export default function GMDashboard() {
                     scheduled_datetime,
                     is_rescheduled: isRescheduling ? true : editingItem.is_rescheduled
                 });
+                toastSuccess('Content item updated successfully.');
             } else {
                 await gmApi.addContent({
                     client_id: selectedClient,
@@ -1089,13 +1339,21 @@ export default function GMDashboard() {
                     content_type: formData.content_type,
                     scheduled_datetime
                 });
+                toastSuccess('Content item created successfully.');
             }
             setIsModalOpen(false);
             setIsRescheduling(false);
-            if (view === 'master') fetchMasterCalendar().then(setCalendarData); else fetchClientCalendar(selectedClient).then(setCalendarData);
+
+            setTimeout(() => {
+                if (view === 'master') fetchMasterCalendar(true).then(setCalendarData);
+                else fetchClientCalendar(selectedClient, true).then(setCalendarData);
+                fetchDashboardStats(true);
+            }, 500);
         } catch (err: any) {
             const errorMsg = err.response?.data?.error || 'Error saving item';
-            alert(errorMsg);
+            toastError(errorMsg);
+        } finally {
+            setUpdatingId(null);
         }
     };
 
@@ -1404,6 +1662,12 @@ export default function GMDashboard() {
                                             }
                                         </span>
                                         <button onClick={handleNext} className="month-btn"><ChevronRight size={20} /></button>
+                                        {isRefreshing && (
+                                            <div className="refreshing-banner" style={{ marginLeft: '12px' }}>
+                                                <Loader2 size={12} className="spinner-btn-icon" />
+                                                <span>Refreshing...</span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {(userRole === 'ADMIN' || userRole === 'GM' || userRole === 'GENERAL MANAGER' || userRole === 'PRODUCTION HEAD' || userRole === 'PH') && (
@@ -1854,7 +2118,7 @@ export default function GMDashboard() {
                 {view === 'teams' ? (
                     <div className="teams-container">
                         <div className="teams-grid">
-                            {loading ? (
+                            {loading && teamLeads.length === 0 ? (
                                 <>
                                     {[1, 2, 3].map((i) => (
                                         <div key={i} className="team-card">
@@ -2440,7 +2704,7 @@ export default function GMDashboard() {
                                     </div>
                                 ))}
 
-                                {loading ? (
+                                {loading && calendarData.length === 0 && pocNotes.length === 0 ? (
                                     <>
                                         {Array.from({ length: 35 }).map((_, idx) => (
                                             <div key={idx} className="calendar-day opacity-50" style={{ minHeight: viewMode === 'week' ? '300px' : '110px' }}>
@@ -2626,9 +2890,23 @@ export default function GMDashboard() {
                                     <input type="time" className="form-input" value={formData.time} onChange={e => setFormData({ ...formData, time: e.target.value })} />
                                 </div>
                             </div>
-                            <button type="submit" className="btn-primary" style={{ background: isRescheduling ? '#ef4444' : '' }}>
-                                {isRescheduling ? <CalendarClock size={18} /> : editingItem ? <Edit size={18} /> : <Plus size={18} />}
-                                {isRescheduling ? 'Confirm Reschedule' : editingItem ? 'Update Content' : 'Create Content Schedule'}
+                            <button 
+                                type="submit" 
+                                className="btn-primary" 
+                                disabled={updatingId === 'submitting'}
+                                style={{ background: isRescheduling ? '#ef4444' : '' }}
+                            >
+                                {updatingId === 'submitting' ? (
+                                    <>
+                                        <Loader2 size={18} className="spinner-btn-icon" />
+                                        <span>Saving...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {isRescheduling ? <CalendarClock size={18} /> : editingItem ? <Edit size={18} /> : <Plus size={18} />}
+                                        <span>{isRescheduling ? 'Confirm Reschedule' : editingItem ? 'Update Content' : 'Create Content Schedule'}</span>
+                                    </>
+                                )}
                             </button>
                         </form>
                     </div>
@@ -2795,7 +3073,8 @@ export default function GMDashboard() {
                                     onClick={() => handleEditClick(activeItem.item)}
                                     className="btn-icon"
                                     title="Edit Content"
-                                    style={{ color: 'var(--accent)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                    disabled={updatingId === activeItem.item.id}
+                                    style={{ color: 'var(--accent)', background: 'transparent', border: 'none', cursor: 'pointer', opacity: updatingId === activeItem.item.id ? 0.5 : 1 }}
                                 >
                                     <Edit size={18} />
                                 </button>
@@ -2803,9 +3082,10 @@ export default function GMDashboard() {
                                     onClick={() => handleDeleteContent(activeItem.item.id)}
                                     className="btn-icon"
                                     title="Delete Content"
-                                    style={{ color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                    disabled={updatingId === activeItem.item.id}
+                                    style={{ color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', opacity: updatingId === activeItem.item.id ? 0.5 : 1 }}
                                 >
-                                    <Trash2 size={18} />
+                                    {updatingId === activeItem.item.id ? <Loader2 size={18} className="spinner-btn-icon" /> : <Trash2 size={18} />}
                                 </button>
                                 <button onClick={() => setIsDetailsOpen(false)} className="modal-close"><X size={20} /></button>
                             </div>
@@ -2870,6 +3150,7 @@ export default function GMDashboard() {
                                             </div>
                                             <button
                                                 onClick={handleToggleEmergency}
+                                                disabled={updatingId === activeItem.item.id}
                                                 style={{
                                                     width: '44px',
                                                     height: '24px',
@@ -2878,7 +3159,8 @@ export default function GMDashboard() {
                                                     border: `1px solid ${activeItem.item.is_emergency ? '#ef4444' : 'var(--border)'}`,
                                                     position: 'relative',
                                                     cursor: 'pointer',
-                                                    transition: 'all 0.3s ease'
+                                                    transition: 'all 0.3s ease',
+                                                    opacity: updatingId === activeItem.item.id ? 0.5 : 1
                                                 }}
                                             >
                                                 <div style={{
@@ -2978,18 +3260,33 @@ export default function GMDashboard() {
                                                             <button
                                                                 onClick={() => handleStatusUpdate(nextStatus)}
                                                                 className="btn-advance"
+                                                                disabled={updatingId === activeItem.item.id}
                                                                 style={{ flex: 1 }}
                                                             >
-                                                                <span>Advance to {nextStatus}</span>
-                                                                <ArrowRight size={18} className="advance-arrow" />
+                                                                {updatingId === activeItem.item.id ? (
+                                                                    <>
+                                                                        <Loader2 size={18} className="spinner-btn-icon" />
+                                                                        <span>Advancing...</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <span>Advance to {nextStatus}</span>
+                                                                        <ArrowRight size={18} className="advance-arrow" />
+                                                                    </>
+                                                                )}
                                                             </button>
                                                             <button
                                                                 onClick={handleUndoStatus}
                                                                 className="btn-advance"
-                                                                style={{ width: '48px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: 0, justifyContent: 'center' }}
+                                                                disabled={updatingId === activeItem.item.id}
+                                                                style={{ width: '48px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: 0, justifyContent: 'center', opacity: updatingId === activeItem.item.id ? 0.5 : 1 }}
                                                                 title="Undo Last Step"
                                                             >
-                                                                <Undo2 size={18} />
+                                                                {updatingId === activeItem.item.id ? (
+                                                                    <Loader2 size={18} className="spinner-btn-icon" />
+                                                                ) : (
+                                                                    <Undo2 size={18} />
+                                                                )}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -3033,11 +3330,13 @@ export default function GMDashboard() {
                                 <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
                                 <button
                                     onClick={handleUndoStatus}
+                                    disabled={updatingId === activeItem.item.id}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
                                         background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
                                         border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px',
-                                        fontSize: '11px', fontWeight: 700, cursor: 'pointer'
+                                        fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+                                        opacity: updatingId === activeItem.item.id ? 0.5 : 1
                                     }}
                                 >
                                     <Undo2 size={12} />
@@ -3164,7 +3463,7 @@ export default function GMDashboard() {
                                 <label className="form-label">Note</label>
                                 <textarea
                                     className="form-input"
-                                    value={pocEditNoteText}
+                                                                value={pocEditNoteText}
                                     onChange={(e) => setPocEditNoteText(e.target.value)}
                                     rows={5}
                                     required
@@ -3172,14 +3471,27 @@ export default function GMDashboard() {
                             </div>
 
                             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                                <button type="submit" className="btn-primary" style={{ flex: 1 }}>
-                                    Save Changes
+                                <button 
+                                    type="submit" 
+                                    className="btn-primary" 
+                                    disabled={updatingId === 'poc-submitting'}
+                                    style={{ flex: 1 }}
+                                >
+                                    {updatingId === 'poc-submitting' ? (
+                                        <>
+                                            <Loader2 size={18} className="spinner-btn-icon" style={{ marginRight: '8px' }} />
+                                            <span>Saving...</span>
+                                        </>
+                                    ) : (
+                                        <span>Save Changes</span>
+                                    )}
                                 </button>
                                 <button 
                                     type="button" 
                                     onClick={handleDeletePocNote} 
                                     className="btn-add"
-                                    style={{ flex: 1, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                                    disabled={updatingId === 'poc-submitting'}
+                                    style={{ flex: 1, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', opacity: updatingId === 'poc-submitting' ? 0.5 : 1 }}
                                 >
                                     Delete Note
                                 </button>

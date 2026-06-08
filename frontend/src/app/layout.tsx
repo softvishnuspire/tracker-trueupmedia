@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
+import { ToastProvider } from "@/components/ui/ToastProvider";
+import { PageLoadingProvider } from "@/components/ui/TopProgressBar";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -25,9 +27,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={plusJakartaSans.className}>
-        {children}
+        <PageLoadingProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </PageLoadingProvider>
       </body>
     </html>
   );
 }
+
 

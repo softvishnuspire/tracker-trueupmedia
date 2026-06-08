@@ -32,20 +32,27 @@ import {
     ShieldAlert,
     ArrowRight,
     Search,
-    Filter
+    Filter,
+    Loader2
 } from 'lucide-react';
 import { adminApi, ContentItem, ContentDetails, phApi } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
 
 export default function MasterProductionSchedule() {
+    const { startLoading, stopLoading } = usePageLoading();
+    const { error: toastError } = useToast();
+
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [loading, setLoading] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [activeItem, setActiveItem] = useState<any>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
@@ -68,8 +75,9 @@ export default function MasterProductionSchedule() {
     }, []);
 
     useEffect(() => {
-        fetchMasterCalendar();
-    }, [selectedClient, currentMonth]);
+        const isSilent = calendarData.length > 0;
+        fetchMasterCalendar(isSilent);
+    }, [fetchMasterCalendar]);
 
     useEffect(() => {
         if (!isDetailsOpen) {
@@ -105,8 +113,17 @@ export default function MasterProductionSchedule() {
         } catch (err) { console.error(err); }
     };
 
-    const fetchMasterCalendar = async () => {
-        setLoading(true);
+    const fetchMasterCalendar = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        } else {
+            setIsRefreshing(true);
+        }
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
             // Use phApi version of the query but as Admin (Admin has permission)
@@ -114,9 +131,16 @@ export default function MasterProductionSchedule() {
             const res = await adminApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient);
             const productionStatuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
             setCalendarData((res.data || []).filter((item: ContentItem) => productionStatuses.includes(item.status)));
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    };
+        } catch (err) { 
+            console.error(err);
+            toastError('Failed to refresh master calendar.');
+        }
+        finally { 
+            setLoading(false); 
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [selectedClient, currentMonth, calendarData.length, startLoading, stopLoading, toastError]);
 
     const handleItemClick = async (item: ContentItem) => {
         try {
@@ -195,6 +219,12 @@ export default function MasterProductionSchedule() {
                                 <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn">
                                     <ChevronRight size={20} />
                                 </button>
+                                {isRefreshing && (
+                                    <div className="refreshing-banner" style={{ marginLeft: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                        <Loader2 size={12} className="spinner-btn-icon" />
+                                        <span>Refreshing...</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -234,7 +264,7 @@ export default function MasterProductionSchedule() {
                         </div>
                     ))}
 
-                    {loading ? (
+                    {loading && calendarData.length === 0 ? (
                         Array.from({ length: 35 }).map((_, idx) => (
                             <div key={idx} className="calendar-day" style={{ minHeight: '110px' }}>
                                 <Skeleton className="h-4 w-4 mb-2" />

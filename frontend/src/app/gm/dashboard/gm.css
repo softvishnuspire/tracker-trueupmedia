@@ -1314,6 +1314,27 @@
     background: rgba(249, 115, 22, 0.2);
 }
 
+.content-item.youtube {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.content-item.youtube:hover {
+    background: rgba(139, 92, 246, 0.2);
+}
+
+.content-item.pending {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.content-item.pending:hover {
+    background: rgba(245, 158, 11, 0.2);
+}
+
+
 /* ─── Modals ─── */
 .modal-overlay {
     position: fixed;

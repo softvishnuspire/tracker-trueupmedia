@@ -45,10 +45,20 @@ import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { createClient } from '@/utils/supabase/client';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { Loader2 } from 'lucide-react';
 
 
 
 export default function MasterCalendar() {
+    const { success: toastSuccess, error: toastError } = useToast();
+    const { startLoading, stopLoading } = usePageLoading();
+    const performOptimisticAction = useOptimisticAction();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [actionId, setActionId] = useState<string | null>(null);
+
     const [clients, setClients] = useState<any[]>([]);
     const [selectedClient, setSelectedClient] = useState<string>('all');
     const [selectedType, setSelectedType] = useState<string>('all');
@@ -107,8 +117,17 @@ export default function MasterCalendar() {
     };
 
 
-    const fetchMasterData = useCallback(async () => {
-        setLoading(true);
+    const fetchMasterData = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        } else {
+            setIsRefreshing(true);
+        }
         try {
             const res = await adminApi.getMasterCalendar(
                 format(currentMonth, 'yyyy-MM'),
@@ -116,11 +135,19 @@ export default function MasterCalendar() {
                 selectedType === 'all' ? undefined : selectedType
             );
             setCalendarData(res.data);
-        } catch (err) { console.error(err); } finally { setLoading(false); }
-    }, [currentMonth, selectedClient, selectedType]);
+        } catch (err) {
+            console.error(err);
+            toastError('Failed to refresh calendar data.');
+        } finally {
+            setLoading(false);
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [currentMonth, selectedClient, selectedType, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
-        fetchMasterData();
+        const isSilent = calendarData.length > 0;
+        fetchMasterData(isSilent);
     }, [fetchMasterData]);
 
     useEffect(() => {
@@ -209,37 +236,81 @@ export default function MasterCalendar() {
     const handleUndoStatus = async () => {
         if (!selectedItem) return;
         if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        setActionId(`undo-${selectedItem.item.id}`);
+
         try {
-            await adminApi.undoStatus(selectedItem.item.id);
-            const res = await adminApi.getContentDetails(selectedItem.item.id);
-            setSelectedItem(res.data);
-            fetchMasterData();
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    let revertedStatus = 'WAITING FOR APPROVAL';
+                    if (selectedItem.history && selectedItem.history.length > 1) {
+                        revertedStatus = selectedItem.history[1].status;
+                    }
+                    const updatedItem = { ...selectedItem.item, status: revertedStatus };
+                    setCalendarData(prev => prev.map(item => item.id === selectedItem.item.id ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                },
+                action: () => adminApi.undoStatus(selectedItem.item.id),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: 'Status change undone.',
+                errorMessage: 'Failed to undo status change.',
+                refresh: () => {
+                    fetchMasterData(true);
+                    adminApi.getContentDetails(selectedItem.item.id).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
         } catch (err) {
             console.error(err);
-            alert('Failed to undo status change. It might be because there is no more history to undo.');
+        } finally {
+            setActionId(null);
         }
     };
 
     const handleToggleEmergency = async () => {
         if (!selectedItem) return;
+        const targetId = selectedItem.item.id;
+        const nextEmergency = !selectedItem.item.is_emergency;
+        setActionId(`toggle-emergency-${targetId}`);
+
         try {
-            const res: any = await emergencyApi.toggle(selectedItem.item.id);
-            if (res.data.success) {
-                setSelectedItem({
-                    ...selectedItem,
-                    item: {
-                        ...selectedItem.item,
-                        is_emergency: res.data.is_emergency
-                    }
-                });
-                // Update calendar data
-                setCalendarData(prev => prev.map(item =>
-                    item.id === selectedItem.item.id
-                        ? { ...item, is_emergency: res.data.is_emergency }
-                        : item
-                ));
-            }
-        } catch (err) { console.error('Error toggling emergency:', err); }
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    const updatedItem = { ...selectedItem.item, is_emergency: nextEmergency };
+                    setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                },
+                action: () => emergencyApi.toggle(targetId),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: nextEmergency ? 'Emergency status enabled!' : 'Emergency status disabled.',
+                errorMessage: 'Failed to toggle emergency status.',
+                refresh: () => {
+                    fetchMasterData(true);
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
     };
 
     const monthStatusCounts = calendarData.reduce(

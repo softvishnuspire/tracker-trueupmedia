@@ -21,10 +21,13 @@ import {
     ChevronRight,
     Search,
     History as HistoryIcon,
-    LayoutDashboard
+    LayoutDashboard,
+    Loader2
 } from 'lucide-react';
 import { employeeApi } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePageLoading } from '@/components/ui/TopProgressBar';
 import './employee.css';
 
 interface Task {
@@ -39,6 +42,9 @@ interface Task {
 }
 
 export default function EmployeeDashboard() {
+    const { success: toastSuccess, error: toastError } = useToast();
+    const { startLoading, stopLoading } = usePageLoading();
+    
     const [tasks, setTasks] = useState<Task[]>([]);
     const [historyTasks, setHistoryTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
@@ -48,8 +54,10 @@ export default function EmployeeDashboard() {
     const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
     const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
 
-    const fetchDashboardTasks = async () => {
-        setLoading(true);
+    const fetchDashboardTasks = async (isSilent = false) => {
+        if (!isSilent && tasks.length === 0) {
+            setLoading(true);
+        }
         try {
             const res = await employeeApi.getTasks();
             const sanitizedTasks: Task[] = res.data.map(item => ({
@@ -59,13 +67,16 @@ export default function EmployeeDashboard() {
             setTasks(sanitizedTasks);
         } catch (err) {
             console.error('Error fetching dashboard tasks:', err);
+            toastError('Failed to refresh task list.');
         } finally {
-            setLoading(false);
+            if (!isSilent) setLoading(false);
         }
     };
 
-    const fetchHistoryTasks = async (month: string) => {
-        setHistoryLoading(true);
+    const fetchHistoryTasks = async (month: string, isSilent = false) => {
+        if (!isSilent && historyTasks.length === 0) {
+            setHistoryLoading(true);
+        }
         try {
             const res = await employeeApi.getTasks(month);
             const sanitizedTasks: Task[] = res.data.map(item => ({
@@ -75,33 +86,59 @@ export default function EmployeeDashboard() {
             setHistoryTasks(sanitizedTasks);
         } catch (err) {
             console.error('Error fetching history tasks:', err);
+            toastError('Failed to fetch history tasks.');
         } finally {
-            setHistoryLoading(false);
+            if (!isSilent) setHistoryLoading(false);
         }
     };
 
     useEffect(() => {
-        if (view === 'dashboard') {
-            fetchDashboardTasks();
-        } else {
-            fetchHistoryTasks(selectedMonth);
-        }
+        const loadData = async () => {
+            startLoading();
+            if (view === 'dashboard') {
+                await fetchDashboardTasks();
+            } else {
+                await fetchHistoryTasks(selectedMonth);
+            }
+            stopLoading();
+        };
+        loadData();
     }, [view, selectedMonth]);
 
     const handleToggleStatus = async (task: Task) => {
         setUpdatingId(task.id);
         const newStatus = task.employee_task_status === 'PENDING' ? 'COMPLETED' : 'PENDING';
+        
+        // Optimistic backup
+        const previousTasks = [...tasks];
+        const previousHistoryTasks = [...historyTasks];
+
+        // Optimistic UI state toggle
+        const updateFn = (prev: Task[]): Task[] => prev.map(t => 
+            t.id === task.id ? { ...t, employee_task_status: newStatus as 'PENDING' | 'COMPLETED' } : t
+        );
+        setTasks(updateFn);
+        setHistoryTasks(updateFn);
+
         try {
             await employeeApi.updateTaskStatus(task.id, newStatus);
+            toastSuccess(newStatus === 'COMPLETED' ? 'Task completed successfully!' : 'Task set to pending.');
             
-            // Update both states to ensure UI is consistent
-            const updateFn = (prev: Task[]): Task[] => prev.map(t => 
-                t.id === task.id ? { ...t, employee_task_status: newStatus as 'PENDING' | 'COMPLETED' } : t
-            );
-            setTasks(updateFn);
-            setHistoryTasks(updateFn);
+            // 500ms debounced background refresh
+            setTimeout(() => {
+                if (view === 'dashboard') {
+                    fetchDashboardTasks(true);
+                } else {
+                    fetchHistoryTasks(selectedMonth, true);
+                }
+            }, 500);
+
         } catch (err) {
-            alert('Failed to update status');
+            console.error('Failed to update status:', err);
+            // Rollback
+            setTasks(previousTasks);
+            setHistoryTasks(previousHistoryTasks);
+            toastError('Failed to update task status. Network error.');
         } finally {
             setUpdatingId(null);
         }
@@ -237,7 +274,7 @@ export default function EmployeeDashboard() {
                 </div>
             </div>
 
-            {historyLoading ? (
+            {historyLoading && historyTasks.length === 0 ? (
                 <div className="task-grid">
                     {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 w-full rounded-2xl" />)}
                 </div>
@@ -262,7 +299,7 @@ export default function EmployeeDashboard() {
         </section>
     );
 
-    if (loading && view === 'dashboard') {
+    if (loading && tasks.length === 0 && view === 'dashboard') {
         return (
             <div className="employee-dashboard">
                 <div className="welcome-section">
@@ -279,7 +316,7 @@ export default function EmployeeDashboard() {
     return (
         <div className="employee-dashboard">
             <header className="welcome-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                     <div>
                         <h1 className="welcome-title">{view === 'dashboard' ? 'Daily Task Management' : 'Assignment History'}</h1>
                         <p className="welcome-subtitle">
@@ -336,7 +373,11 @@ function TaskCard({ task, onToggle, isUpdating }: { task: Task, onToggle: () => 
                     onClick={(e) => { e.stopPropagation(); onToggle(); }}
                     disabled={isUpdating}
                 >
-                    {isUpdating ? '...' : isCompleted ? (
+                    {isUpdating ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Loader2 size={16} className="spinner-btn-icon" /> Updating...
+                        </div>
+                    ) : isCompleted ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <CheckCircle2 size={16} /> Done
                         </div>
@@ -346,3 +387,4 @@ function TaskCard({ task, onToggle, isUpdating }: { task: Task, onToggle: () => 
         </div>
     );
 }
+
