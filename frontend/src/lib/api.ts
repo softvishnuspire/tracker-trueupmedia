@@ -443,9 +443,10 @@ export const emergencyApi = {
 };
 
 const ROLE_PATHS: Record<string, string[]> = {
-    '/ph/': ['ph', 'production head', 'admin', 'gm'],
+    '/ph/': ['ph', 'production head', 'admin', 'gm', 'manager'],
     '/admin/': ['admin'],
     '/gm/': ['gm', 'general manager', 'admin'],
+    '/manager/': ['manager', 'admin'],
     '/coo/': ['coo', 'admin'],
     '/tl/': ['tl', 'team lead', 'admin'],
     '/posting/': ['posting', 'posting team', 'admin'],

@@ -42,9 +42,11 @@ async function runStartupMigrations() {
         // Alter enum type to add 'Special Poster' and 'Special Day Poster'
         const alterEnum1 = "ALTER TYPE content_type ADD VALUE IF NOT EXISTS 'Special Poster';";
         const alterEnum2 = "ALTER TYPE content_type ADD VALUE IF NOT EXISTS 'Special Day Poster';";
+        const alterRoleEnum = "ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'MANAGER';";
         
         await supabase.rpc('exec_sql', { sql: alterEnum1 });
         await supabase.rpc('exec_sql', { sql: alterEnum2 });
+        await supabase.rpc('exec_sql', { sql: alterRoleEnum });
         console.log('✅ Startup SQL migrations completed successfully.');
     } catch (err) {
         console.error('⚠️ Warning: Startup migrations failed (probably exec_sql not allowed or values already exist):', err.message);
@@ -314,6 +316,7 @@ const getRequesterRole = async (user) => {
     else if (upperId === 'CLIENT') resolvedRole = 'CLIENT';
     else if (upperId === 'EMPLOYEE') resolvedRole = 'EMPLOYEE';
     else if (upperId === 'CONTENT HEAD' || upperId === 'CONTENT_HEAD' || resolvedRole === 'CONTENT HEAD' || resolvedRole === 'CONTENT_HEAD') resolvedRole = 'CONTENT HEAD';
+    else if (upperId === 'MANAGER' || resolvedRole === 'MANAGER') resolvedRole = 'MANAGER';
 
     console.log(`[RoleResolver] Final resolved role for ${userId}: "${resolvedRole}"`);
 
@@ -325,12 +328,12 @@ const getRequesterRole = async (user) => {
     return resolvedRole;
 };
 
-const ADMIN_ROLES = ['ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'PH', 'PRODUCTION HEAD', 'TEAM LEAD', 'TL'];
-const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD', 'COO'];
+const ADMIN_ROLES = ['ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'PH', 'PRODUCTION HEAD', 'TEAM LEAD', 'TL', 'MANAGER'];
+const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD', 'COO', 'MANAGER'];
 const COO_ROLES = ['COO', 'ADMIN'];
-const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO'];
-const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO'];
-const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER'];
+const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO', 'MANAGER'];
+const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER', 'MANAGER'];
 const CLIENT_ROLES = ['CLIENT', 'ADMIN'];
 const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN'];
 
@@ -4108,7 +4111,7 @@ app.post('/api/notifications/send', async (req, res) => {
         const senderRole = normalizeRole(senderData.role);
         const senderRoleIdentifier = normalizeRole(senderData.role_identifier);
         const isAdmin = senderRole === 'ADMIN';
-        const isGM = senderRole === 'GENERAL MANAGER' || senderRole === 'GM' || senderRoleIdentifier === 'GM' || senderRoleIdentifier === 'GENERAL MANAGER' || senderRole === 'COO' || senderRoleIdentifier === 'COO';
+        const isGM = senderRole === 'GENERAL MANAGER' || senderRole === 'GM' || senderRoleIdentifier === 'GM' || senderRoleIdentifier === 'GENERAL MANAGER' || senderRole === 'COO' || senderRoleIdentifier === 'COO' || senderRole === 'MANAGER' || senderRoleIdentifier === 'MANAGER';
 
         if (!isAdmin && !isGM) {
             return res.status(403).json({ error: 'Unauthorized to send notifications' });
@@ -4175,6 +4178,8 @@ app.post('/api/notifications/send', async (req, res) => {
                 recipientQuery = recipientQuery.in('role', ['POSTING TEAM', 'POSTING_TEAM']);
             } else if (normalizedTargetRole === 'GENERAL MANAGER') {
                 recipientQuery = recipientQuery.in('role', ['GENERAL MANAGER', 'GM']);
+            } else if (normalizedTargetRole === 'MANAGER') {
+                recipientQuery = recipientQuery.eq('role', 'MANAGER');
             } else {
                 recipientQuery = recipientQuery.eq('role', normalizedTargetRole);
             }

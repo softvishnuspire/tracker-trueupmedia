@@ -123,8 +123,10 @@ export default function NotificationBell() {
             } else if (
                 role === 'GM' || 
                 role === 'GENERAL MANAGER' || 
+                role === 'MANAGER' ||
                 identifier === 'GM' || 
-                identifier === 'GENERAL MANAGER'
+                identifier === 'GENERAL MANAGER' ||
+                identifier === 'MANAGER'
             ) {
                 setSenderRole('GM');
             } else {

@@ -150,6 +150,7 @@ export default function SendNotificationModal({ onClose, userRole, onSuccess }: 
                                 <option value="" disabled>Choose a role...</option>
                                 {isAdmin && <option value="Admin">Admin</option>}
                                 {isAdmin && <option value="GM">General Manager</option>}
+                                {isAdmin && <option value="MANAGER">Manager</option>}
                                 {isAdmin && <option value="COO">COO</option>}
                                 <option value="TEAM LEAD">Team Leads</option>
                                 <option value="POSTING_TEAM">Posting Team</option>

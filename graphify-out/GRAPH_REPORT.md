@@ -1,6 +1,20 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-06-08 (Merge Conflict Resolution & Git Sync)
+## Latest Changes — 2026-06-08 (Manager Role Implementation)
+- **Goal**: Add a new user role called "Manager" that mirrors the features, permissions, and views of the "General Manager" (GM) role but is labeled as "Manager" in the UI.
+- **Affected Files**:
+    - `backend/index.js`
+    - `backend/migrate_manager_role.js` [NEW]
+    - `frontend/src/app/page.tsx`
+    - `frontend/src/lib/api.ts`
+    - `frontend/src/components/NotificationBell.tsx`
+    - `frontend/src/components/SendNotificationModal.tsx`
+    - `frontend/src/app/admin/team/page.tsx`
+    - `frontend/src/app/coo/team/page.tsx`
+    - `frontend/src/app/manager/` [NEW]
+- **System Impact**: Integrates the "Manager" role globally across the authentication, client-side routing, notification permissions, and dashboard panels, while ensuring the independent route `/manager/dashboard` compiles correctly.
+
+## Previous Changes — 2026-06-08 (Merge Conflict Resolution & Git Sync)
 - **Goal**: Resolve git merge conflicts on GM dashboard (`frontend/src/app/gm/dashboard/page.tsx`) and clean-merge remote updates for the COO dashboard (`frontend/src/app/coo/dashboard/page.tsx`).
 - **Affected Files**:
     - `frontend/src/app/gm/dashboard/page.tsx`

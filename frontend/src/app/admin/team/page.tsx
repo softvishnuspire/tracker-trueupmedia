@@ -263,6 +263,7 @@ export default function TeamManagement() {
                   style={{ width: '100%' }}
                 >
                   <option value="GM">General Manager (GM)</option>
+                  <option value="MANAGER">Manager</option>
                   <option value="COO">COO</option>
                   <option value="TEAM LEAD">Team Lead (TL)</option>
                   <option value="POSTING TEAM">Posting Team</option>
