@@ -223,7 +223,8 @@ export default function PostingDashboard() {
         fetchClients();
         fetchTodayStats();
         fetchSettings();
-    }, [fetchClients, fetchTodayStats]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         if (view === 'dashboard') {
@@ -233,7 +234,8 @@ export default function PostingDashboard() {
         } else if (view === 'master' || view === 'company') {
             fetchMasterCalendar();
         }
-    }, [view, selectedClient, currentMonth, fetchTodayStats, fetchClientCalendar, fetchMasterCalendar]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [view, selectedClient, currentMonth]);
 
     const latestState = React.useRef({ view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen });
     useEffect(() => {

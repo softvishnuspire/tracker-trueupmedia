@@ -1,6 +1,14 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-06-09 (Production Head Client Calendar Infinite Refresh & Glitch Fix)
+## Latest Changes — 2026-06-09 (Posting Team Login Infinite Refresh Loop Fix)
+- **Goal**: Resolve the infinite refresh loop and repetitive data-fetching glitches when logging in or navigating to the Posting Team dashboard.
+- **Affected Files**:
+    - `frontend/src/components/ui/TopProgressBar.tsx`
+    - `frontend/src/components/ui/ToastProvider.tsx`
+    - `frontend/src/app/posting/dashboard/page.tsx`
+- **System Impact**: Memoizes `startLoading` and `stopLoading` callbacks in `PageLoadingProvider`, and memoizes the context value of `ToastProvider` to guarantee stable reference identities for hooks. In `posting/dashboard/page.tsx`, removes the unstable fetch functions from the main sync `useEffect` dependency array and limits the mount effect's execution to a single run. This completely resolves the cyclic rendering and data-fetching loop, restoring stability to the Posting Team dashboard.
+
+## Previous Changes — 2026-06-09 (Production Head Client Calendar Infinite Refresh & Glitch Fix)
 - **Goal**: Resolve the infinite data-fetching and page-refreshing loops in the Production Head dashboard and client calendar views.
 - **Affected Files**:
     - `frontend/src/app/ph/dashboard/page.tsx`

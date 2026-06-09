@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 interface PageLoadingContextType {
   startLoading: () => void;
@@ -22,21 +22,27 @@ export function PageLoadingProvider({ children }: { children: React.ReactNode })
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'finished'>('idle');
 
-  const startLoading = () => {
+  const startLoading = useCallback(() => {
     setStatus('loading');
     setIsLoading(true);
-  };
+  }, []);
 
-  const stopLoading = () => {
+  const stopLoading = useCallback(() => {
     setStatus('finished');
     setTimeout(() => {
       setStatus('idle');
       setIsLoading(false);
     }, 500); // Allow time for exit/fade animation
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    startLoading,
+    stopLoading,
+    isLoading
+  }), [startLoading, stopLoading, isLoading]);
 
   return (
-    <PageLoadingContext.Provider value={{ startLoading, stopLoading, isLoading }}>
+    <PageLoadingContext.Provider value={value}>
       {children}
       {status !== 'idle' && (
         <div className="top-progress-bar-container">
