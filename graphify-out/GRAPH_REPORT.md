@@ -1,6 +1,12 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-06-08 (Manager Role Implementation)
+## Latest Changes — 2026-06-09 (Production Head Client Calendar Infinite Refresh & Glitch Fix)
+- **Goal**: Resolve the infinite data-fetching and page-refreshing loops in the Production Head dashboard and client calendar views.
+- **Affected Files**:
+    - `frontend/src/app/ph/dashboard/page.tsx`
+- **System Impact**: Decouples the state-driven calendar data array lengths from the dependency arrays of `fetchTodayStats`, `fetchClientCalendar`, `fetchViewTaskClientCalendar`, and `fetchMasterCalendar` callbacks by using React `useRef` handles. Additionally, removes the redundant `fetchTodayStats()` invocation from the component mount `useEffect` to ensure that data fetches only occur dynamically according to the active panel view. This stops the cyclic race condition and restores smooth, glitch-free UI performance.
+
+## Previous Changes — 2026-06-08 (Manager Role Implementation)
 - **Goal**: Add a new user role called "Manager" that mirrors the features, permissions, and views of the "General Manager" (GM) role but is labeled as "Manager" in the UI.
 - **Affected Files**:
     - `backend/index.js`

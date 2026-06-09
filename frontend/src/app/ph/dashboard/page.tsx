@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     format,
     startOfMonth,
@@ -66,6 +66,16 @@ export default function ProductionHeadDashboard() {
     const [pendingTasks, setPendingTasks] = useState<ContentItem[]>([]);
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [viewTaskCalendarData, setViewTaskCalendarData] = useState<ContentItem[]>([]);
+
+    const calendarDataRef = useRef(calendarData);
+    useEffect(() => {
+        calendarDataRef.current = calendarData;
+    }, [calendarData]);
+
+    const viewTaskCalendarDataRef = useRef(viewTaskCalendarData);
+    useEffect(() => {
+        viewTaskCalendarDataRef.current = viewTaskCalendarData;
+    }, [viewTaskCalendarData]);
     const [clients, setClients] = useState<any[]>([]);
     const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
     const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
@@ -125,7 +135,7 @@ export default function ProductionHeadDashboard() {
     const fetchTodayStats = useCallback(async (isSilent = false) => {
         if (!isSilent) {
             startLoading();
-            if (calendarData.length === 0) {
+            if (calendarDataRef.current.length === 0) {
                 setLoading(true);
             } else {
                 setIsRefreshing(true);
@@ -214,7 +224,7 @@ export default function ProductionHeadDashboard() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [selectedClient, calendarData.length]);
+    }, [selectedClient]);
 
     const selectedClientData = clients.find(c => c.id === selectedClient);
     const isBiMonthlyView = (view === 'client' || view === 'viewTaskClient' || view === 'master' || view === 'dashboard') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
@@ -247,7 +257,7 @@ export default function ProductionHeadDashboard() {
         if (selectedClient === 'all') return;
         if (!isSilent) {
             startLoading();
-            if (calendarData.length === 0) {
+            if (calendarDataRef.current.length === 0) {
                 setLoading(true);
             } else {
                 setIsRefreshing(true);
@@ -283,13 +293,13 @@ export default function ProductionHeadDashboard() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [selectedClient, currentMonth, clients, calendarData.length]);
+    }, [selectedClient, currentMonth, clients]);
 
     const fetchViewTaskClientCalendar = useCallback(async (isSilent = false) => {
         if (selectedClient === 'all') return;
         if (!isSilent) {
             startLoading();
-            if (viewTaskCalendarData.length === 0) {
+            if (viewTaskCalendarDataRef.current.length === 0) {
                 setLoading(true);
             } else {
                 setIsRefreshing(true);
@@ -325,13 +335,13 @@ export default function ProductionHeadDashboard() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [selectedClient, currentMonth, clients, viewTaskCalendarData.length]);
+    }, [selectedClient, currentMonth, clients]);
 
     const fetchMasterCalendar = useCallback(async (isSilent = false) => {
         if (!user) return;
         if (!isSilent) {
             startLoading();
-            if (calendarData.length === 0) {
+            if (calendarDataRef.current.length === 0) {
                 setLoading(true);
             } else {
                 setIsRefreshing(true);
@@ -373,7 +383,7 @@ export default function ProductionHeadDashboard() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [view, selectedClient, currentMonth, clients, calendarData.length, user]);
+    }, [view, selectedClient, currentMonth, clients, user]);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -413,7 +423,6 @@ export default function ProductionHeadDashboard() {
 
     useEffect(() => {
         fetchClients();
-        fetchTodayStats();
 
         // Fetch settings for feature toggles
         const fetchSettings = async () => {
@@ -428,7 +437,7 @@ export default function ProductionHeadDashboard() {
             }
         };
         fetchSettings();
-    }, [fetchClients, fetchTodayStats]);
+    }, [fetchClients]);
 
     const latestState = React.useRef({ view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen });
     useEffect(() => {
