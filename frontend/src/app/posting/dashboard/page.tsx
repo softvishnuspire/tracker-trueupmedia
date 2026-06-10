@@ -662,10 +662,7 @@ export default function PostingDashboard() {
                 acc.shootDone += 1;
             }
 
-            // For Posts, we treat "DESIGNING COMPLETED" and later as "Production Done" equivalent for the summary
-            if (type === 'POST' && (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus))) {
-                acc.shootDone += 1;
-            }
+
 
             if (item.content_type === 'Reel') acc.reels += 1;
             if (item.content_type === 'Post') acc.posts += 1;

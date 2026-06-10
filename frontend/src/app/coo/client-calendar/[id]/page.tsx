@@ -447,10 +447,6 @@ export default function CooClientCalendarPage() {
 
             if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
                 if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
-            } else if (normalizedType === 'POST') {
-                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
-                    acc.shootDone += 1;
-                }
             }
 
             if (normalizedType === 'REEL') acc.reels += 1;

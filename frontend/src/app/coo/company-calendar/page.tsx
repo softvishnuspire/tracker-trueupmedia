@@ -301,10 +301,6 @@ export default function CooCompanyCalendar() {
 
             if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
                 if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
-            } else if (normalizedType === 'POST') {
-                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
-                    acc.shootDone += 1;
-                }
             }
 
             if (normalizedStatus === 'POSTED') acc.posted += 1;
