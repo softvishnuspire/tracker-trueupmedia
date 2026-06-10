@@ -2080,7 +2080,7 @@ app.get('/api/admin/content/:id', async (req, res) => {
 
 // ─── COO: Read-only Monitoring ───
 app.get('/api/coo/clients', requireRoles(COO_ROLES), async (req, res) => {
-    const { data, error } = await supabase.from('clients').select('*').eq('is_deleted', false).order('company_name');
+    const { data, error } = await supabase.from('clients').select('*, team_lead:team_lead_id (name)').eq('is_deleted', false).order('company_name');
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });

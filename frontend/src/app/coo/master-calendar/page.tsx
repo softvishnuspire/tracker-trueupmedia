@@ -594,6 +594,12 @@ export default function CooMasterCalendar() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '2px' }}>
+                                    Assigned To: {selectedItem.item.assigned_employee ? `${selectedItem.item.assigned_employee.name} ${selectedItem.item.assigned_employee.role_identifier ? `(${selectedItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (

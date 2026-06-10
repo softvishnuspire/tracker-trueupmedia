@@ -20,6 +20,7 @@ import {
 import { 
     ChevronLeft, 
     ChevronRight, 
+    ChevronDown,
     FileText,
     Video,
     X,
@@ -53,6 +54,7 @@ export default function ClientCalendarPage() {
     const { success: toastSuccess, error: toastError } = useToast();
     const performOptimisticAction = useOptimisticAction();
 
+    const [clients, setClients] = useState<Client[]>([]);
     const [client, setClient] = useState<Client | null>(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
@@ -78,6 +80,7 @@ export default function ClientCalendarPage() {
     const fetchClientInfo = useCallback(async () => {
         try {
             const res = await adminApi.getClients();
+            setClients(res.data);
             const found = res.data.find((c: Client) => c.id === clientId);
             if (found) setClient(found);
         } catch (err) { console.error(err); }
@@ -422,12 +425,9 @@ export default function ClientCalendarPage() {
             <header className="page-header page-header-safe">
                 <div className="header-content">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button onClick={() => router.back()} className="btn-icon">
-                            <ArrowLeft size={18} />
-                        </button>
                         <div className="header-info">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <h1 className="page-title">{client?.company_name} Calendar</h1>
+                                <h1 className="page-title">Client Calendar</h1>
                                 {client?.team_lead?.name && (
                                     <div className="tl-badge" style={{ 
                                         background: 'rgba(99, 102, 241, 0.1)', 
@@ -443,11 +443,44 @@ export default function ClientCalendarPage() {
                                     </div>
                                 )}
                             </div>
-                            <p className="page-subtitle">Manage scheduling and content for this client</p>
+                            <p className="page-subtitle">Detailed planning for {client?.company_name}</p>
                         </div>
                     </div>
 
                     <div className="header-controls">
+                        <button
+                            onClick={() => router.push('/admin/client-calendar')}
+                            className="btn-back-grid"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 16px',
+                                background: 'var(--bg-elevated)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '12px',
+                                color: 'var(--text-primary)',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                marginRight: '12px'
+                            }}
+                        >
+                            <ArrowLeft size={16} />
+                            Selection Grid
+                        </button>
+                        <div className="client-dropdown-wrapper" style={{ marginRight: '12px' }}>
+                            <select
+                                className="client-dropdown"
+                                value={clientId}
+                                onChange={(e) => router.push(`/admin/client-calendar/${e.target.value}`)}
+                            >
+                                {clients.map(c => (
+                                    <option key={c.id} value={c.id}>{c.company_name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={16} className="dropdown-chevron" />
+                        </div>
                         <div className="view-mode-toggle">
                             <button 
                                 onClick={() => setViewMode('month')}

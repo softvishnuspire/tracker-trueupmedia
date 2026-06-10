@@ -19,6 +19,7 @@ import {
 import {
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
     FileText,
     Video,
     X,
@@ -48,6 +49,7 @@ export default function CooClientCalendarPage() {
     const router = useRouter();
     const clientId = params.id as string;
 
+    const [clients, setClients] = useState<any[]>([]);
     const [client, setClient] = useState<any>(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
@@ -62,6 +64,7 @@ export default function CooClientCalendarPage() {
     const fetchClientInfo = useCallback(async () => {
         try {
             const res = await cooApi.getClients();
+            setClients(res.data);
             const found = res.data.find((c: any) => c.id === clientId);
             if (found) setClient(found);
         } catch (err) {
@@ -271,16 +274,62 @@ export default function CooClientCalendarPage() {
             <header className="page-header page-header-safe">
                 <div className="header-content">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button onClick={() => router.back()} className="btn-icon">
-                            <ArrowLeft size={18} />
-                        </button>
                         <div className="header-info">
-                            <h1 className="page-title">{client?.company_name} Calendar</h1>
-                            <p className="page-subtitle">Monitor scheduling and content for this client</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <h1 className="page-title">Client Calendar</h1>
+                                {client?.team_lead?.name && (
+                                    <div className="tl-badge" style={{ 
+                                        background: 'rgba(99, 102, 241, 0.1)', 
+                                        color: 'var(--accent)', 
+                                        padding: '4px 12px', 
+                                        borderRadius: '20px', 
+                                        fontSize: '13px', 
+                                        fontWeight: 800,
+                                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                                        marginTop: '4px'
+                                    }}>
+                                        Team Lead: {client.team_lead.name}
+                                    </div>
+                                )}
+                            </div>
+                            <p className="page-subtitle">Detailed planning for {client?.company_name}</p>
                         </div>
                     </div>
 
                     <div className="header-controls">
+                        <button
+                            onClick={() => router.push('/coo/client-calendar')}
+                            className="btn-back-grid"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 16px',
+                                background: 'var(--bg-elevated)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '12px',
+                                color: 'var(--text-primary)',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                marginRight: '12px'
+                            }}
+                        >
+                            <ArrowLeft size={16} />
+                            Selection Grid
+                        </button>
+                        <div className="client-dropdown-wrapper" style={{ marginRight: '12px' }}>
+                            <select
+                                className="client-dropdown"
+                                value={clientId}
+                                onChange={(e) => router.push(`/coo/client-calendar/${e.target.value}`)}
+                            >
+                                {clients.map(c => (
+                                    <option key={c.id} value={c.id}>{c.company_name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={16} className="dropdown-chevron" />
+                        </div>
                         <div className="view-mode-toggle">
                             <button
                                 onClick={() => setViewMode('month')}
@@ -550,8 +599,14 @@ export default function CooClientCalendarPage() {
                                         </>
                                     )}
                                 </div>
-                                <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
-                            </div>
+                                 <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
+                                 <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
+                                     Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                 </p>
+                                 <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '2px' }}>
+                                     Assigned To: {selectedItem.item.assigned_employee ? `${selectedItem.item.assigned_employee.name} ${selectedItem.item.assigned_employee.role_identifier ? `(${selectedItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
+                                 </p>
+                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
                                     <div className="task-nav-buttons" style={{ display: 'flex', gap: '4px', marginRight: '8px', paddingRight: '12px', borderRight: '1px solid var(--border)' }}>
