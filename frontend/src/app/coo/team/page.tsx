@@ -1,17 +1,29 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { adminApi, TeamMember } from '@/lib/api';
-import { Plus, Search, Trash2, X, Key, Edit2 } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { adminApi, gmApi, TeamMember, Client } from '@/lib/api';
+import { Plus, Search, Trash2, X, Key, Edit2, Users, Briefcase, RefreshCcw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
+interface TeamLead extends TeamMember {
+  clients?: Client[];
+}
+
 export default function TeamManagement() {
+  const [activeTab, setActiveTab] = useState<'members' | 'assignments'>('members');
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [teamLeads, setTeamLeads] = useState<TeamLead[]>([]);
+  const [allClients, setAllClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+
+  // Assign client states
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignTargetLead, setAssignTargetLead] = useState<TeamLead | null>(null);
+  const [assignSearchTerm, setAssignSearchTerm] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -27,14 +39,36 @@ export default function TeamManagement() {
       setTeam(res.data);
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchTeam();
+  const fetchTeamLeadsAndClients = useCallback(async () => {
+    try {
+      const leadsRes = await gmApi.getTeamLeads();
+      const clientsRes = await gmApi.getClients();
+      setAllClients(clientsRes.data);
+
+      const leadsWithClients = await Promise.all(
+        leadsRes.data.map(async (lead: TeamMember) => {
+          const clientsData = await gmApi.getTeamLeadClients(lead.user_id);
+          return { ...lead, clients: clientsData.data };
+        })
+      );
+      setTeamLeads(leadsWithClients);
+    } catch (err: any) {
+      console.error(err);
+    }
   }, []);
+
+  const initData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([fetchTeam(), fetchTeamLeadsAndClients()]);
+    setLoading(false);
+  }, [fetchTeamLeadsAndClients]);
+
+  useEffect(() => {
+    initData();
+  }, [initData]);
 
   const handleAddClick = () => {
     setEditingMember(null);
@@ -59,6 +93,7 @@ export default function TeamManagement() {
       try {
         await adminApi.deleteTeamMember(id);
         fetchTeam();
+        fetchTeamLeadsAndClients();
       } catch (err: any) {
         alert(err.message);
       }
@@ -70,7 +105,6 @@ export default function TeamManagement() {
     setLoading(true);
     try {
       if (editingMember) {
-        // Password is optional during edit
         const updatePayload = { ...formData };
         if (!updatePayload.password) delete (updatePayload as any).password;
         await adminApi.updateTeamMember(editingMember.user_id || editingMember.id!, updatePayload);
@@ -78,11 +112,37 @@ export default function TeamManagement() {
         await adminApi.addTeamMember(formData);
       }
       setShowModal(false);
-      fetchTeam();
+      await Promise.all([fetchTeam(), fetchTeamLeadsAndClients()]);
     } catch (err: any) {
       alert(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAssignClick = (lead: TeamLead) => {
+    setAssignTargetLead(lead);
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignClient = async (clientId: string, teamLeadId: string) => {
+    try {
+      await gmApi.assignClient(clientId, teamLeadId);
+      await fetchTeamLeadsAndClients();
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.message);
+    }
+  };
+
+  const handleUnassignClient = async (clientId: string) => {
+    if (confirm("Are you sure you want to unassign this client?")) {
+      try {
+        // empty string unassigns the client in the backend
+        await gmApi.assignClient(clientId, "");
+        await fetchTeamLeadsAndClients();
+      } catch (err: any) {
+        alert(err.response?.data?.error || err.message);
+      }
     }
   };
 
@@ -96,113 +156,221 @@ export default function TeamManagement() {
       <header className="page-header">
         <div className="header-info">
           <h1 className="page-title">Team Management</h1>
-          <p className="page-subtitle">Manage Team Leads and access permissions • <strong>{team.length} Total</strong></p>
+          <p className="page-subtitle">Manage Team Leads, access permissions, and client assignments</p>
         </div>
-        <button className="btn-add" onClick={handleAddClick}>
-          <Plus size={18} />
-          Add Team Member
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button className="btn-secondary" onClick={initData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <RefreshCcw size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+          <button className="btn-add" onClick={handleAddClick}>
+            <Plus size={18} />
+            Add Team Member
+          </button>
+        </div>
       </header>
 
-      <div className="table-card">
-        <div className="table-header">
-          <div className="search-input-box">
-            <Search size={18} className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="table-summary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>Total Team:</span>
-            <span style={{ background: 'var(--accent)', color: 'white', padding: '2px 10px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, boxShadow: '0 4px 12px var(--accent-glow)' }}>{team.length}</span>
-          </div>
-        </div>
-
-        {error ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--danger)' }}>{error}</div>
-        ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Joined Date</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && team.length === 0 ? (
-                <>
-                  {[1, 2, 3, 4].map((i) => (
-                    <tr key={i}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Skeleton className="h-8 w-8 rounded-full" />
-                          <Skeleton className="h-4 w-24" />
-                        </div>
-                      </td>
-                      <td><Skeleton className="h-4 w-40" /></td>
-                      <td><Skeleton className="h-6 w-24 rounded-full" /></td>
-                      <td><Skeleton className="h-4 w-20" /></td>
-                      <td style={{ textAlign: 'right' }}><Skeleton className="h-8 w-16 ml-auto" /></td>
-                    </tr>
-                  ))}
-                </>
-              ) : (
-                <>
-                  {filteredTeam.map((member, index) => (
-                    <tr key={member.user_id || member.id || index}>
-                      <td data-label="Name" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
-                            {member.name.charAt(0)}
-                          </div>
-                          <span>{member.name}</span>
-                        </div>
-                      </td>
-                      <td data-label="Email"><span>{member.email}</span></td>
-                      <td data-label="Role">
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <span className={`type-badge ${member.role.toLowerCase().replace(' ', '-')}`} style={{ minWidth: '100px', textAlign: 'center' }}>
-                            {member.role}
-                          </span>
-                          {member.role_identifier && (
-                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                              {member.role_identifier}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td data-label="Joined Date"><span>{member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}</span></td>
-                      <td data-label="Actions" style={{ textAlign: 'right' }}>
-                        <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
-                          <button className="btn-icon" onClick={() => handleEditClick(member)}>
-                            <Edit2 size={14} />
-                          </button>
-                          <button className="btn-icon delete" onClick={() => handleDeleteClick(member.user_id || member.id!, member.name)}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredTeam.length === 0 && (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        No team members found.
-                      </td>
-                    </tr>
-                  )}
-                </>
-              )}
-            </tbody>
-          </table>
-        )}
+      {/* Tabs */}
+      <div className="tabs-container" style={{ display: 'flex', gap: '10px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+        <button
+          className={`tab-btn ${activeTab === 'members' ? 'active' : ''}`}
+          onClick={() => setActiveTab('members')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '6px',
+            background: activeTab === 'members' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'members' ? 'white' : 'var(--text-secondary)',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Users size={16} />
+          Team Members
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'assignments' ? 'active' : ''}`}
+          onClick={() => setActiveTab('assignments')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '6px',
+            background: activeTab === 'assignments' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'assignments' ? 'white' : 'var(--text-secondary)',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Briefcase size={16} />
+          Client Assignments
+        </button>
       </div>
+
+      {activeTab === 'members' && (
+        <div className="table-card">
+          <div className="table-header">
+            <div className="search-input-box">
+              <Search size={18} className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="table-summary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>Total Team:</span>
+              <span style={{ background: 'var(--accent)', color: 'white', padding: '2px 10px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, boxShadow: '0 4px 12px var(--accent-glow)' }}>{team.length}</span>
+            </div>
+          </div>
+
+          {error ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--danger)' }}>{error}</div>
+          ) : (
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Joined Date</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && team.length === 0 ? (
+                  <>
+                    {[1, 2, 3, 4].map((i) => (
+                      <tr key={i}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                            <Skeleton className="h-4 w-24" />
+                          </div>
+                        </td>
+                        <td><Skeleton className="h-4 w-40" /></td>
+                        <td><Skeleton className="h-6 w-24 rounded-full" /></td>
+                        <td><Skeleton className="h-4 w-20" /></td>
+                        <td style={{ textAlign: 'right' }}><Skeleton className="h-8 w-16 ml-auto" /></td>
+                      </tr>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {filteredTeam.map((member, index) => (
+                      <tr key={member.user_id || member.id || index}>
+                        <td data-label="Name" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
+                              {member.name.charAt(0)}
+                            </div>
+                            <span>{member.name}</span>
+                          </div>
+                        </td>
+                        <td data-label="Email"><span>{member.email}</span></td>
+                        <td data-label="Role">
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <span className={`type-badge ${member.role.toLowerCase().replace(' ', '-')}`} style={{ minWidth: '100px', textAlign: 'center' }}>
+                              {member.role}
+                            </span>
+                            {member.role_identifier && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                {member.role_identifier}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td data-label="Joined Date"><span>{member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}</span></td>
+                        <td data-label="Actions" style={{ textAlign: 'right' }}>
+                          <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
+                            <button className="btn-icon" onClick={() => handleEditClick(member)}>
+                              <Edit2 size={14} />
+                            </button>
+                            <button className="btn-icon delete" onClick={() => handleDeleteClick(member.user_id || member.id!, member.name)}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredTeam.length === 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          No team members found.
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'assignments' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+          {loading && teamLeads.length === 0 ? (
+            <>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="team-card" style={{ padding: '20px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                  <Skeleton className="h-6 w-32 mb-4" />
+                  <Skeleton className="h-10 w-full mb-2" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {teamLeads.map((lead) => (
+                <div key={lead.user_id} className="team-card" style={{ display: 'flex', flexDirection: 'column', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-card)', minHeight: '220px' }}>
+                  <div className="team-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{lead.name}</h3>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{lead.role_identifier || 'Team Lead'}</p>
+                    </div>
+                    <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleAssignClick(lead)}>
+                      Assign Client
+                    </button>
+                  </div>
+
+                  <div style={{ flexGrow: 1 }}>
+                    <h4 style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Assigned Clients</h4>
+                    {lead.clients && lead.clients.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {lead.clients.map((client) => (
+                          <div key={client.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-body)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{client.company_name}</span>
+                            <button
+                              onClick={() => handleUnassignClient(client.id)}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>No clients assigned.</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {teamLeads.length === 0 && (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                  No Team Leads found.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {showModal && (
         <div className="modal-overlay">
@@ -319,6 +487,63 @@ export default function TeamManagement() {
           </div>
         </div>
       )}
+
+      {/* Assignment Modal */}
+      {isAssignModalOpen && assignTargetLead && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Assign Client to {assignTargetLead.name}</h3>
+              <button onClick={() => setIsAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
+            </div>
+            <div style={{ padding: '16px 0' }}>
+              <div className="search-input-box" style={{ marginBottom: '16px' }}>
+                <Search size={18} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search clients..."
+                  value={assignSearchTerm}
+                  onChange={(e) => setAssignSearchTerm(e.target.value)}
+                />
+              </div>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {allClients
+                  .filter(client => client.company_name.toLowerCase().includes(assignSearchTerm.toLowerCase()))
+                  .map(client => {
+                    const isAlreadyAssignedToThisLead = assignTargetLead.clients?.some(c => c.id === client.id);
+                    return (
+                      <div key={client.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{client.company_name}</div>
+                          {client.team_lead && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              Currently assigned to: {client.team_lead.name}
+                            </div>
+                          )}
+                        </div>
+                        {isAlreadyAssignedToThisLead ? (
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>Assigned</span>
+                        ) : (
+                          <button
+                            className="btn-primary"
+                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                            onClick={() => {
+                              handleAssignClient(client.id, assignTargetLead.user_id);
+                              setIsAssignModalOpen(false);
+                            }}
+                          >
+                            Assign
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

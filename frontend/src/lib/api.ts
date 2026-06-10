@@ -240,6 +240,9 @@ export const cooApi = {
     updateStatus: (id: string, newStatus: string, note?: string, changedBy?: string) =>
         cooBase.patch(`/api/coo/content/${id}/status`, { new_status: newStatus, note, changed_by: changedBy }),
     undoStatus: (id: string) => cooBase.post(`/api/coo/content/${id}/undo`),
+    addContent: (data: Partial<ContentItem>) => cooBase.post('/api/coo/content', data),
+    updateContent: (id: string, data: Partial<ContentItem>) => cooBase.put(`/api/coo/content/${id}`, data),
+    deleteContent: (id: string) => cooBase.delete(`/api/coo/content/${id}`),
 };
 
 const phBase = axios.create({
