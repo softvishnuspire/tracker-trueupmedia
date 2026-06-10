@@ -503,7 +503,7 @@ export default function CooCompanyCalendar() {
                                                             {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
                                                             [{item.clients?.company_name?.substring(0, 3)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                         </span>
-                                                        {item.clients?.team_lead?.name ? (
+                                                        {item.assigned_employee?.name ? (
                                                             <span style={{
                                                                 padding: '1px 6px',
                                                                 borderRadius: '9999px',
@@ -514,7 +514,7 @@ export default function CooCompanyCalendar() {
                                                                 whiteSpace: 'nowrap',
                                                                 flexShrink: 0
                                                             }}>
-                                                                {item.clients.team_lead.name}
+                                                                {item.assigned_employee.name}
                                                             </span>
                                                         ) : (
                                                             <span style={{

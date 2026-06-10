@@ -461,33 +461,33 @@ export default function CooMasterCalendar() {
                                                             {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
                                                             [{getClientAbbreviation(item.clients?.company_name)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
                                                         </span>
-                                                        {item.clients?.team_lead?.name ? (
-                                                            <span style={{
-                                                                padding: '1px 6px',
-                                                                borderRadius: '9999px',
-                                                                background: 'rgba(16, 185, 129, 0.15)',
-                                                                color: '#10b981',
-                                                                fontSize: '9px',
-                                                                fontWeight: 700,
-                                                                whiteSpace: 'nowrap',
-                                                                flexShrink: 0
-                                                            }}>
-                                                                {item.clients.team_lead.name}
-                                                            </span>
-                                                        ) : (
-                                                            <span style={{
-                                                                padding: '1px 6px',
-                                                                borderRadius: '9999px',
-                                                                background: 'rgba(239, 68, 68, 0.15)',
-                                                                color: '#ef4444',
-                                                                fontSize: '9px',
-                                                                fontWeight: 700,
-                                                                whiteSpace: 'nowrap',
-                                                                flexShrink: 0
-                                                            }}>
-                                                                Unassigned
-                                                            </span>
-                                                        )}
+                                                        {item.assigned_employee?.name ? (
+                                                             <span style={{
+                                                                 padding: '1px 6px',
+                                                                 borderRadius: '9999px',
+                                                                 background: 'rgba(16, 185, 129, 0.15)',
+                                                                 color: '#10b981',
+                                                                 fontSize: '9px',
+                                                                 fontWeight: 700,
+                                                                 whiteSpace: 'nowrap',
+                                                                 flexShrink: 0
+                                                             }}>
+                                                                 {item.assigned_employee.name}
+                                                             </span>
+                                                         ) : (
+                                                             <span style={{
+                                                                 padding: '1px 6px',
+                                                                 borderRadius: '9999px',
+                                                                 background: 'rgba(239, 68, 68, 0.15)',
+                                                                 color: '#ef4444',
+                                                                 fontSize: '9px',
+                                                                 fontWeight: 700,
+                                                                 whiteSpace: 'nowrap',
+                                                                 flexShrink: 0
+                                                             }}>
+                                                                 Unassigned
+                                                             </span>
+                                                         )}
                                                         {item.status === 'POSTED' ? (
                                                             <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
                                                         ) : (
