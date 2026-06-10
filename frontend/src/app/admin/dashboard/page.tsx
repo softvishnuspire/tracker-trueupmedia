@@ -343,7 +343,7 @@ export default function AdminDashboard() {
         update: () => {
           let revertedStatus = 'WAITING FOR APPROVAL';
           if (activeItem.history && activeItem.history.length > 1) {
-            revertedStatus = activeItem.history[1].status;
+            revertedStatus = activeItem.history[1].new_status || (activeItem.history[1].status as string) || 'WAITING FOR APPROVAL';
           }
           const updatedItem = { ...activeItem.item, status: revertedStatus };
           setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
@@ -1330,7 +1330,7 @@ export default function AdminDashboard() {
                   disabled={actionId !== null}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
-                  {actionId === `edit-${activeItem.item.id}` ? (
+                  {actionId === `edit-${activeItem?.item?.id}` ? (
                     <>
                       Saving...
                       <Loader2 size={16} className="spinner-btn-icon" />

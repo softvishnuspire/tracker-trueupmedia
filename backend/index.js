@@ -333,9 +333,9 @@ const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD', 'COO', 'MANA
 const COO_ROLES = ['COO', 'ADMIN'];
 const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER'];
 const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO', 'MANAGER'];
-const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER', 'MANAGER'];
-const CLIENT_ROLES = ['CLIENT', 'ADMIN'];
-const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN'];
+const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER'];
+const CLIENT_ROLES = ['CLIENT', 'ADMIN', 'COO'];
+const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN', 'COO'];
 
 const requireRoles = (allowedRoles) => {
     const normalizedAllowed = allowedRoles.map((role) => normalizeRole(role));
@@ -3207,7 +3207,7 @@ app.patch('/api/ph/clients/:id/assign-employee', requireRoles(PH_ROLES), async (
 });
 
 // ─── Content Head Endpoints ───
-const CONTENT_HEAD_ROLES = ['CONTENT HEAD', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+const CONTENT_HEAD_ROLES = ['CONTENT HEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO'];
 
 // CH: Get Content Writers
 app.get('/api/content-head/writers', requireRoles(CONTENT_HEAD_ROLES), async (req, res) => {
