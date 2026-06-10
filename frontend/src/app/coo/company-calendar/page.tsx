@@ -495,12 +495,47 @@ export default function CooCompanyCalendar() {
                                                     key={item.id}
                                                     onClick={() => handleItemClick(item)}
                                                     className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    title={`${item.clients?.company_name} - ${item.content_type}${item.clients?.team_lead?.name ? ` (TL: ${item.clients.team_lead.name})` : ''}`}
                                                 >
-                                                    {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                                        {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
-                                                        [{item.clients?.company_name?.substring(0, 3)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+                                                        {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1, whiteSpace: 'nowrap' }}>
+                                                            {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                            [{item.clients?.company_name?.substring(0, 3)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                                        </span>
+                                                        {item.clients?.team_lead?.name ? (
+                                                            <span style={{
+                                                                padding: '1px 6px',
+                                                                borderRadius: '9999px',
+                                                                background: 'rgba(16, 185, 129, 0.15)',
+                                                                color: '#10b981',
+                                                                fontSize: '9px',
+                                                                fontWeight: 700,
+                                                                whiteSpace: 'nowrap',
+                                                                flexShrink: 0
+                                                            }}>
+                                                                {item.clients.team_lead.name}
+                                                            </span>
+                                                        ) : (
+                                                            <span style={{
+                                                                padding: '1px 6px',
+                                                                borderRadius: '9999px',
+                                                                background: 'rgba(239, 68, 68, 0.15)',
+                                                                color: '#ef4444',
+                                                                fontSize: '9px',
+                                                                fontWeight: 700,
+                                                                whiteSpace: 'nowrap',
+                                                                flexShrink: 0
+                                                            }}>
+                                                                Unassigned
+                                                            </span>
+                                                        )}
+                                                        {item.status === 'POSTED' ? (
+                                                            <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                        ) : (
+                                                            <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -552,7 +587,14 @@ export default function CooCompanyCalendar() {
                                         <p style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
                                             {item.clients?.company_name}
                                         </p>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
+                                            {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                            {item.clients?.team_lead?.name && (
+                                                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', marginLeft: '6px' }}>
+                                                    (TL: {item.clients.team_lead.name})
+                                                </span>
+                                            )}
+                                        </p>
                                     </div>
                                 </div>
                             ))}
@@ -575,6 +617,14 @@ export default function CooCompanyCalendar() {
                                         <Link href={`/coo/client-calendar/${selectedItem.item.client_id}`} className="client-link-hover">
                                             {selectedItem.item.clients?.company_name}
                                         </Link>
+                                    )}
+                                    {selectedItem.item.clients?.team_lead?.name && (
+                                        <>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500 }}>
+                                                TL: {selectedItem.item.clients.team_lead.name}
+                                            </span>
+                                        </>
                                     )}
                                     {dayTasks.length > 1 && (
                                         <>
