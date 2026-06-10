@@ -287,7 +287,7 @@ export default function ClientCalendarPage() {
                 update: () => {
                     let revertedStatus = 'WAITING FOR APPROVAL';
                     if (selectedItem.history && selectedItem.history.length > 1) {
-                        revertedStatus = selectedItem.history[1].status;
+                        revertedStatus = selectedItem.history[1].new_status;
                     }
                     const updatedItem = { ...selectedItem.item, status: revertedStatus };
                     setCalendarData(prev => prev.map(item => item.id === selectedItem.item.id ? updatedItem : item));
