@@ -256,7 +256,9 @@ export default function CooMasterCalendar() {
         }
     };
 
-    const monthStatusCounts = calendarData.reduce(
+    const monthStatusCounts = calendarData
+        .filter((item) => isDayInPeriod(parseISO(item.scheduled_datetime)))
+        .reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();

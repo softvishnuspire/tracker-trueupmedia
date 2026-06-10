@@ -10,6 +10,7 @@ import {
     endOfWeek,
     eachDayOfInterval,
     isSameDay,
+    isSameMonth,
     addMonths,
     subMonths,
     parseISO,
@@ -284,7 +285,9 @@ export default function CooCompanyCalendar() {
         }
     };
 
-    const monthStatusCounts = calendarData.reduce(
+    const monthStatusCounts = calendarData
+        .filter((item) => isSameMonth(getDisplayDate(item.scheduled_datetime), currentMonth))
+        .reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();
