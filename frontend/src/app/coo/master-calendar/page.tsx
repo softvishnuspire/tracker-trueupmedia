@@ -71,6 +71,22 @@ export default function CooMasterCalendar() {
         fetchClients();
     }, []);
 
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const isBiMonthlyView = selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+
+    const periodStart = isBiMonthlyView
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+
+    const periodEnd = isBiMonthlyView
+        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 15, 23, 59, 59)
+        : endOfMonth(currentMonth);
+
+    const isDayInPeriod = (day: Date): boolean => {
+        if (!isBiMonthlyView) return isSameMonth(day, currentMonth);
+        return day >= periodStart && day <= periodEnd;
+    };
+
     const fetchMasterData = useCallback(async (isSilent = false) => {
         if (!isSilent) {
             startLoading();
@@ -83,12 +99,24 @@ export default function CooMasterCalendar() {
             setIsRefreshing(true);
         }
         try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await cooApi.getMasterCalendar(
-                format(currentMonth, 'yyyy-MM'),
+                currentMonthStr,
                 selectedClient === 'all' ? undefined : selectedClient,
                 selectedType === 'all' ? undefined : selectedType
             );
-            setCalendarData(res.data);
+
+            if (isBiMonthlyView) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await cooApi.getMasterCalendar(
+                    nextMonthStr,
+                    selectedClient,
+                    selectedType === 'all' ? undefined : selectedType
+                );
+                setCalendarData([...res.data, ...nextRes.data]);
+            } else {
+                setCalendarData(res.data);
+            }
         } catch (err) {
             console.error(err);
             toastError('Failed to refresh calendar data.');
@@ -97,7 +125,7 @@ export default function CooMasterCalendar() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [currentMonth, selectedClient, selectedType, calendarData.length, startLoading, stopLoading, toastError]);
+    }, [currentMonth, selectedClient, selectedType, isBiMonthlyView, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
         const isSilent = calendarData.length > 0;
@@ -133,8 +161,8 @@ export default function CooMasterCalendar() {
 
     const days = viewMode === 'month'
         ? eachDayOfInterval({
-            start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-            end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+            start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+            end: endOfWeek(periodEnd, { weekStartsOn: 1 })
         })
         : eachDayOfInterval({
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
@@ -425,16 +453,20 @@ export default function CooMasterCalendar() {
                         </>
                     ) : (
                         <>
-                            {days.map((day, idx) => {
-                                const dayContent = calendarData.filter((item) => {
-                                    const itemDate = parseISO(item.scheduled_datetime);
-                                    return isSameDay(itemDate, day);
-                                });
+                             {days.map((day, idx) => {
+                                const isOutOfPeriod = !isDayInPeriod(day);
+                                const dayContent = isOutOfPeriod
+                                    ? []
+                                    : calendarData.filter((item) => {
+                                        const itemDate = parseISO(item.scheduled_datetime);
+                                        return isSameDay(itemDate, day);
+                                    });
 
                                 return (
                                     <div
                                         key={idx}
                                         onClick={() => {
+                                            if (isOutOfPeriod) return;
                                             if (dayContent.length > 0) {
                                                 if (window.innerWidth <= 768) {
                                                     setDailyAgenda({ date: day, items: dayContent });
@@ -443,8 +475,8 @@ export default function CooMasterCalendar() {
                                                 }
                                             }
                                         }}
-                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                        style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
+                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                        style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (!isOutOfPeriod && dayContent.length > 0) ? 'pointer' : 'default' }}
                                     >
                                         <span className="day-number">{format(day, 'd')}</span>
                                         <div className="day-items desktop-only">
