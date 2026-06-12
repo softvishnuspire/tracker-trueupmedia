@@ -173,7 +173,7 @@ export default function PostingDashboard() {
         }
         try {
             const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            let asOfDate;
+            let asOfDate: string | undefined;
             if (view === 'company') {
                 const d = new Date();
                 d.setDate(d.getDate() - 7);
@@ -511,7 +511,7 @@ export default function PostingDashboard() {
 
         try {
             await postingApi.undoStatus(activeItem.item.id);
-            let asOfDate;
+            let asOfDate: string | undefined;
             if (view === 'company') {
                 const d = new Date(); d.setDate(d.getDate() - 7);
                 asOfDate = d.toISOString();
@@ -560,7 +560,7 @@ export default function PostingDashboard() {
             
             setDayTasks(tasksOnDay);
 
-            let asOfDate;
+            let asOfDate: string | undefined;
             if (view === 'company') {
                 const d = new Date();
                 d.setDate(d.getDate() - 7);
@@ -592,7 +592,7 @@ export default function PostingDashboard() {
         
         const nextTask = dayTasks[nextIndex];
         try {
-            let asOfDate;
+            let asOfDate: string | undefined;
             if (view === 'company') {
                 const d = new Date();
                 d.setDate(d.getDate() - 7);
@@ -628,8 +628,8 @@ export default function PostingDashboard() {
 
     const days = getDays();
 
-    const monthTotal = calendarData.length;
-    const monthCompleted = calendarData.filter(i => (i.status || '').toUpperCase() === 'POSTED').length;
+    const monthTotal = calendarData.filter(i => isDayInPeriod(parseISO(i.scheduled_datetime))).length;
+    const monthCompleted = calendarData.filter(i => isDayInPeriod(parseISO(i.scheduled_datetime)) && (i.status || '').toUpperCase() === 'POSTED').length;
     const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
@@ -662,10 +662,7 @@ export default function PostingDashboard() {
                 acc.shootDone += 1;
             }
 
-            // For Posts, we treat "DESIGNING COMPLETED" and later as "Production Done" equivalent for the summary
-            if (type === 'POST' && (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus))) {
-                acc.shootDone += 1;
-            }
+
 
             if (item.content_type === 'Reel') acc.reels += 1;
             if (item.content_type === 'Post') acc.posts += 1;

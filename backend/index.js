@@ -333,9 +333,9 @@ const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD', 'COO', 'MANA
 const COO_ROLES = ['COO', 'ADMIN'];
 const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER'];
 const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO', 'MANAGER'];
-const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER', 'MANAGER'];
-const CLIENT_ROLES = ['CLIENT', 'ADMIN'];
-const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN'];
+const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER'];
+const CLIENT_ROLES = ['CLIENT', 'ADMIN', 'COO'];
+const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN', 'COO'];
 
 const requireRoles = (allowedRoles) => {
     const normalizedAllowed = allowedRoles.map((role) => normalizeRole(role));
@@ -2080,7 +2080,7 @@ app.get('/api/admin/content/:id', async (req, res) => {
 
 // ─── COO: Read-only Monitoring ───
 app.get('/api/coo/clients', requireRoles(COO_ROLES), async (req, res) => {
-    const { data, error } = await supabase.from('clients').select('*').eq('is_deleted', false).order('company_name');
+    const { data, error } = await supabase.from('clients').select('*, team_lead:team_lead_id (name)').eq('is_deleted', false).order('company_name');
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
@@ -2245,6 +2245,147 @@ app.post('/api/coo/content/:id/undo', requireRoles(COO_ROLES), async (req, res) 
         await invalidateContentCaches(updated[0], itemData);
         res.json({ message: 'Success', status: latestLog.old_status });
     } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/coo/content', requireRoles(COO_ROLES), async (req, res) => {
+    const { client_id, title, description, content_type, scheduled_datetime } = req.body;
+    const initial_status = 'PENDING';
+
+    try {
+        // Check monthly limit
+        const limitCheck = await checkContentLimit(client_id, content_type, scheduled_datetime);
+        if (!limitCheck.allowed) {
+            return res.status(400).json({
+                error: `Monthly ${content_type} limit reached (${limitCheck.limit}). Already have ${limitCheck.count} items for the period ${limitCheck.period}.`
+            });
+        }
+
+        // Get client's assigned employee
+        const { data: clientData } = await supabase
+            .from('clients')
+            .select('employee_id, reel_employee_id, post_employee_id, writer_employee_id')
+            .eq('id', client_id)
+            .single();
+
+        let employeeId = null;
+        if (clientData) {
+            if (clientData.writer_employee_id) {
+                employeeId = clientData.writer_employee_id;
+            } else if (['Reel', 'YouTube'].includes(content_type)) {
+                employeeId = clientData.reel_employee_id || clientData.employee_id;
+            } else if (content_type === 'Post') {
+                employeeId = clientData.post_employee_id || clientData.employee_id;
+            } else {
+                employeeId = clientData.employee_id;
+            }
+        }
+
+        const { data, error } = await supabase
+            .from('content_items')
+            .insert([{ 
+                client_id, 
+                title, 
+                description, 
+                content_type, 
+                scheduled_datetime, 
+                original_scheduled_datetime: scheduled_datetime,
+                status: initial_status,
+                assigned_to: employeeId || null,
+                assigned_at: employeeId ? new Date().toISOString() : null,
+                employee_task_status: employeeId ? 'PENDING' : null
+            }])
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        await invalidateContentCaches(data[0]);
+        res.json(enrichContentItem(data[0]));
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { title, description, scheduled_datetime, is_rescheduled, content_type } = req.body;
+    try {
+        const { data: existingItem, error: fetchError, table } = await fetchContentOrFreelancerItem(id);
+        if (fetchError || !existingItem) {
+            return res.status(404).json({ error: 'Content item not found' });
+        }
+
+        let original_scheduled_datetime = existingItem.original_scheduled_datetime;
+        let reschedule_history = existingItem.reschedule_history || [];
+
+        if (scheduled_datetime) {
+            const oldDateStr = new Date(existingItem.scheduled_datetime).toISOString();
+            const newDateStr = new Date(scheduled_datetime).toISOString();
+
+            if (is_rescheduled && oldDateStr !== newDateStr) {
+                if (!existingItem.is_rescheduled) {
+                    original_scheduled_datetime = existingItem.scheduled_datetime;
+                    reschedule_history = [
+                        {
+                            from: existingItem.scheduled_datetime,
+                            to: scheduled_datetime,
+                            rescheduled_at: new Date().toISOString()
+                        }
+                    ];
+                } else {
+                    if (!original_scheduled_datetime) {
+                        original_scheduled_datetime = existingItem.scheduled_datetime;
+                    }
+                    reschedule_history = [
+                        ...reschedule_history,
+                        {
+                            from: existingItem.scheduled_datetime,
+                            to: scheduled_datetime,
+                            rescheduled_at: new Date().toISOString()
+                        }
+                    ];
+                }
+            }
+        }
+
+        const updatePayload = {
+            title,
+            description,
+            scheduled_datetime,
+            is_rescheduled: is_rescheduled || existingItem.is_rescheduled || false,
+            original_scheduled_datetime,
+            reschedule_history
+        };
+
+        if (content_type) {
+            updatePayload.content_type = content_type;
+        }
+
+        const { data, error } = await supabase
+            .from(table)
+            .update(updatePayload)
+            .eq('id', id)
+            .select();
+
+        if (error) return res.status(500).json({ error: error.message });
+        await invalidateContentCaches(data[0], existingItem);
+        res.json(data[0]);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/coo/content/:id', requireRoles(COO_ROLES), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: item } = await fetchContentOrFreelancerItem(id);
+        const { error } = await supabase.from('content_items').delete().eq('id', id);
+        if (error) return res.status(500).json({ error: error.message });
+        if (item) {
+            await invalidateContentCaches(item);
+        }
+        res.json({ message: 'Deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 
@@ -3066,7 +3207,7 @@ app.patch('/api/ph/clients/:id/assign-employee', requireRoles(PH_ROLES), async (
 });
 
 // ─── Content Head Endpoints ───
-const CONTENT_HEAD_ROLES = ['CONTENT HEAD', 'ADMIN', 'GM', 'GENERAL MANAGER'];
+const CONTENT_HEAD_ROLES = ['CONTENT HEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO'];
 
 // CH: Get Content Writers
 app.get('/api/content-head/writers', requireRoles(CONTENT_HEAD_ROLES), async (req, res) => {

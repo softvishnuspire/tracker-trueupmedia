@@ -19,6 +19,7 @@ import {
 import {
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
     FileText,
     Video,
     X,
@@ -27,12 +28,16 @@ import {
     ArrowLeft,
     Check,
     CalendarClock,
+    AlertTriangle,
     ShieldAlert,
     Loader2,
-    Undo2
+    Undo2,
+    Plus,
+    Edit,
+    Trash2
 } from 'lucide-react';
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
-import { formatIST } from '@/lib/utils';
+import { formatIST, formatISTForm, convertISTToUTC } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
@@ -48,6 +53,7 @@ export default function CooClientCalendarPage() {
     const router = useRouter();
     const clientId = params.id as string;
 
+    const [clients, setClients] = useState<any[]>([]);
     const [client, setClient] = useState<any>(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
@@ -59,10 +65,22 @@ export default function CooClientCalendarPage() {
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date; items: ContentItem[] } | null>(null);
     const [statusNote, setStatusNote] = useState('');
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
+    const [isRescheduling, setIsRescheduling] = useState(false);
+
+    const [formData, setFormData] = useState({
+        content_type: 'Post' as ContentItem['content_type'],
+        scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+        client_id: clientId,
+        title: '',
+        description: ''
+    });
 
     const fetchClientInfo = useCallback(async () => {
         try {
             const res = await cooApi.getClients();
+            setClients(res.data);
             const found = res.data.find((c: any) => c.id === clientId);
             if (found) setClient(found);
         } catch (err) {
@@ -118,7 +136,7 @@ export default function CooClientCalendarPage() {
         : startOfMonth(currentMonth);
     const nextMonth = addMonths(currentMonth, 1);
     const periodEnd = isBiMonthly
-        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14, 23, 59, 59)
+        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 15, 23, 59, 59)
         : endOfMonth(currentMonth);
 
     const days = viewMode === 'month'
@@ -139,8 +157,7 @@ export default function CooClientCalendarPage() {
 
     const getPeriodLabel = (): string => {
         if (!isBiMonthly) return format(currentMonth, 'MMMM yyyy');
-        const displayEnd = new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 14);
-        return `${format(periodStart, 'd MMM')} \u2013 ${format(displayEnd, 'd MMM yyyy')}`;
+        return `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`;
     };
 
     const handlePrev = () => {
@@ -198,6 +215,101 @@ export default function CooClientCalendarPage() {
             setSelectedItem(res.data);
             setStatusNote('');
         } catch (err) { console.error(err); }
+    };
+
+    const handleEditClick = (item: ContentItem) => {
+        setIsRescheduling(false);
+        setEditingItem(item);
+        setFormData({
+            content_type: item.content_type,
+            scheduled_datetime: formatISTForm(item.scheduled_datetime, 'yyyy-MM-dd') + 'T' + formatISTForm(item.scheduled_datetime, 'HH:mm'),
+            client_id: item.client_id,
+            title: item.title || '',
+            description: item.description || ''
+        });
+        setSelectedItem(null);
+        setShowAddModal(true);
+    };
+
+    const handleRescheduleClick = (item: ContentItem) => {
+        setIsRescheduling(true);
+        setEditingItem(item);
+        setFormData({
+            content_type: item.content_type,
+            scheduled_datetime: formatISTForm(item.scheduled_datetime, 'yyyy-MM-dd') + 'T' + formatISTForm(item.scheduled_datetime, 'HH:mm'),
+            client_id: item.client_id,
+            title: item.title || '',
+            description: item.description || ''
+        });
+        setSelectedItem(null);
+        setShowAddModal(true);
+    };
+
+    const handleDeleteContent = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this content item?')) return;
+        setActionId(`delete-${id}`);
+        try {
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: selectedItem ? { ...selectedItem } : null,
+                    dayTasks: [...dayTasks]
+                }),
+                update: () => {
+                    setCalendarData(prev => prev.filter(item => item.id !== id));
+                    setDayTasks(prev => prev.filter(item => item.id !== id));
+                    setSelectedItem(null);
+                },
+                action: () => cooApi.deleteContent(id),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setDayTasks(backup.dayTasks);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: 'Content deleted successfully.',
+                errorMessage: 'Failed to delete content.',
+                refresh: () => fetchCalendarData(true)
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleAddContent = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const [datePart, timePart] = formData.scheduled_datetime.split('T');
+            const utcScheduledDatetime = convertISTToUTC(datePart, timePart);
+            if (editingItem) {
+                await cooApi.updateContent(editingItem.id, {
+                    ...formData,
+                    scheduled_datetime: utcScheduledDatetime,
+                    is_rescheduled: isRescheduling ? true : editingItem.is_rescheduled
+                });
+            } else {
+                await cooApi.addContent({
+                    ...formData,
+                    scheduled_datetime: utcScheduledDatetime
+                });
+            }
+            setShowAddModal(false);
+            setEditingItem(null);
+            setIsRescheduling(false);
+            setFormData({
+                content_type: 'Post' as ContentItem['content_type'],
+                scheduled_datetime: formatISTForm(new Date(), 'yyyy-MM-dd') + 'T' + formatISTForm(new Date(), 'HH:mm'),
+                client_id: clientId,
+                title: '',
+                description: ''
+            });
+            fetchCalendarData();
+        } catch (err: any) { 
+            console.error(err); 
+            const errorMsg = err.response?.data?.error || 'Error saving content';
+            alert(errorMsg); 
+        }
     };
 
     const handleToggleEmergency = async () => {
@@ -292,7 +404,7 @@ export default function CooClientCalendarPage() {
                 update: () => {
                     let revertedStatus = 'WAITING FOR APPROVAL';
                     if (selectedItem.history && selectedItem.history.length > 1) {
-                        revertedStatus = selectedItem.history[1].status;
+                        revertedStatus = selectedItem.history[1].new_status || selectedItem.history[1].status;
                     }
                     const updatedItem = { ...selectedItem.item, status: revertedStatus };
                     setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
@@ -320,7 +432,9 @@ export default function CooClientCalendarPage() {
         }
     };
 
-    const monthStatusCounts = calendarData.reduce(
+    const monthStatusCounts = calendarData
+        .filter((item) => isDayInPeriod(parseISO(item.scheduled_datetime)))
+        .reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();
@@ -334,10 +448,6 @@ export default function CooClientCalendarPage() {
 
             if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
                 if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
-            } else if (normalizedType === 'POST') {
-                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
-                    acc.shootDone += 1;
-                }
             }
 
             if (normalizedType === 'REEL') acc.reels += 1;
@@ -355,16 +465,62 @@ export default function CooClientCalendarPage() {
             <header className="page-header page-header-safe">
                 <div className="header-content">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button onClick={() => router.back()} className="btn-icon">
-                            <ArrowLeft size={18} />
-                        </button>
                         <div className="header-info">
-                            <h1 className="page-title">{client?.company_name} Calendar</h1>
-                            <p className="page-subtitle">Monitor scheduling and content for this client</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <h1 className="page-title">Client Calendar</h1>
+                                {client?.team_lead?.name && (
+                                    <div className="tl-badge" style={{ 
+                                        background: 'rgba(99, 102, 241, 0.1)', 
+                                        color: 'var(--accent)', 
+                                        padding: '4px 12px', 
+                                        borderRadius: '20px', 
+                                        fontSize: '13px', 
+                                        fontWeight: 800,
+                                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                                        marginTop: '4px'
+                                    }}>
+                                        Team Lead: {client.team_lead.name}
+                                    </div>
+                                )}
+                            </div>
+                            <p className="page-subtitle">Detailed planning for {client?.company_name}</p>
                         </div>
                     </div>
 
                     <div className="header-controls">
+                        <button
+                            onClick={() => router.push('/coo/client-calendar')}
+                            className="btn-back-grid"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 16px',
+                                background: 'var(--bg-elevated)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '12px',
+                                color: 'var(--text-primary)',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                marginRight: '12px'
+                            }}
+                        >
+                            <ArrowLeft size={16} />
+                            Selection Grid
+                        </button>
+                        <div className="client-dropdown-wrapper" style={{ marginRight: '12px' }}>
+                            <select
+                                className="client-dropdown"
+                                value={clientId}
+                                onChange={(e) => router.push(`/coo/client-calendar/${e.target.value}`)}
+                            >
+                                {clients.map(c => (
+                                    <option key={c.id} value={c.id}>{c.company_name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={16} className="dropdown-chevron" />
+                        </div>
                         <div className="view-mode-toggle">
                             <button
                                 onClick={() => setViewMode('month')}
@@ -382,7 +538,7 @@ export default function CooClientCalendarPage() {
                             </button>
                             <span className="month-label">
                                 {viewMode === 'month'
-                                    ? format(currentMonth, 'MMMM yyyy')
+                                    ? getPeriodLabel()
                                     : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                                 }
                             </span>
@@ -485,31 +641,101 @@ export default function CooClientCalendarPage() {
                             return (
                                 <div
                                     key={idx}
-                                    onClick={() => {
-                                        if (dayContent.length > 0) {
-                                            if (window.innerWidth <= 768) {
-                                                setDailyAgenda({ date: day, items: dayContent });
-                                            } else {
-                                                handleItemClick(dayContent[0]);
-                                            }
-                                        }
-                                    }}
-                                    className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                    style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (dayContent.length > 0 && !isOutOfPeriod) ? 'pointer' : 'default' }}
-                                >
-                                    <span className="day-number">{format(day, 'd')}</span>
+                                     onClick={() => {
+                                         if (isOutOfPeriod) return;
+                                         if (dayContent.length > 0) {
+                                             if (window.innerWidth <= 768) {
+                                                 setDailyAgenda({ date: day, items: dayContent });
+                                             } else {
+                                                 handleItemClick(dayContent[0]);
+                                             }
+                                         } else {
+                                             setFormData({
+                                                 ...formData,
+                                                 scheduled_datetime: format(day, "yyyy-MM-dd") + 'T10:00'
+                                             });
+                                             setShowAddModal(true);
+                                         }
+                                     }}
+                                     className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                     style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: isOutOfPeriod ? 'default' : 'pointer', position: 'relative' }}
+                                 >
+                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                         <span className="day-number">{format(day, 'd')}</span>
+                                         <button 
+                                             onClick={(e) => {
+                                                 e.stopPropagation();
+                                                 setFormData({
+                                                     ...formData,
+                                                     scheduled_datetime: format(day, "yyyy-MM-dd") + 'T10:00'
+                                                 });
+                                                 setShowAddModal(true);
+                                             }}
+                                             className="add-task-btn"
+                                             style={{
+                                                 background: 'rgba(255, 255, 255, 0.05)',
+                                                 border: '1px solid var(--border)',
+                                                 borderRadius: '6px',
+                                                 padding: '4px',
+                                                 display: 'flex',
+                                                 alignItems: 'center',
+                                                 justifyContent: 'center',
+                                                 color: 'var(--text-muted)',
+                                                 cursor: 'pointer',
+                                                 transition: 'all 0.2s ease'
+                                             }}
+                                             title="Add Task"
+                                         >
+                                             <Plus size={14} />
+                                         </button>
+                                     </div>
                                     <div className="day-items desktop-only">
                                          {dayContent.map((item) => (
                                              <div
                                                  key={item.id}
                                                  onClick={(e) => { e.stopPropagation(); handleItemClick(item); }}
                                                  className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                 title={`${item.clients?.company_name || 'Client'} - ${item.content_type}${item.clients?.team_lead?.name ? ` (TL: ${item.clients.team_lead.name})` : ''}`}
                                              >
-                                                 {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                 <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                                     {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
-                                                     {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-                                                 </span>
+                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+                                                     {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1, whiteSpace: 'nowrap' }}>
+                                                         {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                         {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                                     </span>
+                                                     {item.assigned_employee?.name ? (
+                                                         <span style={{
+                                                             padding: '1px 6px',
+                                                             borderRadius: '9999px',
+                                                             background: 'rgba(16, 185, 129, 0.15)',
+                                                             color: '#10b981',
+                                                             fontSize: '9px',
+                                                             fontWeight: 700,
+                                                             whiteSpace: 'nowrap',
+                                                             flexShrink: 0
+                                                         }}>
+                                                             {item.assigned_employee.name}
+                                                         </span>
+                                                     ) : (
+                                                         <span style={{
+                                                             padding: '1px 6px',
+                                                             borderRadius: '9999px',
+                                                             background: 'rgba(239, 68, 68, 0.15)',
+                                                             color: '#ef4444',
+                                                             fontSize: '9px',
+                                                             fontWeight: 700,
+                                                             whiteSpace: 'nowrap',
+                                                             flexShrink: 0
+                                                         }}>
+                                                             Unassigned
+                                                         </span>
+                                                     )}
+                                                     {item.status === 'POSTED' ? (
+                                                         <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                     ) : (
+                                                         <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                     )}
+                                                 </div>
                                              </div>
                                          ))}
                                      </div>
@@ -557,10 +783,47 @@ export default function CooClientCalendarPage() {
                                         background: item.content_type === 'Post' ? '#10b981' : '#6366f1'
                                     }}></div>
                                     <div style={{ flex: 1 }}>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                            {item.clients?.team_lead?.name && (
+                                                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', marginLeft: '6px' }}>
+                                                    (TL: {item.clients.team_lead.name})
+                                                </span>
+                                            )}
+                                        </p>
                                     </div>
                                 </div>
                             ))}
+
+                            <button 
+                                onClick={() => {
+                                    setDailyAgenda(null);
+                                    setFormData({
+                                        ...formData,
+                                        scheduled_datetime: format(dailyAgenda.date, "yyyy-MM-dd") + 'T10:00'
+                                    });
+                                    setShowAddModal(true);
+                                }}
+                                style={{
+                                    marginTop: '8px',
+                                    padding: '14px',
+                                    borderRadius: '12px',
+                                    background: 'var(--accent)',
+                                    color: 'white',
+                                    border: 'none',
+                                    fontWeight: 800,
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                                }}
+                            >
+                                <Plus size={18} />
+                                Add New Task
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -575,6 +838,14 @@ export default function CooClientCalendarPage() {
                                     <span className={`type-badge ${selectedItem.item.content_type.toLowerCase()}`}>
                                         {selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type}
                                     </span>
+                                    {selectedItem.item.clients?.team_lead?.name && (
+                                        <>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500 }}>
+                                                TL: {selectedItem.item.clients.team_lead.name}
+                                            </span>
+                                        </>
+                                    )}
                                     {dayTasks.length > 1 && (
                                         <>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
@@ -584,8 +855,14 @@ export default function CooClientCalendarPage() {
                                         </>
                                     )}
                                 </div>
-                                <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
-                            </div>
+                                 <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
+                                 <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
+                                     Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                 </p>
+                                 <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '2px' }}>
+                                     Assigned To: {selectedItem.item.assigned_employee ? `${selectedItem.item.assigned_employee.name} ${selectedItem.item.assigned_employee.role_identifier ? `(${selectedItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
+                                 </p>
+                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
                                     <div className="task-nav-buttons" style={{ display: 'flex', gap: '4px', marginRight: '8px', paddingRight: '12px', borderRight: '1px solid var(--border)' }}>
@@ -615,7 +892,29 @@ export default function CooClientCalendarPage() {
                                         </button>
                                     </div>
                                 )}
-                                <button onClick={() => setSelectedItem(null)} className="modal-close"><X size={20}/></button>
+                                 <button 
+                                     onClick={() => handleEditClick(selectedItem.item)} 
+                                     className="btn-icon" 
+                                     title="Edit Content"
+                                     style={{ color: 'var(--accent)' }}
+                                     disabled={actionId !== null}
+                                 >
+                                     <Edit size={18} />
+                                 </button>
+                                 <button 
+                                     onClick={() => handleDeleteContent(selectedItem.item.id)} 
+                                     className="btn-icon" 
+                                     title="Delete Content"
+                                     style={{ color: '#ef4444' }}
+                                     disabled={actionId !== null}
+                                 >
+                                     {actionId === `delete-${selectedItem.item.id}` ? (
+                                         <Loader2 size={18} className="spinner-btn-icon" />
+                                     ) : (
+                                         <Trash2 size={18} />
+                                     )}
+                                 </button>
+                                 <button onClick={() => setSelectedItem(null)} className="modal-close" disabled={actionId !== null}><X size={20}/></button>
                             </div>
                         </div>
 
@@ -670,10 +969,13 @@ export default function CooClientCalendarPage() {
                                     const isOverdue = isBefore(parseISO(selectedItem.item.scheduled_datetime), new Date()) && selectedItem.item.status !== 'POSTED';
                                     if (isOverdue) {
                                         return (
-                                            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 700, fontSize: '13px', width: '100%' }}>
+                                            <button 
+                                                onClick={() => handleRescheduleClick(selectedItem.item)}
+                                                style={{ marginTop: '16px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 700, fontSize: '13px', width: '100%', cursor: 'pointer' }}
+                                            >
                                                 <CalendarClock size={18} />
-                                                Overdue
-                                            </div>
+                                                Reschedule Task
+                                            </button>
                                         );
                                     }
                                     return null;
@@ -889,6 +1191,63 @@ export default function CooClientCalendarPage() {
                     </div>
                 </div>
             )}
+
+            {/* Add Content Modal */}
+            {showAddModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h3 className="modal-title">{editingItem ? 'Edit Content' : 'Schedule New Content'}</h3>
+                            <button onClick={() => { setShowAddModal(false); setEditingItem(null); setIsRescheduling(false); }} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleAddContent}>
+
+                            <div className="form-group">
+                                <label className="form-label">Content Type</label>
+                                <select 
+                                    className="form-input"
+                                    value={formData.content_type}
+                                    onChange={(e) => setFormData({...formData, content_type: e.target.value as any})}
+                                    disabled={!!editingItem}
+                                >
+                                    <option value="Post">Post</option>
+                                    <option value="Reel">Reel</option>
+                                    <option value="YouTube">YouTube</option>
+                                    <option value="Special Poster">Special Poster</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Scheduled Date & Time *</label>
+                                <input 
+                                    type="datetime-local" 
+                                    className="form-input" 
+                                    required
+                                    value={formData.scheduled_datetime}
+                                    onChange={(e) => setFormData({...formData, scheduled_datetime: e.target.value})}
+                                />
+                            </div>
+
+                            <div className="modal-footer">
+                                <button type="button" className="btn-secondary" onClick={() => { setShowAddModal(false); setEditingItem(null); }}>Cancel</button>
+                                <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '10px 24px', background: isRescheduling ? '#ef4444' : '' }}>
+                                    {isRescheduling ? 'Confirm Reschedule' : editingItem ? 'Update' : 'Schedule'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes slideUp {
+                    from { transform: translate(-50%, 20px); opacity: 0; }
+                    to { transform: translate(-50%, 0); opacity: 1; }
+                }
+                .view-mode-btn.active {
+                    background: var(--primary) !important;
+                    color: white !important;
+                }
+            ` }} />
         </div>
     );
 }

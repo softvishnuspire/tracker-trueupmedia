@@ -28,6 +28,7 @@ import {
     ChevronDown,
     Check,
     CalendarClock,
+    AlertTriangle,
     ShieldAlert,
     Loader2,
     Undo2
@@ -72,6 +73,22 @@ export default function CooMasterCalendar() {
         fetchClients();
     }, []);
 
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const isBiMonthlyView = selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+
+    const periodStart = isBiMonthlyView
+        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
+        : startOfMonth(currentMonth);
+
+    const periodEnd = isBiMonthlyView
+        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 15, 23, 59, 59)
+        : endOfMonth(currentMonth);
+
+    const isDayInPeriod = (day: Date): boolean => {
+        if (!isBiMonthlyView) return isSameMonth(day, currentMonth);
+        return day >= periodStart && day <= periodEnd;
+    };
+
     const fetchMasterData = useCallback(async (isSilent = false) => {
         if (!isSilent) {
             startLoading();
@@ -84,12 +101,24 @@ export default function CooMasterCalendar() {
             setIsRefreshing(true);
         }
         try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await cooApi.getMasterCalendar(
-                format(currentMonth, 'yyyy-MM'),
+                currentMonthStr,
                 selectedClient === 'all' ? undefined : selectedClient,
                 selectedType === 'all' ? undefined : selectedType
             );
-            setCalendarData(res.data);
+
+            if (isBiMonthlyView) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await cooApi.getMasterCalendar(
+                    nextMonthStr,
+                    selectedClient,
+                    selectedType === 'all' ? undefined : selectedType
+                );
+                setCalendarData([...res.data, ...nextRes.data]);
+            } else {
+                setCalendarData(res.data);
+            }
         } catch (err) {
             console.error(err);
             toastError('Failed to refresh calendar data.');
@@ -98,7 +127,7 @@ export default function CooMasterCalendar() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [currentMonth, selectedClient, selectedType, calendarData.length, startLoading, stopLoading, toastError]);
+    }, [currentMonth, selectedClient, selectedType, isBiMonthlyView, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
         const isSilent = calendarData.length > 0;
@@ -134,8 +163,8 @@ export default function CooMasterCalendar() {
 
     const days = viewMode === 'month'
         ? eachDayOfInterval({
-            start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-            end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+            start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+            end: endOfWeek(periodEnd, { weekStartsOn: 1 })
         })
         : eachDayOfInterval({
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
@@ -312,7 +341,9 @@ export default function CooMasterCalendar() {
         }
     };
 
-    const monthStatusCounts = calendarData.reduce(
+    const monthStatusCounts = calendarData
+        .filter((item) => isDayInPeriod(parseISO(item.scheduled_datetime)))
+        .reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();
@@ -326,10 +357,6 @@ export default function CooMasterCalendar() {
 
             if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
                 if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
-            } else if (normalizedType === 'POST') {
-                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
-                    acc.shootDone += 1;
-                }
             }
 
             if (normalizedType === 'REEL') acc.reels += 1;
@@ -446,11 +473,11 @@ export default function CooMasterCalendar() {
             <div className="status-summary-row">
                 <div className="status-pill status-pill-reels">
                     <span className="status-pill-label">Reels</span>
-                    <span className="status-pill-count">{monthStatusCounts.reels}/{assignedTotals.reels}</span>
+                    <span className="status-pill-count">{monthStatusCounts.reels}</span>
                 </div>
                 <div className="status-pill status-pill-posts">
                     <span className="status-pill-label">Posts</span>
-                    <span className="status-pill-count">{monthStatusCounts.posts}/{assignedTotals.posts}</span>
+                    <span className="status-pill-count">{monthStatusCounts.posts}</span>
                 </div>
                 <div className="status-pill status-pill-content-approved">
                     <span className="status-pill-label">Content Approved</span>
@@ -509,16 +536,20 @@ export default function CooMasterCalendar() {
                         </>
                     ) : (
                         <>
-                            {days.map((day, idx) => {
-                                const dayContent = calendarData.filter((item) => {
-                                    const itemDate = parseISO(item.scheduled_datetime);
-                                    return isSameDay(itemDate, day);
-                                });
+                             {days.map((day, idx) => {
+                                const isOutOfPeriod = !isDayInPeriod(day);
+                                const dayContent = isOutOfPeriod
+                                    ? []
+                                    : calendarData.filter((item) => {
+                                        const itemDate = parseISO(item.scheduled_datetime);
+                                        return isSameDay(itemDate, day);
+                                    });
 
                                 return (
                                     <div
                                         key={idx}
                                         onClick={() => {
+                                            if (isOutOfPeriod) return;
                                             if (dayContent.length > 0) {
                                                 if (window.innerWidth <= 768) {
                                                     setDailyAgenda({ date: day, items: dayContent });
@@ -527,8 +558,8 @@ export default function CooMasterCalendar() {
                                                 }
                                             }
                                         }}
-                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
-                                        style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
+                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${isOutOfPeriod && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                        style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: (!isOutOfPeriod && dayContent.length > 0) ? 'pointer' : 'default' }}
                                     >
                                         <span className="day-number">{format(day, 'd')}</span>
                                         <div className="day-items desktop-only">
@@ -537,12 +568,47 @@ export default function CooMasterCalendar() {
                                                     key={item.id}
                                                     onClick={() => handleItemClick(item)}
                                                     className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    title={`${item.clients?.company_name} - ${item.content_type}${item.clients?.team_lead?.name ? ` (TL: ${item.clients.team_lead.name})` : ''}`}
                                                 >
-                                                    {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
-                                                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                                        {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
-                                                        [{getClientAbbreviation(item.clients?.company_name)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
-                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+                                                        {item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
+                                                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', flex: 1, whiteSpace: 'nowrap' }}>
+                                                            {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                            [{getClientAbbreviation(item.clients?.company_name)}] {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                                        </span>
+                                                        {item.assigned_employee?.name ? (
+                                                             <span style={{
+                                                                 padding: '1px 6px',
+                                                                 borderRadius: '9999px',
+                                                                 background: 'rgba(16, 185, 129, 0.15)',
+                                                                 color: '#10b981',
+                                                                 fontSize: '9px',
+                                                                 fontWeight: 700,
+                                                                 whiteSpace: 'nowrap',
+                                                                 flexShrink: 0
+                                                             }}>
+                                                                 {item.assigned_employee.name}
+                                                             </span>
+                                                         ) : (
+                                                             <span style={{
+                                                                 padding: '1px 6px',
+                                                                 borderRadius: '9999px',
+                                                                 background: 'rgba(239, 68, 68, 0.15)',
+                                                                 color: '#ef4444',
+                                                                 fontSize: '9px',
+                                                                 fontWeight: 700,
+                                                                 whiteSpace: 'nowrap',
+                                                                 flexShrink: 0
+                                                             }}>
+                                                                 Unassigned
+                                                             </span>
+                                                         )}
+                                                        {item.status === 'POSTED' ? (
+                                                            <Check size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                        ) : (
+                                                            <AlertTriangle size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -594,7 +660,14 @@ export default function CooMasterCalendar() {
                                         <p style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
                                             {item.clients?.company_name}
                                         </p>
-                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}</p>
+                                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
+                                            {(item.content_type === 'Special Poster' || item.content_type === 'Special Day Poster' ? '🎉 ' : '') + item.content_type}
+                                            {item.clients?.team_lead?.name && (
+                                                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', marginLeft: '6px' }}>
+                                                    (TL: {item.clients.team_lead.name})
+                                                </span>
+                                            )}
+                                        </p>
                                     </div>
                                 </div>
                             ))}
@@ -618,6 +691,14 @@ export default function CooMasterCalendar() {
                                             {selectedItem.item.clients?.company_name}
                                         </Link>
                                     )}
+                                    {selectedItem.item.clients?.team_lead?.name && (
+                                        <>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500 }}>
+                                                TL: {selectedItem.item.clients.team_lead.name}
+                                            </span>
+                                        </>
+                                    )}
                                     {dayTasks.length > 1 && (
                                         <>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
@@ -628,6 +709,12 @@ export default function CooMasterCalendar() {
                                     )}
                                 </div>
                                 <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '2px' }}>
+                                    Assigned To: {selectedItem.item.assigned_employee ? `${selectedItem.item.assigned_employee.name} ${selectedItem.item.assigned_employee.role_identifier ? `(${selectedItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
+                                </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {dayTasks.length > 1 && (
