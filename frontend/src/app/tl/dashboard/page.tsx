@@ -288,7 +288,8 @@ export default function TLDashboard() {
                 fetchClientCalendar();
             }
         }
-    }, [selectedClient, currentMonth, view, user, fetchMasterCalendar, fetchPocNotes, fetchClientCalendar]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedClient, currentMonth, view, user]);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -433,7 +434,8 @@ export default function TLDashboard() {
         if (user) {
             fetchClients(user.id);
         }
-    }, [user, fetchClients]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
 
     const handlePocDayClick = (date: Date) => {
         setSelectedPocDate(date);

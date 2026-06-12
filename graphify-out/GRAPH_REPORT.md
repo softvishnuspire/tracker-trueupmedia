@@ -1,6 +1,13 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-06-09 (Posting Team Login Infinite Refresh Loop Fix)
+## Latest Changes — 2026-06-12 (COO Master and Client Calendar Status Transitions)
+- **Goal**: Allow users in the COO module to advance content item workflow status and undo status changes directly from the Master Calendar and Client Calendar task details modal.
+- **Affected Files**:
+    - `frontend/src/app/coo/master-calendar/page.tsx`
+    - `frontend/src/app/coo/client-calendar/[id]/page.tsx`
+- **System Impact**: Introduces the `statusNote` state, `handleStatusUpdate` action, and `handleUndoStatus` action to both pages, matching the implementation in `coo/company-calendar/page.tsx`. Re-renders the content detail modals in both calendars to show the "Advance to Next Step" option (with note inputs) and the "Undo Last Action" option. This ensures that COO role users can advance tasks smoothly from any calendar view in the module.
+
+## Previous Changes — 2026-06-09 (Posting Team Login Infinite Refresh Loop Fix)
 - **Goal**: Resolve the infinite refresh loop and repetitive data-fetching glitches when logging in or navigating to the Posting Team dashboard.
 - **Affected Files**:
     - `frontend/src/components/ui/TopProgressBar.tsx`

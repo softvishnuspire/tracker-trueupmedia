@@ -267,17 +267,20 @@ export default function ContentHeadDashboard() {
 
     useEffect(() => {
         fetchClients();
-    }, [fetchClients]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, [view, selectedClient, currentMonth, fetchData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [view, selectedClient, currentMonth]);
 
     useEffect(() => {
         if (view === 'employees') {
             fetchWritersData();
         }
-    }, [view, fetchWritersData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [view]);
 
     const latestState = React.useRef({ view, selectedClient, activeItemId: activeItem?.item?.id, isDetailsOpen });
     useEffect(() => {

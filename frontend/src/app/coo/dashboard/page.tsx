@@ -248,7 +248,8 @@ export default function CooDashboard() {
             }
         };
         fetchUserEffect();
-    }, [fetchClients, supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [supabase]);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -271,7 +272,8 @@ export default function CooDashboard() {
             fetchPocNotes();
         }
         fetchGlobalData();
-    }, [selectedClient, currentMonth, clients.length, fetchDashboardStats, fetchPocNotes, fetchGlobalData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedClient, currentMonth, clients.length]);
 
     const handleItemClick = (item: ContentItem) => {
         // Redirect to calendar details directly

@@ -29,7 +29,8 @@ import {
     Check,
     CalendarClock,
     ShieldAlert,
-    Loader2
+    Loader2,
+    Undo2
 } from 'lucide-react';
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -57,6 +58,7 @@ export default function CooMasterCalendar() {
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date; items: ContentItem[] } | null>(null);
+    const [statusNote, setStatusNote] = useState('');
 
     useEffect(() => {
         const fetchClients = async () => {
@@ -186,6 +188,7 @@ export default function CooMasterCalendar() {
         try {
             const res = await cooApi.getContentDetails(nextTask.id);
             setSelectedItem(res.data);
+            setStatusNote('');
         } catch (err) { console.error(err); }
     };
 
@@ -215,6 +218,88 @@ export default function CooMasterCalendar() {
                 },
                 successMessage: nextEmergency ? 'Emergency flag enabled.' : 'Emergency flag disabled.',
                 errorMessage: 'Failed to toggle emergency flag.',
+                refresh: () => {
+                    fetchMasterData(true);
+                    cooApi.getContentDetails(targetId).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleStatusUpdate = async (newStatus: string) => {
+        if (!selectedItem) return;
+        const targetId = selectedItem.item.id;
+        setActionId(`status-${targetId}`);
+        const currentNote = statusNote;
+        try {
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    const updatedItem = { ...selectedItem.item, status: newStatus };
+                    setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                    setStatusNote('');
+                },
+                action: () => cooApi.updateStatus(targetId, newStatus, currentNote.trim() || undefined),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                    setStatusNote(currentNote);
+                },
+                successMessage: `Advanced to ${newStatus}.`,
+                errorMessage: 'Failed to update status.',
+                refresh: () => {
+                    fetchMasterData(true);
+                    cooApi.getContentDetails(targetId).then(res => setSelectedItem(res.data)).catch(console.error);
+                }
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleUndoStatus = async () => {
+        if (!selectedItem) return;
+        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        const targetId = selectedItem.item.id;
+        setActionId(`undo-${targetId}`);
+        try {
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    selected: { ...selectedItem }
+                }),
+                update: () => {
+                    let revertedStatus = 'WAITING FOR APPROVAL';
+                    if (selectedItem.history && selectedItem.history.length > 1) {
+                        revertedStatus = selectedItem.history[1].status;
+                    }
+                    const updatedItem = { ...selectedItem.item, status: revertedStatus };
+                    setCalendarData(prev => prev.map(item => item.id === targetId ? updatedItem : item));
+                    setSelectedItem({
+                        ...selectedItem,
+                        item: updatedItem
+                    });
+                },
+                action: () => cooApi.undoStatus(targetId),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setSelectedItem(backup.selected);
+                },
+                successMessage: 'Status change undone.',
+                errorMessage: 'Failed to undo status change.',
                 refresh: () => {
                     fetchMasterData(true);
                     cooApi.getContentDetails(targetId).then(res => setSelectedItem(res.data)).catch(console.error);
@@ -695,8 +780,64 @@ export default function CooMasterCalendar() {
                                     </button>
                                 </div>
 
+                                {(() => {
+                                    const flows: any = {
+                                        Reel: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                        YouTube: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                        Post: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                    };
+                                    const flow = flows[selectedItem.item.content_type] || [];
+                                    const currentIdx = flow.indexOf(selectedItem.item.status);
+                                    const nextStatus = flow[currentIdx + 1];
+                                    const isSpecialStatus = selectedItem.item.status === 'SHOOT DONE' || selectedItem.item.status === 'POSTED';
+
+                                    if (!nextStatus || isSpecialStatus) return null;
+
+                                    return (
+                                        <div style={{ marginBottom: '24px', padding: '16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                                            <label className="detail-label" style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Advance to Next Step</label>
+                                            <textarea
+                                                placeholder="Add a note (optional)..."
+                                                value={statusNote}
+                                                onChange={(e) => setStatusNote(e.target.value)}
+                                                style={{ width: '100%', padding: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px', marginBottom: '12px', resize: 'none', height: '60px' }}
+                                            />
+                                            <button
+                                                onClick={() => handleStatusUpdate(nextStatus)}
+                                                disabled={actionId !== null}
+                                                style={{ width: '100%', padding: '12px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+                                            >
+                                                {actionId === `status-${selectedItem.item.id}` ? (
+                                                    <>
+                                                        Advancing...
+                                                        <Loader2 size={16} className="spinner-btn-icon" />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        Advance to {nextStatus}
+                                                        <ChevronRight size={18} />
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
+
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                     <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
+                                    <button 
+                                        onClick={handleUndoStatus} 
+                                        disabled={actionId !== null}
+                                        className="btn-undo" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px' }}
+                                    >
+                                        {actionId === `undo-${selectedItem.item.id}` ? (
+                                            <Loader2 size={14} className="spinner-btn-icon" />
+                                        ) : (
+                                            <Undo2 size={14} />
+                                        )}
+                                        Undo Last Action
+                                    </button>
                                 </div>
                                 <div style={{ marginTop: '24px', position: 'relative', paddingLeft: '12px', display: 'flex', flexDirection: 'column' }}>
                                     <div style={{
