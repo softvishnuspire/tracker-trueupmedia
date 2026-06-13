@@ -39,6 +39,7 @@ import {
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { formatIST, formatISTForm, convertISTToUTC } from '@/lib/utils';
 import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import ScheduleExport from '@/components/ScheduleExport';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -552,6 +553,13 @@ export default function CooClientCalendarPage() {
                                 </div>
                             )}
                         </div>
+
+                        <ScheduleExport 
+                            data={calendarData}
+                            clientName={client?.company_name || 'Client'}
+                            month={currentMonth}
+                            batchType={client?.batch_type}
+                        />
                     </div>
                 </div>
             </header>
