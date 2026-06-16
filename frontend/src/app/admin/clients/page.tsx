@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { adminApi, Client, ContentItem } from '@/lib/api';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import { Plus, Search, Edit2, Trash2, X, Calendar as CalendarIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
@@ -112,8 +113,8 @@ export default function ClientManagement() {
   const totalReelsTarget = clients.reduce((sum, c) => sum + (c.reels_per_month || 0), 0);
   const totalPostsTarget = clients.reduce((sum, c) => sum + (c.posts_per_month || 0), 0);
 
-  const actualReelsScheduled = contentItems.filter(item => (item.content_type || '').toUpperCase() === 'REEL').length;
-  const actualPostsScheduled = contentItems.filter(item => (item.content_type || '').toUpperCase() === 'POST').length;
+  const actualReelsScheduled = contentItems.filter(item => !isCrossMonthRescheduled(item) && (item.content_type || '').toUpperCase() === 'REEL').length;
+  const actualPostsScheduled = contentItems.filter(item => !isCrossMonthRescheduled(item) && (item.content_type || '').toUpperCase() === 'POST').length;
 
   const getAllocationStyle = (actual: number, target: number) => {
     if (target === 0) return { color: 'var(--text-secondary)' };
@@ -213,9 +214,9 @@ export default function ClientManagement() {
                 ) : (
                   <>
                     {filteredClients.map((client, index) => {
-                      const clientActualReels = contentItems.filter(item => item.client_id === client.id && (item.content_type || '').toUpperCase() === 'REEL').length;
-                      const clientActualPosts = contentItems.filter(item => item.client_id === client.id && (item.content_type || '').toUpperCase() === 'POST').length;
-                      const clientActualYT = contentItems.filter(item => item.client_id === client.id && (item.content_type || '').toUpperCase() === 'YOUTUBE').length;
+                      const clientActualReels = contentItems.filter(item => !isCrossMonthRescheduled(item) && item.client_id === client.id && (item.content_type || '').toUpperCase() === 'REEL').length;
+                      const clientActualPosts = contentItems.filter(item => !isCrossMonthRescheduled(item) && item.client_id === client.id && (item.content_type || '').toUpperCase() === 'POST').length;
+                      const clientActualYT = contentItems.filter(item => !isCrossMonthRescheduled(item) && item.client_id === client.id && (item.content_type || '').toUpperCase() === 'YOUTUBE').length;
 
                       return (
                         <tr key={client.id || index}>

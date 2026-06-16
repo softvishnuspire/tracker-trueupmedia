@@ -50,6 +50,7 @@ import {
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { formatIST, getClientAbbreviation } from '@/lib/utils';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -772,7 +773,7 @@ export default function ProductionHeadDashboard() {
     });
 
     const monthStatusCounts = calendarData
-        .filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)))
+        .filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)) && !isCrossMonthRescheduled(item))
         .reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
@@ -1847,7 +1848,8 @@ export default function ProductionHeadDashboard() {
                                         const nextStatus = flow[currentIdx + 1];
                                         const limitIdx = flow.indexOf('APPROVED');
 
-                                        if (!nextStatus || currentIdx >= limitIdx) return null;
+                                        const isWaitingForPosting = activeItem.item.status === 'WAITING FOR POSTING';
+                                        if (!nextStatus || (currentIdx >= limitIdx && !isWaitingForPosting)) return null;
 
                                         return (
                                             <div style={{ marginTop: '24px', padding: '16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>

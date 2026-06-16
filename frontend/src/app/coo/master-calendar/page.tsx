@@ -342,7 +342,7 @@ export default function CooMasterCalendar() {
     };
 
     const monthStatusCounts = calendarData
-        .filter((item) => isDayInPeriod(parseISO(item.scheduled_datetime)))
+        .filter((item) => isDayInPeriod(parseISO(item.scheduled_datetime)) && !isCrossMonthRescheduled(item))
         .reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
@@ -876,7 +876,7 @@ export default function CooMasterCalendar() {
                                     const flow = flows[selectedItem.item.content_type] || [];
                                     const currentIdx = flow.indexOf(selectedItem.item.status);
                                     const nextStatus = flow[currentIdx + 1];
-                                    const isSpecialStatus = selectedItem.item.status === 'SHOOT DONE' || selectedItem.item.status === 'POSTED';
+                                    const isSpecialStatus = selectedItem.item.status === 'POSTED';
 
                                     if (!nextStatus || isSpecialStatus) return null;
 

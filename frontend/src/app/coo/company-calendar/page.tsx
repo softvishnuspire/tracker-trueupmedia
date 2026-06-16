@@ -286,7 +286,7 @@ export default function CooCompanyCalendar() {
     };
 
     const monthStatusCounts = calendarData
-        .filter((item) => isSameMonth(getDisplayDate(item.scheduled_datetime), currentMonth))
+        .filter((item) => isSameMonth(getDisplayDate(item.scheduled_datetime), currentMonth) && !isCrossMonthRescheduled(item))
         .reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
@@ -740,7 +740,7 @@ export default function CooCompanyCalendar() {
                                     const flow = flows[selectedItem.item.content_type] || [];
                                     const currentIdx = flow.indexOf(selectedItem.item.status);
                                     const nextStatus = flow[currentIdx + 1];
-                                    const isSpecialStatus = selectedItem.item.status === 'SHOOT DONE' || selectedItem.item.status === 'POSTED';
+                                    const isSpecialStatus = selectedItem.item.status === 'POSTED';
 
                                     if (!nextStatus || isSpecialStatus) return null;
 

@@ -333,7 +333,7 @@ const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD', 'COO', 'MANA
 const COO_ROLES = ['COO', 'ADMIN'];
 const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER'];
 const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO', 'MANAGER'];
-const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER'];
+const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER', 'PRODUCTION HEAD', 'PH'];
 const CLIENT_ROLES = ['CLIENT', 'ADMIN', 'COO'];
 const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN', 'COO'];
 
@@ -497,10 +497,10 @@ async function checkContentLimit(client_id, content_type, scheduled_datetime) {
     const startISO = startDate.toISOString();
     const endISO = endDate.toISOString();
 
-    // 4. Count existing items in this period
-    const { count, error: countError } = await supabase
+    // 4. Fetch existing items in this period to count them (excluding cross-month rescheduled items)
+    const { data: items, error: countError } = await supabase
         .from('content_items')
-        .select('*', { count: 'exact', head: true })
+        .select('is_rescheduled, original_scheduled_datetime, scheduled_datetime')
         .eq('client_id', client_id)
         .eq('content_type', content_type)
         .gte('scheduled_datetime', startISO)
@@ -510,6 +510,20 @@ async function checkContentLimit(client_id, content_type, scheduled_datetime) {
         console.error('Error counting items for limit check:', countError);
         throw new Error('Failed to validate content limit');
     }
+
+    const count = (items || []).filter(item => {
+        if (item.is_rescheduled && item.original_scheduled_datetime && item.scheduled_datetime) {
+            const orig = new Date(item.original_scheduled_datetime);
+            const sched = new Date(item.scheduled_datetime);
+            if (!isNaN(orig.getTime()) && !isNaN(sched.getTime())) {
+                const is_cross_month_rescheduled = (orig.getUTCFullYear() !== sched.getUTCFullYear()) || (orig.getUTCMonth() !== sched.getUTCMonth());
+                if (is_cross_month_rescheduled) {
+                    return false; // do not count
+                }
+            }
+        }
+        return true;
+    }).length;
 
     const periodStr = `${startDate.getUTCDate()}/${startDate.getUTCMonth() + 1} to ${endDate.getUTCDate()}/${endDate.getUTCMonth() + 1}`;
 
@@ -812,7 +826,7 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
     const currentIndex = flow.indexOf(item.status);
     const newIndex = flow.indexOf(new_status);
 
-    const isManager = ['ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD'].includes(req.resolvedRole);
+    const isManager = ['ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO', 'MANAGER'].includes(req.resolvedRole);
     if (!isManager && newIndex !== currentIndex + 1) {
         return res.status(400).json({
             error: `Invalid status transition. Next status should be: ${flow[currentIndex + 1] || 'None'}`
@@ -2941,7 +2955,9 @@ app.patch('/api/ph/content/:id/status', requireRoles(PH_ROLES), async (req, res)
         }
 
         // PH job ends at "WAITING FOR FINAL APPROVAL" (Stage 2 Approval)
-        if (targetIdx > limitIdx && limitIdx !== -1) {
+        // Exception: Allow PH to transition from WAITING FOR POSTING to POSTED
+        const isWaitingForPostingTransition = item.status === 'WAITING FOR POSTING' && finalStatus === 'POSTED';
+        if (!isWaitingForPostingTransition && targetIdx > limitIdx && limitIdx !== -1) {
             return res.status(403).json({ error: 'Production Head authority ends at WAITING FOR FINAL APPROVAL' });
         }
 

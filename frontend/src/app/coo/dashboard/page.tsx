@@ -56,7 +56,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
-import Image from 'next/image';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import './coo.css';
 
 export default function CooDashboard() {
@@ -282,7 +282,7 @@ export default function CooDashboard() {
 
     const globalMonthCounts = globalCalendarData.filter(item => {
         const itemDate = parseISO(item.scheduled_datetime);
-        return isSameMonth(itemDate, currentMonth);
+        return isSameMonth(itemDate, currentMonth) && !isCrossMonthRescheduled(item);
     }).reduce(
         (acc, item) => {
             const status = (item.status || '').toUpperCase();
@@ -312,7 +312,7 @@ export default function CooDashboard() {
         }
     );
 
-    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
+    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)) && !isCrossMonthRescheduled(item)).reduce(
         (acc, item) => {
             const status = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();

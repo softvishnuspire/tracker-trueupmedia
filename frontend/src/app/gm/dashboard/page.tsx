@@ -824,7 +824,7 @@ export default function GMDashboard() {
 
     const globalMonthCounts = globalCalendarData.filter(item => {
         const itemDate = parseISO(item.scheduled_datetime);
-        return isSameMonth(itemDate, currentMonth);
+        return isSameMonth(itemDate, currentMonth) && !isCrossMonthRescheduled(item);
     }).reduce(
         (acc, item) => {
             const status = (item.status || '').toUpperCase();
@@ -854,7 +854,7 @@ export default function GMDashboard() {
         }
     );
 
-    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
+    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)) && !isCrossMonthRescheduled(item)).reduce(
         (acc, item) => {
             const status = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
@@ -3245,7 +3245,7 @@ export default function GMDashboard() {
                                                     <p className="status-label">Current</p>
                                                     <p className="status-value">{activeItem.item.status}</p>
                                                 </div>
-                                                {nextStatus && activeItem.item.status !== 'WAITING FOR POSTING' && (view !== 'company' || (activeItem.item.status !== 'SHOOT DONE' && activeItem.item.status !== 'POSTED')) && (
+                                                {nextStatus && (
                                                     <div className="advance-section">
                                                         <div className="note-input-container">
                                                             <label className="detail-label">Add a note (optional)</label>

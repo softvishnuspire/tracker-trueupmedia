@@ -53,6 +53,8 @@ import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
 import './tl.css'; // Team Lead specific styles (including scrolling)
@@ -679,7 +681,7 @@ export default function TLDashboard() {
         return `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`;
     };
 
-    const filteredCalendarData = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)));
+    const filteredCalendarData = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)) && !isCrossMonthRescheduled(item));
 
     const isItemCompleted = (status: string) => {
         const s = (status || '').toUpperCase();
@@ -763,7 +765,7 @@ export default function TLDashboard() {
         const clientItems = calendarData.filter(item => {
             if (item.client_id !== client.id) return false;
             const itemDate = parseISO(item.scheduled_datetime);
-            return itemDate >= startOfDay(clientPeriodStart) && itemDate <= endOfDay(clientPeriodEnd);
+            return itemDate >= startOfDay(clientPeriodStart) && itemDate <= endOfDay(clientPeriodEnd) && !isCrossMonthRescheduled(item);
         });
 
         const totalTasks = clientItems.length;

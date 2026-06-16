@@ -15,6 +15,7 @@ import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/uti
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import '../../gm/dashboard/gm.css';
 
 interface ContentDetails {
@@ -492,7 +493,7 @@ export default function AdminDashboard() {
 
   const globalMonthCounts = globalCalendarData.filter(item => {
     const itemDate = parseISO(item.scheduled_datetime);
-    return isSameMonth(itemDate, currentMonth);
+    return isSameMonth(itemDate, currentMonth) && !isCrossMonthRescheduled(item);
   }).reduce(
     (acc, item) => {
       const status = (item.status || '').toUpperCase();
@@ -535,7 +536,7 @@ export default function AdminDashboard() {
     designingInProgress: globalMonthCounts.designingInProgress
   };
 
-  const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
+  const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)) && !isCrossMonthRescheduled(item)).reduce(
     (acc, item) => {
       const status = (item.status || '').toUpperCase();
       const type = (item.content_type || '').toUpperCase();
@@ -1119,7 +1120,7 @@ export default function AdminDashboard() {
                       const currentIndex = flow.indexOf(activeItem.item.status);
                       const nextStatus = flow[currentIndex + 1];
 
-                      if (nextStatus && activeItem.item.status !== 'WAITING FOR POSTING') {
+                      if (nextStatus) {
                         return (
                           <div className="advance-section" style={{ marginTop: '16px' }}>
                             <textarea

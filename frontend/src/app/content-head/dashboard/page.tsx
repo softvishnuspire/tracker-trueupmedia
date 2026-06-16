@@ -33,6 +33,7 @@ import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { useDebouncedRefresh } from '@/hooks/useDebouncedRefresh';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
+import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import { getClientAbbreviation, formatIST, getISTDate } from '@/lib/utils';
 import './content-head.css';
 
@@ -669,6 +670,7 @@ export default function ContentHeadDashboard() {
         (acc, item) => {
             const d = parseISO(item.scheduled_datetime);
             if (!isDayInPeriod(d)) return acc;
+            if (isCrossMonthRescheduled(item)) return acc;
 
             const type = (item.content_type || '').toUpperCase();
             const status = (item.status || '').toUpperCase();
@@ -718,6 +720,7 @@ export default function ContentHeadDashboard() {
             const d = parseISO(item.scheduled_datetime);
             if (!isDayInPeriod(d)) return;
             if (!item.client_id) return; // Skip freelancer items with no client
+            if (isCrossMonthRescheduled(item)) return;
 
             const clientId = item.client_id;
             const clientName = item.clients?.company_name || 'Unknown Client';

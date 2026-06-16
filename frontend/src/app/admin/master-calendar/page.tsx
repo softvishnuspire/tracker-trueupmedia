@@ -315,6 +315,7 @@ export default function MasterCalendar() {
 
     const monthStatusCounts = calendarData.reduce(
         (acc, item) => {
+            if (isCrossMonthRescheduled(item)) return acc;
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();
             

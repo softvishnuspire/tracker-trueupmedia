@@ -390,6 +390,7 @@ export default function ClientCalendarPage() {
 
     const monthStatusCounts = calendarData.reduce(
         (acc, item) => {
+            if (isCrossMonthRescheduled(item)) return acc;
             if (!isDayInPeriod(getISTDate(item.scheduled_datetime))) return acc;
             
             const normalizedStatus = (item.status || '').toUpperCase();

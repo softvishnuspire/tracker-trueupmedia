@@ -1,6 +1,40 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-06-12 (COO Master and Client Calendar Status Transitions)
+## Latest Changes — 2026-06-16 (Grant Full Status Transition Permissions for COO, GM, and Manager)
+- **Goal**: Allow users with the roles of COO, GM, and Manager to perform any status transitions without strictly sequential or status-based restrictions, and allow the Production Head to advance tasks from WAITING FOR POSTING to POSTED.
+- **Affected Files**:
+    - `backend/index.js`
+    - `frontend/src/app/admin/dashboard/page.tsx`
+    - `frontend/src/app/gm/dashboard/page.tsx`
+    - `frontend/src/app/manager/dashboard/page.tsx`
+    - `frontend/src/app/ph/dashboard/page.tsx`
+    - `frontend/src/app/coo/client-calendar/[id]/page.tsx`
+    - `frontend/src/app/coo/company-calendar/page.tsx`
+    - `frontend/src/app/coo/master-calendar/page.tsx`
+- **System Impact**: Modifies backend authentication role arrays and status validators to bypass transition limitations for Managers and COOs. Updates the frontend dashboards and calendars to expose and process status advancement options for all roles.
+
+## Previous Changes — 2026-06-16 (Exclude Rescheduled Tasks from Monthly Capacity Limits)
+- **Goal**: Exclude cross-month rescheduled tasks from the monthly limits and actual capacity counts so they do not fill up capacity quotas.
+- **Affected Files**:
+    - `backend/index.js`
+    - `frontend/src/app/admin/client-calendar/[id]/page.tsx`
+    - `frontend/src/app/admin/company-calendar/page.tsx`
+    - `frontend/src/app/admin/dashboard/page.tsx`
+    - `frontend/src/app/admin/master-calendar/page.tsx`
+    - `frontend/src/app/coo/client-calendar/[id]/page.tsx`
+    - `frontend/src/app/coo/company-calendar/page.tsx`
+    - `frontend/src/app/coo/dashboard/page.tsx`
+    - `frontend/src/app/coo/master-calendar/page.tsx`
+    - `frontend/src/app/gm/dashboard/page.tsx`
+    - `frontend/src/app/manager/dashboard/page.tsx`
+    - `frontend/src/app/tl/dashboard/page.tsx`
+    - `frontend/src/app/ph/dashboard/page.tsx`
+    - `frontend/src/app/content-head/dashboard/page.tsx`
+    - `frontend/src/app/admin/clients/page.tsx`
+    - `frontend/src/app/coo/clients/page.tsx`
+- **System Impact**: Filters out cross-month rescheduled tasks in the backend `checkContentLimit` function and all frontend dashboards/calendars when calculating client monthly capacity usage metrics, ensuring rescheduled tasks do not count towards the monthly capacities.
+
+## Previous Changes — 2026-06-12 (COO Master and Client Calendar Status Transitions)
 - **Goal**: Allow users in the COO module to advance content item workflow status and undo status changes directly from the Master Calendar and Client Calendar task details modal.
 - **Affected Files**:
     - `frontend/src/app/coo/master-calendar/page.tsx`
