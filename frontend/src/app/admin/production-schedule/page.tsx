@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
     format,
@@ -61,6 +61,42 @@ export default function MasterProductionSchedule() {
     const router = useRouter();
     const supabase = createClient();
 
+    const fetchClients = async () => {
+        try {
+            const res = await adminApi.getClients();
+            setClients(res.data);
+        } catch (err) { console.error(err); }
+    };
+
+    const fetchMasterCalendar = useCallback(async (isSilent = false) => {
+        if (!isSilent) {
+            startLoading();
+            if (calendarData.length === 0) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+        } else {
+            setIsRefreshing(true);
+        }
+        try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            // Use phApi version of the query but as Admin (Admin has permission)
+            // Or better, use adminApi.getMasterCalendar which is identical logic-wise
+            const res = await adminApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient);
+            const productionStatuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
+            setCalendarData((res.data || []).filter((item: ContentItem) => productionStatuses.includes(item.status)));
+        } catch (err) { 
+            console.error(err);
+            toastError('Failed to refresh master calendar.');
+        }
+        finally { 
+            setLoading(false); 
+            setIsRefreshing(false);
+            if (!isSilent) stopLoading();
+        }
+    }, [selectedClient, currentMonth, calendarData.length, startLoading, stopLoading, toastError]);
+
     useEffect(() => {
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -105,42 +141,6 @@ export default function MasterProductionSchedule() {
             }
         }
     }, [loading, calendarData]);
-
-    const fetchClients = async () => {
-        try {
-            const res = await adminApi.getClients();
-            setClients(res.data);
-        } catch (err) { console.error(err); }
-    };
-
-    const fetchMasterCalendar = useCallback(async (isSilent = false) => {
-        if (!isSilent) {
-            startLoading();
-            if (calendarData.length === 0) {
-                setLoading(true);
-            } else {
-                setIsRefreshing(true);
-            }
-        } else {
-            setIsRefreshing(true);
-        }
-        try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            // Use phApi version of the query but as Admin (Admin has permission)
-            // Or better, use adminApi.getMasterCalendar which is identical logic-wise
-            const res = await adminApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient);
-            const productionStatuses = ['CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR APPROVAL'];
-            setCalendarData((res.data || []).filter((item: ContentItem) => productionStatuses.includes(item.status)));
-        } catch (err) { 
-            console.error(err);
-            toastError('Failed to refresh master calendar.');
-        }
-        finally { 
-            setLoading(false); 
-            setIsRefreshing(false);
-            if (!isSilent) stopLoading();
-        }
-    }, [selectedClient, currentMonth, calendarData.length, startLoading, stopLoading, toastError]);
 
     const handleItemClick = async (item: ContentItem) => {
         try {
