@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { adminApi, gmApi, TeamMember, Client } from '@/lib/api';
+import { adminApi, gmApi, phApi, TeamMember, Client } from '@/lib/api';
 import { Plus, Search, Trash2, X, Key, Edit2, Users, Briefcase, RefreshCcw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -10,7 +10,7 @@ interface TeamLead extends TeamMember {
 }
 
 export default function TeamManagement() {
-  const [activeTab, setActiveTab] = useState<'members' | 'assignments'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'assignments' | 'employees'>('members');
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [teamLeads, setTeamLeads] = useState<TeamLead[]>([]);
   const [allClients, setAllClients] = useState<Client[]>([]);
@@ -24,6 +24,12 @@ export default function TeamManagement() {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assignTargetLead, setAssignTargetLead] = useState<TeamLead | null>(null);
   const [assignSearchTerm, setAssignSearchTerm] = useState('');
+
+  // Employee assignments states
+  const [productionEmployees, setProductionEmployees] = useState<TeamMember[]>([]);
+  const [isEmployeeAssignModalOpen, setIsEmployeeAssignModalOpen] = useState(false);
+  const [assigningToEmployee, setAssigningToEmployee] = useState<TeamMember | null>(null);
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -60,11 +66,22 @@ export default function TeamManagement() {
     }
   }, []);
 
+  const fetchProductionEmployees = useCallback(async () => {
+    try {
+      const res = await phApi.getEmployees();
+      setProductionEmployees(res.data);
+      const clientsRes = await phApi.getClients();
+      setAllClients(clientsRes.data);
+    } catch (err: any) {
+      console.error('Error fetching production employees:', err);
+    }
+  }, []);
+
   const initData = useCallback(async () => {
     setLoading(true);
-    await Promise.all([fetchTeam(), fetchTeamLeadsAndClients()]);
+    await Promise.all([fetchTeam(), fetchTeamLeadsAndClients(), fetchProductionEmployees()]);
     setLoading(false);
-  }, [fetchTeamLeadsAndClients]);
+  }, [fetchTeamLeadsAndClients, fetchProductionEmployees]);
 
   useEffect(() => {
     initData();
@@ -210,6 +227,25 @@ export default function TeamManagement() {
           <Briefcase size={16} />
           Client Assignments
         </button>
+        <button
+          className={`tab-btn ${activeTab === 'employees' ? 'active' : ''}`}
+          onClick={() => setActiveTab('employees')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '6px',
+            background: activeTab === 'employees' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'employees' ? 'white' : 'var(--text-secondary)',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Users size={16} />
+          Employee Assignments
+        </button>
       </div>
 
       {activeTab === 'members' && (
@@ -330,12 +366,12 @@ export default function TeamManagement() {
             <>
               {teamLeads.map((lead) => (
                 <div key={lead.user_id} className="team-card" style={{ display: 'flex', flexDirection: 'column', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-card)', minHeight: '220px' }}>
-                  <div className="team-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div className="team-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
                     <div>
                       <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{lead.name}</h3>
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{lead.role_identifier || 'Team Lead'}</p>
                     </div>
-                    <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleAssignClick(lead)}>
+                    <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px', width: 'auto', flexShrink: 0 }} onClick={() => handleAssignClick(lead)}>
                       Assign Client
                     </button>
                   </div>
@@ -369,6 +405,109 @@ export default function TeamManagement() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {activeTab === 'employees' && (
+        <div className="employees-view animate-fade-in" style={{ animation: 'fadeIn 0.3s ease-out' }}>
+          <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: '24px' }}>
+            {productionEmployees.map((emp: any) => {
+              const assignedClients = allClients.filter(c => {
+                if (emp.role_identifier === 'REEL') {
+                  return (c as any).reel_employee_id === emp.user_id;
+                } else if (emp.role_identifier === 'POST') {
+                  return (c as any).post_employee_id === emp.user_id;
+                } else {
+                  return (c as any).employee_id === emp.user_id || (c as any).reel_employee_id === emp.user_id || (c as any).post_employee_id === emp.user_id;
+                }
+              });
+              return (
+                <div key={emp.user_id} className="employee-card-premium">
+                  <div className="employee-card-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div className="employee-avatar-large">
+                        {emp.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 className="employee-card-name">
+                          {emp.name} 
+                          <span className="role-id-tag">({emp.role_identifier || 'EMP'})</span>
+                        </h3>
+                        <p className="employee-card-role">
+                          {emp.role_identifier === 'REEL' ? 'REEL EDITOR' : emp.role_identifier === 'POST' ? 'POSTER EDITOR' : 'EMPLOYEE'}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      className="btn-assign-client"
+                      onClick={() => {
+                        setAssigningToEmployee(emp);
+                        setIsEmployeeAssignModalOpen(true);
+                      }}
+                    >
+                      <Plus size={16} />
+                      Assign Client
+                    </button>
+                  </div>
+
+                  <div className="assigned-clients-section">
+                    <h4 className="section-title">ASSIGNED CLIENTS ({assignedClients.length})</h4>
+                    <div className="client-tags-grid">
+                      {assignedClients.map(client => (
+                        <div key={client.id} className="client-tag-pill">
+                          <span>{client.company_name}</span>
+                          <button 
+                            className="remove-tag"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`Unassign ${client.company_name} from ${emp.name}?`)) {
+                                const previousClients = [...allClients];
+                                
+                                // Optimistic state update
+                                setAllClients(prev => prev.map(c => {
+                                  if (c.id === client.id) {
+                                    const updated = { ...c } as any;
+                                    if (emp.role_identifier === 'REEL') updated.reel_employee_id = null;
+                                    else if (emp.role_identifier === 'POST') updated.post_employee_id = null;
+                                    else updated.employee_id = null;
+                                    return updated;
+                                  }
+                                  return c;
+                                }));
+
+                                try {
+                                  await phApi.assignEmployeeToClient(client.id, null, emp.user_id);
+                                  // Silently refresh in background
+                                  setTimeout(async () => {
+                                    const cRes = await phApi.getClients();
+                                    setAllClients(cRes.data);
+                                  }, 500);
+                                } catch (err: any) {
+                                  console.error(err);
+                                  setAllClients(previousClients);
+                                  alert(err.response?.data?.error || 'Failed to unassign client.');
+                                }
+                              }
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      {assignedClients.length === 0 && (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No clients assigned yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {productionEmployees.length === 0 && (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                No Employees found.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -512,7 +651,7 @@ export default function TeamManagement() {
                   .map(client => {
                     const isAlreadyAssignedToThisLead = assignTargetLead.clients?.some(c => c.id === client.id);
                     return (
-                      <div key={client.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <div key={client.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', padding: '10px 14px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{client.company_name}</div>
                           {client.team_lead && (
@@ -522,14 +661,142 @@ export default function TeamManagement() {
                           )}
                         </div>
                         {isAlreadyAssignedToThisLead ? (
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>Assigned</span>
+                        ) : (
+                          <button
+                            className="btn-primary"
+                            style={{ padding: '6px 12px', fontSize: '12px', width: 'auto', flexShrink: 0 }}
+                            onClick={() => {
+                              handleAssignClient(client.id, assignTargetLead.user_id);
+                              setIsAssignModalOpen(false);
+                            }}
+                          >
+                            Assign
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Employee Assignment Modal */}
+      {isEmployeeAssignModalOpen && assigningToEmployee && (
+        <div className="modal-overlay" onClick={() => setIsEmployeeAssignModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">Assign Client to {assigningToEmployee.name}</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Select a client to enable auto-assignment for production tasks.</p>
+              </div>
+              <button onClick={() => setIsEmployeeAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
+            </div>
+            <div style={{ padding: '16px 0' }}>
+              <div className="search-input-box" style={{ marginBottom: '16px' }}>
+                <Search size={18} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search clients..."
+                  value={clientSearchTerm}
+                  onChange={(e) => setClientSearchTerm(e.target.value)}
+                />
+              </div>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {allClients
+                  .filter(client => client.company_name.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                  .map(client => {
+                    const isAlreadyAssigned = 
+                      assigningToEmployee.role_identifier === 'REEL' ? (client as any).reel_employee_id === assigningToEmployee.user_id :
+                      assigningToEmployee.role_identifier === 'POST' ? (client as any).post_employee_id === assigningToEmployee.user_id :
+                      client.employee_id === assigningToEmployee.user_id;
+
+                    return (
+                      <div 
+                        key={client.id} 
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          padding: '10px 14px', 
+                          background: isAlreadyAssigned ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-body)', 
+                          borderRadius: '8px', 
+                          border: isAlreadyAssigned ? '1px solid var(--accent)' : '1px solid var(--border)' 
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{client.company_name}</div>
+                          {(() => {
+                            if (assigningToEmployee.role_identifier === 'REEL') {
+                              if ((client as any).reel_employee_id) {
+                                const isCurrent = (client as any).reel_employee_id === assigningToEmployee.user_id;
+                                return (
+                                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                    {isCurrent ? 'Currently Assigned (Reel)' : `Reel Editor: ${productionEmployees.find((e: any) => e.user_id === (client as any).reel_employee_id)?.name || 'Other'}`}
+                                  </div>
+                                );
+                              }
+                              return <div style={{ fontSize: '11px', color: 'var(--success)' }}>Reel Editor Available</div>;
+                            } else if (assigningToEmployee.role_identifier === 'POST') {
+                              if ((client as any).post_employee_id) {
+                                const isCurrent = (client as any).post_employee_id === assigningToEmployee.user_id;
+                                return (
+                                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                    {isCurrent ? 'Currently Assigned (Post)' : `Poster Editor: ${productionEmployees.find((e: any) => e.user_id === (client as any).post_employee_id)?.name || 'Other'}`}
+                                  </div>
+                                );
+                              }
+                              return <div style={{ fontSize: '11px', color: 'var(--success)' }}>Poster Editor Available</div>;
+                            } else {
+                              if (client.employee_id) {
+                                const isCurrent = client.employee_id === assigningToEmployee.user_id;
+                                return (
+                                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                    {isCurrent ? 'Currently Assigned' : `Assigned to ${productionEmployees.find((e: any) => e.user_id === client.employee_id)?.name || 'Other'}`}
+                                  </div>
+                                );
+                              }
+                              return <div style={{ fontSize: '11px', color: 'var(--success)' }}>Available</div>;
+                            }
+                          })()}
+                        </div>
+                        {isAlreadyAssigned ? (
                           <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>Assigned</span>
                         ) : (
                           <button
                             className="btn-primary"
                             style={{ padding: '6px 12px', fontSize: '12px' }}
-                            onClick={() => {
-                              handleAssignClient(client.id, assignTargetLead.user_id);
-                              setIsAssignModalOpen(false);
+                            onClick={async () => {
+                              const previousClients = [...allClients];
+                              
+                              // Optimistic state update
+                              setAllClients(prev => prev.map(c => {
+                                if (c.id === client.id) {
+                                  const updated = { ...c } as any;
+                                  if (assigningToEmployee.role_identifier === 'REEL') updated.reel_employee_id = assigningToEmployee.user_id;
+                                  else if (assigningToEmployee.role_identifier === 'POST') updated.post_employee_id = assigningToEmployee.user_id;
+                                  else updated.employee_id = assigningToEmployee.user_id;
+                                  return updated;
+                                }
+                                return c;
+                              }));
+                              setIsEmployeeAssignModalOpen(false);
+
+                              try {
+                                await phApi.assignEmployeeToClient(client.id, assigningToEmployee.user_id);
+                                
+                                // Silently refresh in background
+                                setTimeout(async () => {
+                                  const cRes = await phApi.getClients();
+                                  setAllClients(cRes.data);
+                                }, 500);
+                              } catch (err: any) {
+                                console.error(err);
+                                setAllClients(previousClients);
+                                alert(err.response?.data?.error || 'Failed to assign client');
+                              }
                             }}
                           >
                             Assign

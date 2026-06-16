@@ -65,6 +65,7 @@ import {
 } from 'lucide-react';
 import {
     gmApi,
+    phApi,
     emergencyApi,
     dashboardApi,
     adminApi,
@@ -159,7 +160,11 @@ export default function GMDashboard() {
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [globalCalendarData, setGlobalCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc' | 'tracking'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc' | 'tracking' | 'employees'>('dashboard');
+    const [productionEmployees, setProductionEmployees] = useState<any[]>([]);
+    const [isEmployeeAssignModalOpen, setIsEmployeeAssignModalOpen] = useState(false);
+    const [assigningToEmployee, setAssigningToEmployee] = useState<any>(null);
+    const [clientSearchTerm, setClientSearchTerm] = useState('');
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
 
     // Tracking Panel States
@@ -417,6 +422,14 @@ export default function GMDashboard() {
             setTrackingLoading(false);
         }
     }, [trackingDate, trackingStats, toastError]);
+    const fetchProductionEmployees = useCallback(async () => {
+        try {
+            const res = await phApi.getEmployees();
+            setProductionEmployees(res.data);
+            const clientsRes = await phApi.getClients();
+            setClients(clientsRes.data);
+        } catch (err) { console.error('Error fetching production employees:', err); }
+    }, []);
 
     useEffect(() => {
         if (view === 'master' || view === 'company') {
@@ -431,9 +444,11 @@ export default function GMDashboard() {
             fetchDashboardStats();
         } else if (view === 'tracking') {
             fetchTrackingStats(trackingDate);
+        } else if (view === 'employees') {
+            fetchProductionEmployees();
         }
         fetchGlobalData();
-    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length, trackingDate, fetchGlobalData, fetchTrackingStats]);
+    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length, trackingDate, fetchGlobalData, fetchTrackingStats, fetchProductionEmployees]);
 
     useEffect(() => {
         if (view === 'tracking') {
@@ -1126,7 +1141,7 @@ export default function GMDashboard() {
         // Optimistic UI updates (using second-to-last history item if available)
         let revertedStatus = activeItem.item.status;
         if (activeItem.history && activeItem.history.length > 1) {
-            revertedStatus = activeItem.history[1].status;
+            revertedStatus = activeItem.history[1].new_status || (activeItem.history[1] as any).status || activeItem.item.status;
         }
         const updatedItem = { ...activeItem.item, status: revertedStatus };
         setActiveItem({
@@ -1448,6 +1463,13 @@ export default function GMDashboard() {
                         <span>Teams</span>
                     </div>
                     <div
+                        onClick={() => setView('employees')}
+                        className={`nav-item ${view === 'employees' ? 'active' : ''}`}
+                    >
+                        <UserCircle2 size={20} />
+                        <span>Employee Management</span>
+                    </div>
+                    <div
                         onClick={() => {
                             setView('poc');
                             setSelectedPocClient('all');
@@ -1528,6 +1550,7 @@ export default function GMDashboard() {
                                 {view === 'master' && 'Master Calendar'}
                                 {view === 'company' && 'Company Calendar'}
                                 {view === 'teams' && 'Team Management'}
+                                {view === 'employees' && 'Employee Management'}
                                 {view === 'poc' && 'POC Communication'}
                             </h1>
                             <p className="page-subtitle">
@@ -1536,6 +1559,7 @@ export default function GMDashboard() {
                                 {view === 'master' && 'Review and manage content production flow'}
                                 {view === 'company' && 'Master view of all content shown 7 days before scheduled date'}
                                 {view === 'teams' && 'Assign clients and manage team lead performance'}
+                                {view === 'employees' && 'Assign and manage clients for individual employees'}
                                 {view === 'poc' && 'Read communication notes added by Team Leads'}
                             </p>
                         </div>
@@ -2669,6 +2693,104 @@ export default function GMDashboard() {
                             </div>
                         )}
                     </div>
+                ) : view === 'employees' ? (
+                    <div className="employees-view" style={{ animation: 'fadeIn 0.3s ease-out' }}>
+                        <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: '24px' }}>
+                            {productionEmployees.map((emp: any) => {
+                                const assignedClients = clients.filter(c => {
+                                    if (emp.role_identifier === 'REEL') {
+                                        return c.reel_employee_id === emp.user_id;
+                                    } else if (emp.role_identifier === 'POST') {
+                                        return c.post_employee_id === emp.user_id;
+                                    } else {
+                                        return c.employee_id === emp.user_id || c.reel_employee_id === emp.user_id || c.post_employee_id === emp.user_id;
+                                    }
+                                });
+                                return (
+                                    <div key={emp.user_id} className="employee-card-premium">
+                                        <div className="employee-card-header">
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                <div className="employee-avatar-large">
+                                                    {emp.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h3 className="employee-card-name">
+                                                        {emp.name} 
+                                                        <span className="role-id-tag">({emp.role_identifier || 'EMP'})</span>
+                                                    </h3>
+                                                    <p className="employee-card-role">
+                                                        {emp.role_identifier === 'REEL' ? 'REEL EDITOR' : emp.role_identifier === 'POST' ? 'POSTER EDITOR' : 'EMPLOYEE'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                className="btn-assign-client"
+                                                onClick={() => {
+                                                    setAssigningToEmployee(emp);
+                                                    setIsEmployeeAssignModalOpen(true);
+                                                }}
+                                            >
+                                                <Plus size={16} />
+                                                Assign Client
+                                            </button>
+                                        </div>
+
+                                        <div className="assigned-clients-section">
+                                            <h4 className="section-title">ASSIGNED CLIENTS ({assignedClients.length})</h4>
+                                            <div className="client-tags-grid">
+                                                {assignedClients.map(client => (
+                                                    <div key={client.id} className="client-tag-pill">
+                                                        <span>{client.company_name}</span>
+                                                        <button 
+                                                            className="remove-tag"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm(`Unassign ${client.company_name} from ${emp.name}?`)) {
+                                                                    const previousClients = [...clients];
+                                                                    
+                                                                    // Optimistic state update
+                                                                    setClients(prev => prev.map(c => {
+                                                                        if (c.id === client.id) {
+                                                                            const updated = { ...c };
+                                                                            if (emp.role_identifier === 'REEL') updated.reel_employee_id = null;
+                                                                            else if (emp.role_identifier === 'POST') updated.post_employee_id = null;
+                                                                            else updated.employee_id = null;
+                                                                            return updated;
+                                                                        }
+                                                                        return c;
+                                                                    }));
+
+                                                                    try {
+                                                                        await phApi.assignEmployeeToClient(client.id, null, emp.user_id);
+                                                                        toastSuccess(`Unassigned ${client.company_name}`);
+                                                                        
+                                                                        // Silently refresh in background
+                                                                        setTimeout(async () => {
+                                                                            const cRes = await phApi.getClients();
+                                                                            setClients(cRes.data);
+                                                                        }, 500);
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        setClients(previousClients);
+                                                                        toastError('Failed to unassign client.');
+                                                                    }
+                                                                }
+                                                            }}
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {assignedClients.length === 0 && (
+                                                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1' }}>No clients assigned yet.</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 ) : view !== 'dashboard' && (
                     <>
                         {/* Legend Bar */}
@@ -3513,6 +3635,129 @@ export default function GMDashboard() {
                                 </div>
                             )}
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {isEmployeeAssignModalOpen && assigningToEmployee && (
+                <div className="modal-overlay" onClick={() => setIsEmployeeAssignModalOpen(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                        <div className="modal-header">
+                            <div>
+                                <h3 className="modal-title">Assign Client to {assigningToEmployee.name}</h3>
+                                <p className="modal-subtitle">Select a client to enable auto-assignment for production tasks.</p>
+                            </div>
+                            <button onClick={() => setIsEmployeeAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <div className="modal-body" style={{ padding: '20px' }}>
+                            <div className="search-box" style={{ marginBottom: '20px', width: '100%', display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '12px', padding: '10px 14px' }}>
+                                <Search size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search clients..." 
+                                    value={clientSearchTerm}
+                                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '14px', width: '100%' }} 
+                                />
+                            </div>
+                            <div className="client-selection-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                {clients
+                                    .filter(c => c.company_name.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                                    .map(client => {
+                                        const isAlreadyAssigned = 
+                                            assigningToEmployee.role_identifier === 'REEL' ? client.reel_employee_id === assigningToEmployee.user_id :
+                                            assigningToEmployee.role_identifier === 'POST' ? client.post_employee_id === assigningToEmployee.user_id :
+                                            client.employee_id === assigningToEmployee.user_id;
+
+                                        return (
+                                            <div 
+                                                key={client.id} 
+                                                className={`client-selection-item ${isAlreadyAssigned ? 'already-assigned' : ''}`}
+                                                onClick={async () => {
+                                                     if (isAlreadyAssigned) return;
+                                                     const previousClients = [...clients];
+
+                                                     // Optimistic state update
+                                                     setClients(prev => prev.map(c => {
+                                                         if (c.id === client.id) {
+                                                             const updated = { ...c };
+                                                             if (assigningToEmployee.role_identifier === 'REEL') updated.reel_employee_id = assigningToEmployee.user_id;
+                                                             else if (assigningToEmployee.role_identifier === 'POST') updated.post_employee_id = assigningToEmployee.user_id;
+                                                             else updated.employee_id = assigningToEmployee.user_id;
+                                                             return updated;
+                                                         }
+                                                         return c;
+                                                     }));
+                                                     setIsEmployeeAssignModalOpen(false);
+
+                                                     try {
+                                                         await phApi.assignEmployeeToClient(client.id, assigningToEmployee.user_id);
+                                                         toastSuccess(`Assigned ${client.company_name} to ${assigningToEmployee.name}`);
+                                                         
+                                                         // Silently refresh in background
+                                                         setTimeout(async () => {
+                                                             const cRes = await phApi.getClients();
+                                                             setClients(cRes.data);
+                                                         }, 500);
+                                                     } catch (err: any) {
+                                                         console.error(err);
+                                                         setClients(previousClients);
+                                                         toastError(err.response?.data?.error || 'Failed to assign client');
+                                                     }
+                                                 }}
+                                                style={{ 
+                                                    padding: '12px 16px', 
+                                                    borderRadius: '10px', 
+                                                    cursor: isAlreadyAssigned ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    marginBottom: '8px',
+                                                    background: isAlreadyAssigned ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-elevated)',
+                                                    border: isAlreadyAssigned ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                                    opacity: isAlreadyAssigned ? 0.7 : 1
+                                                }}
+                                            >
+                                                <span style={{ fontWeight: 600 }}>{client.company_name}</span>
+                                                {(() => {
+                                                    if (assigningToEmployee.role_identifier === 'REEL') {
+                                                        if (client.reel_employee_id) {
+                                                            const isCurrent = client.reel_employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned (Reel)' : `Reel Editor: ${productionEmployees.find((e: any) => e.user_id === client.reel_employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Reel Editor Available</span>;
+                                                    } else if (assigningToEmployee.role_identifier === 'POST') {
+                                                        if (client.post_employee_id) {
+                                                            const isCurrent = client.post_employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned (Post)' : `Poster Editor: ${productionEmployees.find((e: any) => e.user_id === client.post_employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Poster Editor Available</span>;
+                                                    } else {
+                                                        if (client.employee_id) {
+                                                            const isCurrent = client.employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned' : `Assigned to ${productionEmployees.find((e: any) => e.user_id === client.employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Available</span>;
+                                                    }
+                                                })()}
+                                            </div>
+                                        );
+                                    })
+                                }
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

@@ -316,7 +316,7 @@ export default function EmployeeDashboard() {
     return (
         <div className="employee-dashboard">
             <header className="welcome-section">
-                <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <h1 className="welcome-title">{view === 'dashboard' ? 'Daily Task Management' : 'Assignment History'}</h1>
                         <p className="welcome-subtitle">

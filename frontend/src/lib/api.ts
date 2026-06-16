@@ -31,8 +31,10 @@ export interface Client {
     batch_type?: '1-1' | '15-15';
     password?: string; // For adding/updating clients
     team_lead?: { name: string; role_identifier?: string };
-    employee_id?: string;
-    writer_employee_id?: string;
+    employee_id?: string | null;
+    writer_employee_id?: string | null;
+    reel_employee_id?: string | null;
+    post_employee_id?: string | null;
     created_at?: string;
 }
 
@@ -446,7 +448,7 @@ export const emergencyApi = {
 };
 
 const ROLE_PATHS: Record<string, string[]> = {
-    '/ph/': ['ph', 'production head', 'admin', 'gm', 'manager'],
+    '/ph/': ['ph', 'production head', 'admin', 'gm', 'manager', 'coo'],
     '/admin/': ['admin'],
     '/gm/': ['gm', 'general manager', 'admin'],
     '/manager/': ['manager', 'admin'],
