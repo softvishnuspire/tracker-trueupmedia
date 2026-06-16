@@ -330,12 +330,12 @@ export default function TeamManagement() {
             <>
               {teamLeads.map((lead) => (
                 <div key={lead.user_id} className="team-card" style={{ display: 'flex', flexDirection: 'column', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-card)', minHeight: '220px' }}>
-                  <div className="team-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div className="team-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
                     <div>
                       <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{lead.name}</h3>
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{lead.role_identifier || 'Team Lead'}</p>
                     </div>
-                    <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleAssignClick(lead)}>
+                    <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px', width: 'auto', flexShrink: 0 }} onClick={() => handleAssignClick(lead)}>
                       Assign Client
                     </button>
                   </div>
@@ -512,7 +512,7 @@ export default function TeamManagement() {
                   .map(client => {
                     const isAlreadyAssignedToThisLead = assignTargetLead.clients?.some(c => c.id === client.id);
                     return (
-                      <div key={client.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <div key={client.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', padding: '10px 14px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{client.company_name}</div>
                           {client.team_lead && (
@@ -522,11 +522,11 @@ export default function TeamManagement() {
                           )}
                         </div>
                         {isAlreadyAssignedToThisLead ? (
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>Assigned</span>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>Assigned</span>
                         ) : (
                           <button
                             className="btn-primary"
-                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                            style={{ padding: '6px 12px', fontSize: '12px', width: 'auto', flexShrink: 0 }}
                             onClick={() => {
                               handleAssignClient(client.id, assignTargetLead.user_id);
                               setIsAssignModalOpen(false);
