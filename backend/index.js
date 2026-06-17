@@ -543,7 +543,7 @@ app.get('/api/gm/clients', requireRoles(GM_ROLES), async (req, res) => {
 
     const { data, error } = await supabase
         .from('clients')
-        .select('id, company_name, batch_type, posts_per_month, reels_per_month, writer_employee_id, team_lead:team_lead_id (name)')
+        .select('id, company_name, batch_type, posts_per_month, reels_per_month, employee_id, reel_employee_id, post_employee_id, writer_employee_id, team_lead:team_lead_id (name)')
         .eq('is_active', true)
         .eq('is_deleted', false);
 

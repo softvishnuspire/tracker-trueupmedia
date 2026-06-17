@@ -1,13 +1,27 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { adminApi, gmApi, phApi, TeamMember, Client } from '@/lib/api';
+import { adminApi, gmApi, phApi, TeamMember, Client, ContentItem } from '@/lib/api';
 import { Plus, Search, Trash2, X, Key, Edit2, Users, Briefcase, RefreshCcw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface TeamLead extends TeamMember {
   clients?: Client[];
 }
+
+const isTaskActiveForRole = (task: ContentItem, roleIdentifier?: string) => {
+  const status = (task.status || '').toUpperCase();
+  if (roleIdentifier === 'REEL') {
+    const completedStatuses = ['EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+    return !completedStatuses.includes(status);
+  }
+  if (roleIdentifier === 'POST') {
+    const completedStatuses = ['DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+    return !completedStatuses.includes(status);
+  }
+  const defaultCompleted = ['APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+  return !defaultCompleted.includes(status);
+};
 
 export default function TeamManagement() {
   const [activeTab, setActiveTab] = useState<'members' | 'assignments' | 'employees'>('members');
@@ -28,8 +42,38 @@ export default function TeamManagement() {
   // Employee assignments states
   const [productionEmployees, setProductionEmployees] = useState<TeamMember[]>([]);
   const [isEmployeeAssignModalOpen, setIsEmployeeAssignModalOpen] = useState(false);
+  const [isTaskAssignModalOpen, setIsTaskAssignModalOpen] = useState(false);
   const [assigningToEmployee, setAssigningToEmployee] = useState<TeamMember | null>(null);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
+  const [taskSearchTerm, setTaskSearchTerm] = useState('');
+  const [assignableTasks, setAssignableTasks] = useState<ContentItem[]>([]);
+  const [selectedTaskDetails, setSelectedTaskDetails] = useState<any>(null);
+  const [isTaskDetailsOpen, setIsTaskDetailsOpen] = useState(false);
+  const [loadingTaskDetails, setLoadingTaskDetails] = useState(false);
+
+  const handleTaskClick = async (task: ContentItem) => {
+    setLoadingTaskDetails(true);
+    try {
+      const res = await phApi.getContentDetails(task.id, undefined, true);
+      setSelectedTaskDetails(res.data);
+      setIsTaskDetailsOpen(true);
+    } catch (err) {
+      console.error('Error fetching task details:', err);
+      alert('Failed to load task details.');
+    } finally {
+      setLoadingTaskDetails(false);
+    }
+  };
+
+  const fetchAssignableTasks = useCallback(async () => {
+    try {
+      const currentMonthStr = new Date().toISOString().substring(0, 7); // e.g. "2026-06"
+      const res = await phApi.getMasterCalendar(currentMonthStr, undefined, undefined);
+      setAssignableTasks(res.data);
+    } catch (err) {
+      console.error('Error fetching assignable tasks:', err);
+    }
+  }, []);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -72,10 +116,11 @@ export default function TeamManagement() {
       setProductionEmployees(res.data);
       const clientsRes = await phApi.getClients();
       setAllClients(clientsRes.data);
+      fetchAssignableTasks();
     } catch (err: any) {
       console.error('Error fetching production employees:', err);
     }
-  }, []);
+  }, [fetchAssignableTasks]);
 
   const initData = useCallback(async () => {
     setLoading(true);
@@ -438,16 +483,29 @@ export default function TeamManagement() {
                         </p>
                       </div>
                     </div>
-                    <button 
-                      className="btn-assign-client"
-                      onClick={() => {
-                        setAssigningToEmployee(emp);
-                        setIsEmployeeAssignModalOpen(true);
-                      }}
-                    >
-                      <Plus size={16} />
-                      Assign Client
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        className="btn-assign-client"
+                        onClick={() => {
+                          setAssigningToEmployee(emp);
+                          setIsEmployeeAssignModalOpen(true);
+                        }}
+                      >
+                        <Plus size={16} />
+                        Assign Client
+                      </button>
+                      <button 
+                        className="btn-assign-client"
+                        style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                        onClick={() => {
+                          setAssigningToEmployee(emp);
+                          setIsTaskAssignModalOpen(true);
+                        }}
+                      >
+                        <Plus size={16} />
+                        Assign Task
+                      </button>
+                    </div>
                   </div>
 
                   <div className="assigned-clients-section">
@@ -496,6 +554,46 @@ export default function TeamManagement() {
                       ))}
                       {assignedClients.length === 0 && (
                         <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No clients assigned yet.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="assigned-clients-section" style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                    <h4 className="section-title">ASSIGNED TASKS ({assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).length})</h4>
+                    <div className="client-tags-grid">
+                      {assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).map(task => (
+                        <div 
+                          key={task.id} 
+                          className="client-tag-pill" 
+                          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                          onClick={() => handleTaskClick(task)}
+                        >
+                          <span>{task.clients?.company_name || 'No Client'} - {task.content_type}{task.title ? ` (${task.title})` : ''}</span>
+                          <button 
+                            className="remove-tag"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`Unassign task "${task.title}" from ${emp.name}?`)) {
+                                const previousTasks = [...assignableTasks];
+                                // Optimistic state update
+                                 setAssignableTasks(prev => prev.map(t => t.id === task.id ? { ...t, assigned_to: undefined, assigned_employee: undefined } : t));
+                                try {
+                                  await phApi.assignEmployee(task.id, null);
+                                  fetchAssignableTasks();
+                                } catch (err) {
+                                  console.error(err);
+                                  setAssignableTasks(previousTasks);
+                                  alert('Failed to unassign task.');
+                                }
+                              }
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      {assignableTasks.filter(t => t.assigned_to === emp.user_id).length === 0 && (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No tasks assigned yet.</p>
                       )}
                     </div>
                   </div>
@@ -805,6 +903,192 @@ export default function TeamManagement() {
                       </div>
                     );
                   })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isTaskAssignModalOpen && assigningToEmployee && (
+        <div className="modal-overlay" onClick={() => setIsTaskAssignModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">Assign Task to {assigningToEmployee.name}</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Select an individual task to assign to this employee.</p>
+              </div>
+              <button onClick={() => setIsTaskAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
+            </div>
+            <div style={{ padding: '16px 0' }}>
+              <div className="search-input-box" style={{ marginBottom: '16px' }}>
+                <Search size={18} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search tasks by title or client name..."
+                  value={taskSearchTerm}
+                  onChange={(e) => setTaskSearchTerm(e.target.value)}
+                />
+              </div>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {assignableTasks
+                  .filter(task => 
+                    isTaskActiveForRole(task, assigningToEmployee.role_identifier) && (
+                      (task.title || '').toLowerCase().includes(taskSearchTerm.toLowerCase()) ||
+                      (task.clients?.company_name || '').toLowerCase().includes(taskSearchTerm.toLowerCase())
+                    )
+                  )
+                  .map(task => {
+                    const isAlreadyAssignedToThisEmp = task.assigned_to === assigningToEmployee.user_id;
+                    const assignedName = task.assigned_to ? (productionEmployees.find(e => e.user_id === task.assigned_to)?.name || 'Someone else') : null;
+
+                    return (
+                      <div 
+                        key={task.id} 
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          padding: '10px 14px', 
+                          background: isAlreadyAssignedToThisEmp ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-body)', 
+                          borderRadius: '8px', 
+                          border: isAlreadyAssignedToThisEmp ? '1px solid var(--accent)' : '1px solid var(--border)' 
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{task.clients?.company_name || 'No Client'} - {task.content_type}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{task.title}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Status: {task.status}</div>
+                        </div>
+                        <div>
+                          {isAlreadyAssignedToThisEmp ? (
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>Assigned to them</span>
+                          ) : assignedName ? (
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: '8px' }}>Assigned to: {assignedName}</span>
+                          ) : (
+                            <button
+                              className="btn-primary"
+                              style={{ padding: '6px 12px', fontSize: '12px' }}
+                              onClick={async () => {
+                                const previousTasks = [...assignableTasks];
+
+                                // Optimistic state update
+                                setAssignableTasks(prev => prev.map(t => {
+                                  if (t.id === task.id) {
+                                    return { ...t, assigned_to: assigningToEmployee.user_id, assigned_employee: { name: assigningToEmployee.name } };
+                                  }
+                                  return t;
+                                }));
+                                setIsTaskAssignModalOpen(false);
+
+                                try {
+                                  await phApi.assignEmployee(task.id, assigningToEmployee.user_id);
+                                  fetchAssignableTasks();
+                                } catch (err: any) {
+                                  console.error(err);
+                                  setAssignableTasks(previousTasks);
+                                  alert(err.response?.data?.error || 'Failed to assign task');
+                                }
+                              }}
+                            >
+                              Assign
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isTaskDetailsOpen && selectedTaskDetails && (
+        <div className="modal-overlay" onClick={() => setIsTaskDetailsOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', padding: '24px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px', marginBottom: '20px' }}>
+              <div>
+                <h3 className="modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>
+                  {selectedTaskDetails.item.clients?.company_name || 'No Client'} - {selectedTaskDetails.item.content_type}
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  Task Details & Workflow History
+                </p>
+              </div>
+              <button onClick={() => setIsTaskDetailsOpen(false)} className="modal-close" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {selectedTaskDetails.item.title && (
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title</h4>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>{selectedTaskDetails.item.title}</div>
+                </div>
+              )}
+
+              {selectedTaskDetails.item.description && (
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</h4>
+                  <div style={{ fontSize: '14px', color: 'var(--text-secondary)', background: 'var(--bg-elevated)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', whiteSpace: 'pre-wrap' }}>
+                    {selectedTaskDetails.item.description}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</h4>
+                  <div style={{ display: 'inline-block', fontSize: '13px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)', border: '1px solid rgba(99, 102, 241, 0.2)', textTransform: 'uppercase' }}>
+                    {selectedTaskDetails.item.status}
+                  </div>
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</h4>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {new Date(selectedTaskDetails.item.scheduled_datetime).toLocaleDateString(undefined, { 
+                      weekday: 'short', 
+                      year: 'numeric', 
+                      month: 'short', 
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Workflow Progress / History</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative', paddingLeft: '20px', borderLeft: '2px solid var(--border)', marginLeft: '6px' }}>
+                  {selectedTaskDetails.history && selectedTaskDetails.history.length > 0 ? (
+                    selectedTaskDetails.history.map((entry: any, index: number) => (
+                      <div key={entry.id || index} style={{ position: 'relative', fontSize: '13px' }}>
+                        <div style={{ position: 'absolute', left: '-27px', top: '4px', width: '12px', height: '12px', borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--bg-surface)' }}></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          <span>{entry.new_status}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400 }}>
+                            {new Date(entry.changed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          Changed by: {entry.users?.role_identifier || entry.users?.name || 'System'}
+                        </div>
+                        {entry.note && (
+                          <div style={{ fontSize: '12px', fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '4px', background: 'var(--bg-elevated)', padding: '6px 10px', borderRadius: '6px' }}>
+                            &quot;{entry.note}&quot;
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      No workflow history recorded. Status is currently: {selectedTaskDetails.item.status}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

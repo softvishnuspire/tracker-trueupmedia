@@ -50,7 +50,7 @@ interface ContentItem {
     clients?: { company_name: string; team_lead?: { name: string } };
     assigned_to?: string;
     freelancer_name?: string;
-    assigned_employee?: { name: string; role_identifier?: string } | null;
+    assigned_employee?: { name: string; role_identifier?: string };
 }
 
 export default function ContentHeadDashboard() {

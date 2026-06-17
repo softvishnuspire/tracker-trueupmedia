@@ -144,6 +144,20 @@ interface TeamLead extends TeamMember {
     clients: Client[];
 }
 
+const isTaskActiveForRole = (task: ContentItem, roleIdentifier?: string) => {
+  const status = (task.status || '').toUpperCase();
+  if (roleIdentifier === 'REEL') {
+    const completedStatuses = ['EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+    return !completedStatuses.includes(status);
+  }
+  if (roleIdentifier === 'POST') {
+    const completedStatuses = ['DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+    return !completedStatuses.includes(status);
+  }
+  const defaultCompleted = ['APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+  return !defaultCompleted.includes(status);
+};
+
 export default function ManagerDashboard() {
     const DISPLAY_OFFSET_DAYS = 7;
     const { success: toastSuccess, error: toastError } = useToast();
@@ -163,8 +177,20 @@ export default function ManagerDashboard() {
     const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc' | 'tracking' | 'employees'>('dashboard');
     const [productionEmployees, setProductionEmployees] = useState<any[]>([]);
     const [isEmployeeAssignModalOpen, setIsEmployeeAssignModalOpen] = useState(false);
+    const [isTaskAssignModalOpen, setIsTaskAssignModalOpen] = useState(false);
     const [assigningToEmployee, setAssigningToEmployee] = useState<any>(null);
     const [clientSearchTerm, setClientSearchTerm] = useState('');
+    const [taskSearchTerm, setTaskSearchTerm] = useState('');
+    const [assignableTasks, setAssignableTasks] = useState<ContentItem[]>([]);
+    const fetchAssignableTasks = useCallback(async () => {
+        try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            const res = await phApi.getMasterCalendar(currentMonthStr, undefined, undefined);
+            setAssignableTasks(res.data);
+        } catch (err) {
+            console.error('Error fetching assignable tasks:', err);
+        }
+    }, [currentMonth]);
     const [dailyAgenda, setDailyAgenda] = useState<{ date: Date, items: ContentItem[] } | null>(null);
 
     // Tracking Panel States
@@ -446,9 +472,10 @@ export default function ManagerDashboard() {
             fetchTrackingStats(trackingDate);
         } else if (view === 'employees') {
             fetchProductionEmployees();
+            fetchAssignableTasks();
         }
         fetchGlobalData();
-    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length, trackingDate, fetchGlobalData, fetchTrackingStats, fetchProductionEmployees]);
+    }, [selectedClient, selectedType, selectedPocClient, currentMonth, view, clients.length, teamLeads.length, trackingDate, fetchGlobalData, fetchTrackingStats, fetchProductionEmployees, fetchAssignableTasks]);
 
     useEffect(() => {
         if (view === 'tracking') {
@@ -2654,7 +2681,6 @@ export default function ManagerDashboard() {
                                 )}
                             </AnimatePresence>
                         </main>
-
                     </div>
                 ) : (view === 'client' && !selectedClient) ? (
                     <div className="client-selection-view">
@@ -2723,18 +2749,31 @@ export default function ManagerDashboard() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <button 
-                                                className="btn-assign-client"
-                                                onClick={() => {
-                                                    setAssigningToEmployee(emp);
-                                                    setIsEmployeeAssignModalOpen(true);
-                                                }}
-                                            >
-                                                <Plus size={16} />
-                                                Assign Client
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button 
+                                                    className="btn-assign-client"
+                                                    onClick={() => {
+                                                        setAssigningToEmployee(emp);
+                                                        setIsEmployeeAssignModalOpen(true);
+                                                    }}
+                                                >
+                                                    <Plus size={16} />
+                                                    Assign Client
+                                                </button>
+                                                <button 
+                                                    className="btn-assign-client"
+                                                    style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                                                    onClick={() => {
+                                                        setAssigningToEmployee(emp);
+                                                        setIsTaskAssignModalOpen(true);
+                                                    }}
+                                                >
+                                                    <Plus size={16} />
+                                                    Assign Task
+                                                </button>
+                                            </div>
                                         </div>
-
+ 
                                         <div className="assigned-clients-section">
                                             <h4 className="section-title">ASSIGNED CLIENTS ({assignedClients.length})</h4>
                                             <div className="client-tags-grid">
@@ -2759,7 +2798,7 @@ export default function ManagerDashboard() {
                                                                         }
                                                                         return c;
                                                                     }));
-
+ 
                                                                     try {
                                                                         await phApi.assignEmployeeToClient(client.id, null, emp.user_id);
                                                                         toastSuccess(`Unassigned ${client.company_name}`);
@@ -2776,16 +2815,57 @@ export default function ManagerDashboard() {
                                                                     }
                                                                 }
                                                             }}
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                                {assignedClients.length === 0 && (
-                                                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1' }}>No clients assigned yet.</p>
-                                                )}
-                                            </div>
-                                        </div>
+                                                         >
+                                                             <X size={12} />
+                                                         </button>
+                                                     </div>
+                                                 ))}
+                                                 {assignedClients.length === 0 && (
+                                                     <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No clients assigned yet.</p>
+                                                 )}
+                                             </div>
+                                         </div>
+
+                                         <div className="assigned-clients-section" style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                                             <h4 className="section-title">ASSIGNED TASKS ({assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).length})</h4>
+                                             <div className="client-tags-grid">
+                                                 {assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).map(task => (
+                                                     <div 
+                                                         key={task.id} 
+                                                         className="client-tag-pill" 
+                                                         style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                                                         onClick={() => handleItemClick(task)}
+                                                     >
+                                                         <span>{task.clients?.company_name || 'No Client'} - {task.content_type}{task.title ? ` (${task.title})` : ''}</span>
+                                                         <button 
+                                                             className="remove-tag"
+                                                             onClick={async (e) => {
+                                                                 e.stopPropagation();
+                                                                 if (confirm(`Unassign task "${task.title}" from ${emp.name}?`)) {
+                                                                     const previousTasks = [...assignableTasks];
+                                                                     // Optimistic state update
+                                                                     setAssignableTasks(prev => prev.map(t => t.id === task.id ? { ...t, assigned_to: undefined, assigned_employee: undefined } : t));
+                                                                     try {
+                                                                         await phApi.assignEmployee(task.id, null);
+                                                                         toastSuccess(`Unassigned task from ${emp.name}`);
+                                                                         fetchAssignableTasks();
+                                                                     } catch (err) {
+                                                                         console.error(err);
+                                                                         setAssignableTasks(previousTasks);
+                                                                         toastError('Failed to unassign task.');
+                                                                     }
+                                                                 }
+                                                             }}
+                                                         >
+                                                             <X size={12} />
+                                                         </button>
+                                                     </div>
+                                                 ))}
+                                                 {assignableTasks.filter(t => t.assigned_to === emp.user_id).length === 0 && (
+                                                     <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No tasks assigned yet.</p>
+                                                 )}
+                                             </div>
+                                         </div>
                                     </div>
                                 );
                             })}
@@ -3752,6 +3832,103 @@ export default function ManagerDashboard() {
                                                         return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Available</span>;
                                                     }
                                                 })()}
+                                            </div>
+                                        );
+                                    })
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isTaskAssignModalOpen && assigningToEmployee && (
+                <div className="modal-overlay" onClick={() => setIsTaskAssignModalOpen(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+                        <div className="modal-header">
+                            <div>
+                                <h3 className="modal-title">Assign Task to {assigningToEmployee.name}</h3>
+                                <p className="modal-subtitle">Select an individual task to assign to this employee.</p>
+                            </div>
+                            <button onClick={() => setIsTaskAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <div className="modal-body" style={{ padding: '20px' }}>
+                            <div className="search-box" style={{ marginBottom: '20px', width: '100%', display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '12px', padding: '10px 14px' }}>
+                                <Search size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search tasks by title or client name..." 
+                                    value={taskSearchTerm}
+                                    onChange={(e) => setTaskSearchTerm(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '14px', width: '100%' }} 
+                                />
+                            </div>
+                            <div className="client-selection-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                                {assignableTasks
+                                    .filter(task => 
+                                        isTaskActiveForRole(task, assigningToEmployee.role_identifier) && (
+                                            (task.title || '').toLowerCase().includes(taskSearchTerm.toLowerCase()) ||
+                                            (task.clients?.company_name || '').toLowerCase().includes(taskSearchTerm.toLowerCase())
+                                        )
+                                    )
+                                    .map(task => {
+                                        const isAlreadyAssignedToThisEmp = task.assigned_to === assigningToEmployee.user_id;
+                                        const assignedName = task.assigned_to ? (productionEmployees.find(e => e.user_id === task.assigned_to)?.name || 'Someone else') : null;
+
+                                        return (
+                                            <div 
+                                                key={task.id} 
+                                                className={`client-selection-item ${isAlreadyAssignedToThisEmp ? 'already-assigned' : ''}`}
+                                                onClick={async () => {
+                                                     if (isAlreadyAssignedToThisEmp) return;
+                                                     const previousTasks = [...assignableTasks];
+
+                                                     // Optimistic state update
+                                                     setAssignableTasks(prev => prev.map(t => {
+                                                         if (t.id === task.id) {
+                                                             return { ...t, assigned_to: assigningToEmployee.user_id, assigned_employee: { name: assigningToEmployee.name } };
+                                                         }
+                                                         return t;
+                                                     }));
+                                                     setIsTaskAssignModalOpen(false);
+
+                                                     try {
+                                                         await phApi.assignEmployee(task.id, assigningToEmployee.user_id);
+                                                         toastSuccess(`Assigned task "${task.title}" to ${assigningToEmployee.name}`);
+                                                         fetchAssignableTasks();
+                                                     } catch (err: any) {
+                                                         console.error(err);
+                                                         setAssignableTasks(previousTasks);
+                                                         toastError(err.response?.data?.error || 'Failed to assign task');
+                                                     }
+                                                 }}
+                                                style={{ 
+                                                    padding: '12px 16px', 
+                                                    borderRadius: '10px', 
+                                                    cursor: isAlreadyAssignedToThisEmp ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    marginBottom: '8px',
+                                                    background: isAlreadyAssignedToThisEmp ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-elevated)',
+                                                    border: isAlreadyAssignedToThisEmp ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                                    opacity: isAlreadyAssignedToThisEmp ? 0.7 : 1
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <span style={{ fontWeight: 600 }}>{task.clients?.company_name || 'No Client'} - {task.content_type}</span>
+                                                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{task.title}</span>
+                                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Status: {task.status}</span>
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    {isAlreadyAssignedToThisEmp ? (
+                                                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>Assigned to them</span>
+                                                    ) : assignedName ? (
+                                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Assigned to: {assignedName}</span>
+                                                    ) : (
+                                                        <span style={{ fontSize: '12px', color: 'var(--success)' }}>Unassigned</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })
