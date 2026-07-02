@@ -44,7 +44,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { tlApi, gmApi, emergencyApi, dashboardApi, ContentItem, PocNote, StatusHistoryItem, settingsApi } from '@/lib/api';
+import { tlApi, gmApi, emergencyApi, dashboardApi, ContentItem, PocNote, StatusHistoryItem, settingsApi, phApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -66,6 +66,20 @@ interface ContentDetails {
 
 const normalizeRole = (role?: string | null) => (role || '').trim().toLowerCase().replace(/[_\s]+/g, ' ');
 
+const isTaskActiveForRole = (task: ContentItem, roleIdentifier?: string) => {
+  const status = (task.status || '').toUpperCase();
+  if (roleIdentifier === 'REEL') {
+    const completedStatuses = ['EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+    return !completedStatuses.includes(status);
+  }
+  if (roleIdentifier === 'POST') {
+    const completedStatuses = ['DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+    return !completedStatuses.includes(status);
+  }
+  const defaultCompleted = ['APPROVED', 'WAITING FOR POSTING', 'POSTED'];
+  return !defaultCompleted.includes(status);
+};
+
 export default function TLDashboard() {
     const DISPLAY_OFFSET_DAYS = 7;
     const supabase = createClient();
@@ -77,7 +91,15 @@ export default function TLDashboard() {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'poc'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'poc' | 'employees'>('dashboard');
+    const [employees, setEmployees] = useState<any[]>([]);
+    const [allClients, setAllClients] = useState<any[]>([]);
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [isTaskAssignModalOpen, setIsTaskAssignModalOpen] = useState(false);
+    const [assigningToEmployee, setAssigningToEmployee] = useState<any>(null);
+    const [clientSearchTerm, setClientSearchTerm] = useState('');
+    const [taskSearchTerm, setTaskSearchTerm] = useState('');
+    const [assignableTasks, setAssignableTasks] = useState<ContentItem[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
@@ -151,6 +173,30 @@ export default function TLDashboard() {
             }
         } catch (err) { console.error('Error fetching clients:', err); }
     }, [selectedClient, selectedPocClient, view]);
+
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const res = await phApi.getEmployees();
+            setEmployees(res.data);
+        } catch (err) { console.error('Error fetching employees:', err); }
+    }, []);
+
+    const fetchAllClients = useCallback(async () => {
+        try {
+            const res = await phApi.getClients();
+            setAllClients(res.data);
+        } catch (err) { console.error('Error fetching all clients:', err); }
+    }, []);
+
+    const fetchAssignableTasks = useCallback(async () => {
+        try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
+            const res = await phApi.getMasterCalendar(currentMonthStr, undefined, undefined);
+            setAssignableTasks(res.data);
+        } catch (err) {
+            console.error('Error fetching assignable tasks:', err);
+        }
+    }, [currentMonth]);
 
     const getClientBatchType = (clientId: string) => {
         const client = clients.find(c => c.id === clientId);
@@ -288,6 +334,10 @@ export default function TLDashboard() {
                 fetchPocNotes();
             } else if (view === 'client' && selectedClient && selectedClient !== 'all') {
                 fetchClientCalendar();
+            } else if (view === 'employees') {
+                fetchEmployees();
+                fetchAllClients();
+                fetchAssignableTasks();
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -890,6 +940,13 @@ export default function TLDashboard() {
                         <FileText size={18} />
                         <span>POC Communication</span>
                     </div>
+                    <div
+                        onClick={() => setView('employees')}
+                        className={`nav-item ${view === 'employees' ? 'active' : ''}`}
+                    >
+                        <Users size={18} />
+                        <span>Employee Management</span>
+                    </div>
 
                     {view === 'client' && (
                         <>
@@ -992,7 +1049,7 @@ export default function TLDashboard() {
                 <header className="page-header page-header-safe">
                     <div>
                         <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            {view === 'master' ? 'Master Calendar' : view === 'company' ? 'Company Calendar' : view === 'poc' ? 'POC Communication' : 'Client Dashboard'}
+                            {view === 'master' ? 'Master Calendar' : view === 'company' ? 'Company Calendar' : view === 'poc' ? 'POC Communication' : view === 'employees' ? 'Employee Management' : 'Client Dashboard'}
                             {view === 'client' && selectedClient && (
                                 <span style={{ 
                                     fontSize: '14px', 
@@ -1014,11 +1071,14 @@ export default function TLDashboard() {
                                 ? 'Master view of all content shown 7 days before scheduled date'
                                 : view === 'poc'
                                 ? 'Click any date to add communication notes for GM visibility'
+                                : view === 'employees'
+                                ? 'Assign and manage clients for individual employees'
                                 : `Managing content for ${clients.find(c => c.id === selectedClient)?.company_name || 'Client'}`
                             }
                         </p>
                     </div>
 
+                    {view !== 'employees' && (
                         <div className="header-controls">
                             {(view === 'master' || view === 'company') && (
                                 <div className="master-filters-container" style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-elevated)', borderRadius: '12px', padding: '4px 12px', border: '1px solid var(--border)', marginRight: '12px' }}>
@@ -1043,28 +1103,29 @@ export default function TLDashboard() {
                                 </div>
                             )}
                             <div className="month-nav">
-                            <button onClick={handlePrev} className="month-btn"><ChevronLeft size={18}/></button>
-                            <span className="month-label">
-                                {getPeriodLabel()}
-                            </span>
-                            <button onClick={handleNext} className="month-btn"><ChevronRight size={18}/></button>
-                            {isRefreshing && (
-                                <div className="refreshing-banner" style={{ marginLeft: '12px' }}>
-                                    <Loader2 size={12} className="spinner-btn-icon" />
-                                    <span>Refreshing...</span>
-                                </div>
+                                <button onClick={handlePrev} className="month-btn"><ChevronLeft size={18}/></button>
+                                <span className="month-label">
+                                    {getPeriodLabel()}
+                                </span>
+                                <button onClick={handleNext} className="month-btn"><ChevronRight size={18}/></button>
+                                {isRefreshing && (
+                                    <div className="refreshing-banner" style={{ marginLeft: '12px' }}>
+                                        <Loader2 size={12} className="spinner-btn-icon" />
+                                        <span>Refreshing...</span>
+                                    </div>
+                                )}
+                            </div>
+                            {(view === 'client' || view === 'master' || view === 'company') && (
+                                <ScheduleExport 
+                                    data={calendarData}
+                                    clientName={selectedClient ? clients.find(c => c.id === selectedClient)?.company_name || 'Client' : 'TrueUp Media'}
+                                    month={currentMonth}
+                                    batchType={selectedClient ? getClientBatchType(selectedClient) : '1-1'}
+                                    summaryOnly={view === 'master' || view === 'company'}
+                                />
                             )}
                         </div>
-                        {(view === 'client' || view === 'master' || view === 'company') && (
-                            <ScheduleExport 
-                                data={calendarData}
-                                clientName={selectedClient ? clients.find(c => c.id === selectedClient)?.company_name || 'Client' : 'TrueUp Media'}
-                                month={currentMonth}
-                                batchType={selectedClient ? getClientBatchType(selectedClient) : '1-1'}
-                                summaryOnly={view === 'master' || view === 'company'}
-                            />
-                        )}
-                    </div>
+                    )}
                 </header>
 
                 {(view === 'client' || view === 'master' || view === 'company') && (
@@ -1511,6 +1572,162 @@ export default function TLDashboard() {
                             </div>
                         </div>
                     </>
+                )}
+
+                {view === 'employees' && (
+                    <div className="employees-view">
+                        <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: '24px' }}>
+                            {employees.map((emp: any) => {
+                                const assignedClients = allClients.filter(c => {
+                                    if (emp.role_identifier === 'REEL') {
+                                        return c.reel_employee_id === emp.user_id;
+                                    } else if (emp.role_identifier === 'POST') {
+                                        return c.post_employee_id === emp.user_id;
+                                    } else {
+                                        return c.employee_id === emp.user_id || c.reel_employee_id === emp.user_id || c.post_employee_id === emp.user_id;
+                                    }
+                                });
+                                return (
+                                    <div key={emp.user_id} className="employee-card-premium">
+                                        <div className="employee-card-header">
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                <div className="employee-avatar-large">
+                                                    {emp.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h3 className="employee-card-name">
+                                                        {emp.name} 
+                                                        <span className="role-id-tag">({emp.role_identifier || 'EMP'})</span>
+                                                    </h3>
+                                                    <p className="employee-card-role">
+                                                        {emp.role_identifier === 'REEL' ? 'REEL EDITOR' : emp.role_identifier === 'POST' ? 'POSTER EDITOR' : 'EMPLOYEE'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button 
+                                                    className="btn-assign-client"
+                                                    onClick={() => {
+                                                        setAssigningToEmployee(emp);
+                                                        setIsAssignModalOpen(true);
+                                                    }}
+                                                >
+                                                    <Plus size={16} />
+                                                    Assign Client
+                                                </button>
+                                                <button 
+                                                    className="btn-assign-client"
+                                                    style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                                                    onClick={() => {
+                                                        setAssigningToEmployee(emp);
+                                                        setIsTaskAssignModalOpen(true);
+                                                    }}
+                                                >
+                                                    <Plus size={16} />
+                                                    Assign Task
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="assigned-clients-section">
+                                            <h4 className="section-title">ASSIGNED CLIENTS ({assignedClients.length})</h4>
+                                            <div className="client-tags-grid">
+                                                {assignedClients.map(client => (
+                                                    <div key={client.id} className="client-tag-pill">
+                                                        <span>{client.company_name}</span>
+                                                        <button 
+                                                            className="remove-tag"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm(`Unassign ${client.company_name} from ${emp.name}?`)) {
+                                                                    const previousClients = [...allClients];
+                                                                    
+                                                                    // Optimistic state update
+                                                                    setAllClients(prev => prev.map(c => {
+                                                                        if (c.id === client.id) {
+                                                                            const updated = { ...c };
+                                                                            if (emp.role_identifier === 'REEL') updated.reel_employee_id = null;
+                                                                            else if (emp.role_identifier === 'POST') updated.post_employee_id = null;
+                                                                            else updated.employee_id = null;
+                                                                            return updated;
+                                                                        }
+                                                                        return c;
+                                                                    }));
+
+                                                                    try {
+                                                                        await phApi.assignEmployeeToClient(client.id, null, emp.user_id);
+                                                                        toastSuccess(`Unassigned ${client.company_name}`);
+                                                                        
+                                                                        // Silently refresh in background
+                                                                        setTimeout(async () => {
+                                                                            const cRes = await phApi.getClients();
+                                                                            setAllClients(cRes.data);
+                                                                            fetchMasterCalendar(true);
+                                                                            fetchClientCalendar(true);
+                                                                        }, 500);
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        setAllClients(previousClients);
+                                                                        toastError('Failed to unassign client.');
+                                                                    }
+                                                                }
+                                                            }}
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {assignedClients.length === 0 && (
+                                                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No clients assigned yet.</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="assigned-clients-section" style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                                            <h4 className="section-title">ASSIGNED TASKS ({assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).length})</h4>
+                                            <div className="client-tags-grid">
+                                                {assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).map(task => (
+                                                    <div 
+                                                        key={task.id} 
+                                                        className="client-tag-pill" 
+                                                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                                                        onClick={() => handleItemClick(task)}
+                                                    >
+                                                        <span>{task.clients?.company_name || 'No Client'} - {task.content_type}{task.title ? ` (${task.title})` : ''}</span>
+                                                        <button 
+                                                            className="remove-tag"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm(`Unassign task "${task.title}" from ${emp.name}?`)) {
+                                                                    const previousTasks = [...assignableTasks];
+                                                                    // Optimistic state update
+                                                                    setAssignableTasks(prev => prev.map(t => t.id === task.id ? { ...t, assigned_to: undefined, assigned_employee: undefined } : t));
+                                                                    try {
+                                                                        await phApi.assignEmployee(task.id, null);
+                                                                        toastSuccess(`Unassigned task from ${emp.name}`);
+                                                                        fetchAssignableTasks();
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        setAssignableTasks(previousTasks);
+                                                                        toastError('Failed to unassign task.');
+                                                                    }
+                                                                }
+                                                            }}
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {assignableTasks.filter(t => t.assigned_to === emp.user_id).length === 0 && (
+                                                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No tasks assigned yet.</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 )}
             </main>
 
@@ -2069,6 +2286,223 @@ export default function TLDashboard() {
                                 </div>
                             )}
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {isAssignModalOpen && assigningToEmployee && (
+                <div className="modal-overlay" onClick={() => setIsAssignModalOpen(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                        <div className="modal-header">
+                            <div>
+                                <h3 className="modal-title">Assign Client to {assigningToEmployee.name}</h3>
+                                <p className="modal-subtitle">Select a client to enable auto-assignment for production tasks.</p>
+                            </div>
+                            <button onClick={() => setIsAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="search-box" style={{ marginBottom: '20px', width: '100%' }}>
+                                <Search size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search clients..." 
+                                    value={clientSearchTerm}
+                                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '14px', width: '100%' }} 
+                                />
+                            </div>
+                            <div className="client-selection-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                {allClients
+                                    .filter(c => c.company_name.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                                    .map(client => {
+                                        const isAlreadyAssigned = 
+                                            assigningToEmployee.role_identifier === 'REEL' ? client.reel_employee_id === assigningToEmployee.user_id :
+                                            assigningToEmployee.role_identifier === 'POST' ? client.post_employee_id === assigningToEmployee.user_id :
+                                            client.employee_id === assigningToEmployee.user_id;
+
+                                        return (
+                                            <div 
+                                                key={client.id} 
+                                                className={`client-selection-item ${isAlreadyAssigned ? 'already-assigned' : ''}`}
+                                                onClick={async () => {
+                                                     if (isAlreadyAssigned) return;
+                                                     const previousClients = [...allClients];
+
+                                                     // Optimistic state update
+                                                     setAllClients(prev => prev.map(c => {
+                                                         if (c.id === client.id) {
+                                                             const updated = { ...c };
+                                                             if (assigningToEmployee.role_identifier === 'REEL') updated.reel_employee_id = assigningToEmployee.user_id;
+                                                             else if (assigningToEmployee.role_identifier === 'POST') updated.post_employee_id = assigningToEmployee.user_id;
+                                                             else updated.employee_id = assigningToEmployee.user_id;
+                                                             return updated;
+                                                         }
+                                                         return c;
+                                                     }));
+                                                     setIsAssignModalOpen(false);
+
+                                                     try {
+                                                         await phApi.assignEmployeeToClient(client.id, assigningToEmployee.user_id);
+                                                         toastSuccess(`Assigned ${client.company_name} to ${assigningToEmployee.name}`);
+                                                         
+                                                         // Silently refresh in background
+                                                         setTimeout(async () => {
+                                                             const cRes = await phApi.getClients();
+                                                             setAllClients(cRes.data);
+                                                             fetchMasterCalendar(true);
+                                                             fetchClientCalendar(true);
+                                                         }, 500);
+                                                     } catch (err: any) {
+                                                         console.error(err);
+                                                         setAllClients(previousClients);
+                                                         toastError(err.response?.data?.error || 'Failed to assign client');
+                                                     }
+                                                 }}
+                                                style={{ 
+                                                    padding: '12px 16px', 
+                                                    borderRadius: '10px', 
+                                                    cursor: isAlreadyAssigned ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    marginBottom: '8px',
+                                                    background: isAlreadyAssigned ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-elevated)',
+                                                    border: isAlreadyAssigned ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                                    opacity: isAlreadyAssigned ? 0.7 : 1
+                                                }}
+                                            >
+                                                <span style={{ fontWeight: 600 }}>{client.company_name}</span>
+                                                {(() => {
+                                                    if (assigningToEmployee.role_identifier === 'REEL') {
+                                                        if (client.reel_employee_id) {
+                                                            const isCurrent = client.reel_employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned (Reel)' : `Reel Editor: ${employees.find((e: any) => e.user_id === client.reel_employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Reel Editor Available</span>;
+                                                    } else if (assigningToEmployee.role_identifier === 'POST') {
+                                                        if (client.post_employee_id) {
+                                                            const isCurrent = client.post_employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned (Post)' : `Poster Editor: ${employees.find((e: any) => e.user_id === client.post_employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Poster Editor Available</span>;
+                                                    } else {
+                                                        if (client.employee_id) {
+                                                            const isCurrent = client.employee_id === assigningToEmployee.user_id;
+                                                            return (
+                                                                <span style={{ fontSize: '11px', color: isCurrent ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    {isCurrent ? 'Currently Assigned' : `Assigned to ${employees.find((e: any) => e.user_id === client.employee_id)?.name || 'Other'}`}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        return <span style={{ fontSize: '11px', color: 'var(--success)' }}>Available</span>;
+                                                    }
+                                                })()}
+                                            </div>
+                                        );
+                                    })
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isTaskAssignModalOpen && assigningToEmployee && (
+                <div className="modal-overlay" onClick={() => setIsTaskAssignModalOpen(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+                        <div className="modal-header">
+                            <div>
+                                <h3 className="modal-title">Assign Task to {assigningToEmployee.name}</h3>
+                                <p className="modal-subtitle">Select an individual task to assign to this employee.</p>
+                            </div>
+                            <button onClick={() => setIsTaskAssignModalOpen(false)} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="search-box" style={{ marginBottom: '20px', width: '100%' }}>
+                                <Search size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search tasks by title or client name..." 
+                                    value={taskSearchTerm}
+                                    onChange={(e) => setTaskSearchTerm(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '14px', width: '100%' }} 
+                                />
+                            </div>
+                            <div className="client-selection-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                                {assignableTasks
+                                    .filter(task => 
+                                        isTaskActiveForRole(task, assigningToEmployee.role_identifier) && (
+                                            (task.title || '').toLowerCase().includes(taskSearchTerm.toLowerCase()) ||
+                                            (task.clients?.company_name || '').toLowerCase().includes(taskSearchTerm.toLowerCase())
+                                        )
+                                    )
+                                    .map(task => {
+                                        const isAlreadyAssignedToThisEmp = task.assigned_to === assigningToEmployee.user_id;
+                                        const assignedName = task.assigned_to ? (employees.find(e => e.user_id === task.assigned_to)?.name || 'Someone else') : null;
+
+                                        return (
+                                            <div 
+                                                key={task.id} 
+                                                className={`client-selection-item ${isAlreadyAssignedToThisEmp ? 'already-assigned' : ''}`}
+                                                onClick={async () => {
+                                                     if (isAlreadyAssignedToThisEmp) return;
+                                                     const previousTasks = [...assignableTasks];
+
+                                                     // Optimistic state update
+                                                     setAssignableTasks(prev => prev.map(t => {
+                                                         if (t.id === task.id) {
+                                                             return { ...t, assigned_to: assigningToEmployee.user_id, assigned_employee: { name: assigningToEmployee.name } };
+                                                         }
+                                                         return t;
+                                                     }));
+                                                     setIsTaskAssignModalOpen(false);
+
+                                                     try {
+                                                         await phApi.assignEmployee(task.id, assigningToEmployee.user_id);
+                                                         toastSuccess(`Assigned task "${task.title}" to ${assigningToEmployee.name}`);
+                                                         fetchAssignableTasks();
+                                                     } catch (err: any) {
+                                                         console.error(err);
+                                                         setAssignableTasks(previousTasks);
+                                                         toastError(err.response?.data?.error || 'Failed to assign task');
+                                                     }
+                                                 }}
+                                                style={{ 
+                                                    padding: '12px 16px', 
+                                                    borderRadius: '10px', 
+                                                    cursor: isAlreadyAssignedToThisEmp ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    marginBottom: '8px',
+                                                    background: isAlreadyAssignedToThisEmp ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-elevated)',
+                                                    border: isAlreadyAssignedToThisEmp ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                                    opacity: isAlreadyAssignedToThisEmp ? 0.7 : 1
+                                                }}
+                                            >
+                                                <div>
+                                                    <div style={{ fontWeight: 600 }}>{task.clients?.company_name || 'No Client'} - {task.content_type}</div>
+                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                        {task.title || 'Untitled'} ({formatIST(task.scheduled_datetime, 'dd/MM/yyyy')})
+                                                    </div>
+                                                </div>
+                                                <span style={{ fontSize: '11px', color: assignedName ? 'var(--text-muted)' : 'var(--success)' }}>
+                                                    {assignedName ? `Assigned to: ${assignedName}` : 'Unassigned'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                }
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
