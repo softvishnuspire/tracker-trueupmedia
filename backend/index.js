@@ -60,7 +60,25 @@ function enrichContentItem(item) {
         const orig = new Date(item.original_scheduled_datetime);
         const sched = new Date(item.scheduled_datetime);
         if (!isNaN(orig.getTime()) && !isNaN(sched.getTime())) {
-            is_cross_month_rescheduled = (orig.getUTCFullYear() !== sched.getUTCFullYear()) || (orig.getUTCMonth() !== sched.getUTCMonth());
+            const batch_type = item.clients?.batch_type || '1-1';
+            if (batch_type === '15-15') {
+                const get15PeriodStartMonth = (date) => {
+                    const day = date.getUTCDate();
+                    const month = date.getUTCMonth();
+                    const year = date.getUTCFullYear();
+                    if (day >= 15) {
+                        return { year, month };
+                    } else {
+                        const prev = new Date(Date.UTC(year, month - 1, 15));
+                        return { year: prev.getUTCFullYear(), month: prev.getUTCMonth() };
+                    }
+                };
+                const origPeriod = get15PeriodStartMonth(orig);
+                const schedPeriod = get15PeriodStartMonth(sched);
+                is_cross_month_rescheduled = (origPeriod.year !== schedPeriod.year) || (origPeriod.month !== schedPeriod.month);
+            } else {
+                is_cross_month_rescheduled = (orig.getUTCFullYear() !== sched.getUTCFullYear()) || (orig.getUTCMonth() !== sched.getUTCMonth());
+            }
         }
     }
     return {
@@ -516,7 +534,26 @@ async function checkContentLimit(client_id, content_type, scheduled_datetime) {
             const orig = new Date(item.original_scheduled_datetime);
             const sched = new Date(item.scheduled_datetime);
             if (!isNaN(orig.getTime()) && !isNaN(sched.getTime())) {
-                const is_cross_month_rescheduled = (orig.getUTCFullYear() !== sched.getUTCFullYear()) || (orig.getUTCMonth() !== sched.getUTCMonth());
+                let is_cross_month_rescheduled = false;
+                const batch_type = client.batch_type || '1-1';
+                if (batch_type === '15-15') {
+                    const get15PeriodStartMonth = (date) => {
+                        const day = date.getUTCDate();
+                        const month = date.getUTCMonth();
+                        const year = date.getUTCFullYear();
+                        if (day >= 15) {
+                            return { year, month };
+                        } else {
+                            const prev = new Date(Date.UTC(year, month - 1, 15));
+                            return { year: prev.getUTCFullYear(), month: prev.getUTCMonth() };
+                        }
+                    };
+                    const origPeriod = get15PeriodStartMonth(orig);
+                    const schedPeriod = get15PeriodStartMonth(sched);
+                    is_cross_month_rescheduled = (origPeriod.year !== schedPeriod.year) || (origPeriod.month !== schedPeriod.month);
+                } else {
+                    is_cross_month_rescheduled = (orig.getUTCFullYear() !== sched.getUTCFullYear()) || (orig.getUTCMonth() !== sched.getUTCMonth());
+                }
                 if (is_cross_month_rescheduled) {
                     return false; // do not count
                 }
@@ -1811,7 +1848,7 @@ async function fetchClientCalendarData(clientId, month) {
 
     const { data, error } = await supabase
         .from('content_items')
-        .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+        .select(`*, clients (company_name, batch_type, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
         .eq('client_id', clientId)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate)
@@ -1832,7 +1869,7 @@ async function fetchCombinedCalendarDataFromDB(startDate, endDate) {
     // 1. Fetch ALL content_items for the month
     const q1 = supabase
         .from('content_items')
-        .select(`*, clients (company_name, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+        .select(`*, clients (company_name, batch_type, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
         .gte('scheduled_datetime', startDate)
         .lte('scheduled_datetime', endDate);
 
@@ -2014,7 +2051,7 @@ async function fetchContentOrFreelancerItem(id) {
     // 1. Try content_items first
     const { data: item, error } = await supabase
         .from('content_items')
-        .select(`*, clients (company_name, employee_id, reel_employee_id, post_employee_id, writer_employee_id, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
+        .select(`*, clients (company_name, batch_type, employee_id, reel_employee_id, post_employee_id, writer_employee_id, team_lead:team_lead_id (name)), assigned_employee:assigned_to (name, role_identifier)`)
         .eq('id', id)
         .single();
         

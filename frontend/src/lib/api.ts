@@ -52,7 +52,7 @@ export interface ContentItem {
     reschedule_history?: { from: string; to: string; rescheduled_at: string }[];
     is_emergency?: boolean;
     emergency_marked_at?: string;
-    clients?: { company_name: string; team_lead?: { name: string; role_identifier?: string } };
+    clients?: { company_name: string; batch_type?: '1-1' | '15-15'; team_lead?: { name: string; role_identifier?: string } };
     assigned_to?: string;
     assigned_employee?: { name: string; role_identifier?: string };
     employee_task_status?: 'PENDING' | 'COMPLETED';
