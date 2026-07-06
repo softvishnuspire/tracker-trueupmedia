@@ -15,7 +15,8 @@ import {
     CalendarClock,
     Settings2,
     UserPlus,
-    Activity
+    Activity,
+    Trophy
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
@@ -92,6 +93,7 @@ export default function CooLayout({
         { name: 'System Toggles', path: '/coo/toggles', icon: <Settings2 size={20} /> },
         { name: 'Client Onboarding', path: '/coo/onboarding', icon: <UserPlus size={20} /> },
         { name: 'Employee Tracking', path: '/coo/employee-tracking', icon: <Activity size={20} /> },
+        { name: 'Streak System', path: '/coo/streaks', icon: <Trophy size={20} /> },
     ];
 
     return (

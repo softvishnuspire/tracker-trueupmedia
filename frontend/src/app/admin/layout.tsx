@@ -16,7 +16,8 @@ import {
     CalendarClock,
     Settings2,
     Activity,
-    Globe
+    Globe,
+    Trophy
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
@@ -95,6 +96,7 @@ export default function AdminLayout({
     { name: 'System Toggles', path: '/admin/toggles', icon: <Settings2 size={20} /> },
     { name: 'Client Onboarding', path: '/admin/onboarding', icon: <UserPlus size={20} /> },
     { name: 'Employee Tracking', path: '/admin/employee-tracking', icon: <Activity size={20} /> },
+    { name: 'Streak System', path: '/admin/streaks', icon: <Trophy size={20} /> },
   ];
 
   return (

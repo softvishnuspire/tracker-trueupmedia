@@ -96,6 +96,7 @@ import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import './gm.css';
+import StreakSystemView from '@/components/StreakSystemView';
 
 const TrackingRadialProgress = ({ progress, size = 60, strokeWidth = 6, color = "var(--accent)" }: { progress: number, size?: number, strokeWidth?: number, color?: string }) => {
     const radius = (size - strokeWidth) / 2;
@@ -1513,6 +1514,13 @@ export default function GMDashboard() {
                         <Activity size={20} />
                         <span>Employee Tracking</span>
                     </div>
+                    <div
+                        onClick={() => setView('streaks')}
+                        className={`nav-item ${view === 'streaks' ? 'active' : ''}`}
+                    >
+                        <Trophy size={20} />
+                        <span>Streak System</span>
+                    </div>
 
                     {view === 'client' && (
                         <div className="sidebar-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
@@ -2682,6 +2690,8 @@ export default function GMDashboard() {
                             </AnimatePresence>
                         </main>
                     </div>
+                ) : view === 'streaks' ? (
+                    <StreakSystemView />
                 ) : (view === 'client' && !selectedClient) ? (
                     <div className="client-selection-view">
                         <div className="search-container-premium">

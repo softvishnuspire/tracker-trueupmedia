@@ -37,22 +37,16 @@ interface Task {
     content_type: string;
     scheduled_datetime: string;
     assigned_at?: string;
-    employee_task_status: 'PENDING' | 'COMPLETED';
-    clients: { company_name: string };
+    status: string;
+    clients: { company_name: string } | null;
 }
 
 export default function EmployeeDashboard() {
-    const { success: toastSuccess, error: toastError } = useToast();
+    const { error: toastError } = useToast();
     const { startLoading, stopLoading } = usePageLoading();
     
     const [tasks, setTasks] = useState<Task[]>([]);
-    const [historyTasks, setHistoryTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
-    const [historyLoading, setHistoryLoading] = useState(false);
-    const [updatingId, setUpdatingId] = useState<string | null>(null);
-    const [view, setView] = useState<'dashboard' | 'history'>('dashboard');
-    const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
-    const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
 
     const fetchDashboardTasks = async (isSilent = false) => {
         if (!isSilent && tasks.length === 0) {
@@ -60,11 +54,7 @@ export default function EmployeeDashboard() {
         }
         try {
             const res = await employeeApi.getTasks();
-            const sanitizedTasks: Task[] = res.data.map(item => ({
-                ...item,
-                employee_task_status: (item.employee_task_status || 'PENDING') as 'PENDING' | 'COMPLETED'
-            })) as Task[];
-            setTasks(sanitizedTasks);
+            setTasks(res.data || []);
         } catch (err) {
             console.error('Error fetching dashboard tasks:', err);
             toastError('Failed to refresh task list.');
@@ -73,233 +63,19 @@ export default function EmployeeDashboard() {
         }
     };
 
-    const fetchHistoryTasks = async (month: string, isSilent = false) => {
-        if (!isSilent && historyTasks.length === 0) {
-            setHistoryLoading(true);
-        }
-        try {
-            const res = await employeeApi.getTasks(month);
-            const sanitizedTasks: Task[] = res.data.map(item => ({
-                ...item,
-                employee_task_status: (item.employee_task_status || 'PENDING') as 'PENDING' | 'COMPLETED'
-            })) as Task[];
-            setHistoryTasks(sanitizedTasks);
-        } catch (err) {
-            console.error('Error fetching history tasks:', err);
-            toastError('Failed to fetch history tasks.');
-        } finally {
-            if (!isSilent) setHistoryLoading(false);
-        }
-    };
-
     useEffect(() => {
         const loadData = async () => {
             startLoading();
-            if (view === 'dashboard') {
-                await fetchDashboardTasks();
-            } else {
-                await fetchHistoryTasks(selectedMonth);
-            }
+            await fetchDashboardTasks();
             stopLoading();
         };
         loadData();
-    }, [view, selectedMonth]);
+    }, []);
 
-    const handleToggleStatus = async (task: Task) => {
-        setUpdatingId(task.id);
-        const newStatus = task.employee_task_status === 'PENDING' ? 'COMPLETED' : 'PENDING';
-        
-        // Optimistic backup
-        const previousTasks = [...tasks];
-        const previousHistoryTasks = [...historyTasks];
+    const todayTasks = tasks.filter(t => isToday(parseISO(t.assigned_at || t.scheduled_datetime || '')));
+    const previousTasks = tasks.filter(t => isBefore(parseISO(t.assigned_at || t.scheduled_datetime || ''), startOfToday()));
 
-        // Optimistic UI state toggle
-        const updateFn = (prev: Task[]): Task[] => prev.map(t => 
-            t.id === task.id ? { ...t, employee_task_status: newStatus as 'PENDING' | 'COMPLETED' } : t
-        );
-        setTasks(updateFn);
-        setHistoryTasks(updateFn);
-
-        try {
-            await employeeApi.updateTaskStatus(task.id, newStatus);
-            toastSuccess(newStatus === 'COMPLETED' ? 'Task completed successfully!' : 'Task set to pending.');
-            
-            // 500ms debounced background refresh
-            setTimeout(() => {
-                if (view === 'dashboard') {
-                    fetchDashboardTasks(true);
-                } else {
-                    fetchHistoryTasks(selectedMonth, true);
-                }
-            }, 500);
-
-        } catch (err) {
-            console.error('Failed to update status:', err);
-            // Rollback
-            setTasks(previousTasks);
-            setHistoryTasks(previousHistoryTasks);
-            toastError('Failed to update task status. Network error.');
-        } finally {
-            setUpdatingId(null);
-        }
-    };
-
-    const todayTasks = tasks.filter(t => isToday(parseISO(t.scheduled_datetime || t.assigned_at || '')));
-    const pendingTasks = tasks.filter(t => 
-        isBefore(parseISO(t.scheduled_datetime || t.assigned_at || ''), startOfToday()) && 
-        t.employee_task_status === 'PENDING'
-    );
-    const upcomingTasks = tasks.filter(t => 
-        isAfter(parseISO(t.scheduled_datetime || t.assigned_at || ''), endOfToday()) && 
-        t.employee_task_status === 'PENDING'
-    );
-
-    const renderDashboard = () => (
-        <>
-            {pendingTasks.length > 0 && (
-                <section className="task-section">
-                    <div className="section-header">
-                        <h2 className="section-title" style={{ color: 'var(--danger)' }}>
-                            <AlertCircle size={20} />
-                            Overdue Tasks
-                        </h2>
-                        <span className="task-count-badge" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>
-                            {pendingTasks.length}
-                        </span>
-                    </div>
-                    <div className="task-grid">
-                        {pendingTasks.map(task => (
-                            <TaskCard 
-                                key={task.id} 
-                                task={task} 
-                                onToggle={() => handleToggleStatus(task)} 
-                                isUpdating={updatingId === task.id} 
-                            />
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {upcomingTasks.length > 0 && (
-                <section className="task-section">
-                    <div className="section-header">
-                        <h2 className="section-title" style={{ color: 'var(--primary)' }}>
-                            <Clock size={20} />
-                            Upcoming Assignments
-                        </h2>
-                        <span className="task-count-badge" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}>
-                            {upcomingTasks.length}
-                        </span>
-                    </div>
-                    <div className="task-grid">
-                        {upcomingTasks.map(task => (
-                            <TaskCard 
-                                key={task.id} 
-                                task={task} 
-                                onToggle={() => handleToggleStatus(task)} 
-                                isUpdating={updatingId === task.id} 
-                            />
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            <section className="task-section">
-                <div className="section-header">
-                    <h2 className="section-title">
-                        <Calendar size={20} />
-                        Today's Assignments
-                    </h2>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                        <select 
-                            className="client-dropdown" 
-                            style={{ padding: '4px 12px', fontSize: '12px' }}
-                            value={filter}
-                            onChange={(e) => setFilter(e.target.value as any)}
-                        >
-                            <option value="all">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="completed">Completed</option>
-                        </select>
-                        <span className="task-count-badge">{todayTasks.length}</span>
-                    </div>
-                </div>
-
-                {todayTasks.length === 0 ? (
-                    <div className="empty-tasks">
-                        <div className="empty-icon-box"><CheckCircle2 size={32} /></div>
-                        <h3>No Tasks for Today</h3>
-                        <p>Enjoy your day! Check back later for new assignments.</p>
-                    </div>
-                ) : (
-                    <div className="task-grid">
-                        {todayTasks
-                            .filter(t => {
-                                if (filter === 'pending') return t.employee_task_status === 'PENDING';
-                                if (filter === 'completed') return t.employee_task_status === 'COMPLETED';
-                                return true;
-                            })
-                            .map(task => (
-                                <TaskCard 
-                                    key={task.id} 
-                                    task={task} 
-                                    onToggle={() => handleToggleStatus(task)} 
-                                    isUpdating={updatingId === task.id} 
-                                />
-                            ))
-                        }
-                    </div>
-                )}
-            </section>
-
-        </>
-    );
-
-    const renderHistory = () => (
-        <section className="task-section">
-            <div className="section-header">
-                <h2 className="section-title">
-                    <HistoryIcon size={20} />
-                    Assignment History
-                </h2>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                    <input 
-                        type="month" 
-                        className="client-dropdown"
-                        style={{ padding: '4px 12px', fontSize: '12px' }}
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(e.target.value)}
-                    />
-                    <span className="task-count-badge">{historyTasks.length}</span>
-                </div>
-            </div>
-
-            {historyLoading && historyTasks.length === 0 ? (
-                <div className="task-grid">
-                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 w-full rounded-2xl" />)}
-                </div>
-            ) : historyTasks.length === 0 ? (
-                <div className="empty-tasks">
-                    <div className="empty-icon-box"><Clock size={32} /></div>
-                    <h3>No assignments found</h3>
-                    <p>There were no tasks assigned to you in {format(parseISO(`${selectedMonth}-01`), 'MMMM yyyy')}.</p>
-                </div>
-            ) : (
-                <div className="task-grid">
-                    {historyTasks.map(task => (
-                        <TaskCard 
-                            key={task.id} 
-                            task={task} 
-                            onToggle={() => handleToggleStatus(task)} 
-                            isUpdating={updatingId === task.id} 
-                        />
-                    ))}
-                </div>
-            )}
-        </section>
-    );
-
-    if (loading && tasks.length === 0 && view === 'dashboard') {
+    if (loading && tasks.length === 0) {
         return (
             <div className="employee-dashboard">
                 <div className="welcome-section">
@@ -316,44 +92,83 @@ export default function EmployeeDashboard() {
     return (
         <div className="employee-dashboard">
             <header className="welcome-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                        <h1 className="welcome-title">{view === 'dashboard' ? 'Daily Task Management' : 'Assignment History'}</h1>
-                        <p className="welcome-subtitle">
-                            {format(new Date(), 'EEEE, MMMM do')} • You have {tasks.filter(t => t.employee_task_status === 'PENDING').length} pending assignments.
-                        </p>
-                    </div>
-                    <div className="view-toggle-container">
-                        <button 
-                            className={`view-toggle-btn ${view === 'dashboard' ? 'active' : ''}`}
-                            onClick={() => setView('dashboard')}
-                        >
-                            <LayoutDashboard size={16} />
-                            Today
-                        </button>
-                        <button 
-                            className={`view-toggle-btn ${view === 'history' ? 'active' : ''}`}
-                            onClick={() => setView('history')}
-                        >
-                            <HistoryIcon size={16} />
-                            History
-                        </button>
-                    </div>
-                </div>
+                <h1 className="welcome-title">Daily Task Management</h1>
+                <p className="welcome-subtitle">
+                    {format(new Date(), 'EEEE, MMMM do')} • You have {todayTasks.length} assignments today.
+                </p>
             </header>
 
-            {view === 'dashboard' ? renderDashboard() : renderHistory()}
+            {/* Today's Assignments */}
+            <section className="task-section">
+                <div className="section-header">
+                    <h2 className="section-title" style={{ color: 'var(--primary)' }}>
+                        <Calendar size={20} />
+                        Today's Assignments
+                    </h2>
+                    <span className="task-count-badge">{todayTasks.length}</span>
+                </div>
+
+                {todayTasks.length === 0 ? (
+                    <div className="empty-tasks">
+                        <div className="empty-icon-box"><CheckCircle2 size={32} /></div>
+                        <h3>No Tasks for Today</h3>
+                        <p>Enjoy your day! Check back later for new assignments.</p>
+                    </div>
+                ) : (
+                    <div className="task-grid">
+                        {todayTasks.map(task => (
+                            <TaskCard key={task.id} task={task} />
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {/* Previous Tasks */}
+            {previousTasks.length > 0 && (
+                <section className="task-section">
+                    <div className="section-header">
+                        <h2 className="section-title" style={{ color: 'var(--accent)' }}>
+                            <HistoryIcon size={20} />
+                            Previous Assignments
+                        </h2>
+                        <span className="task-count-badge" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>
+                            {previousTasks.length}
+                        </span>
+                    </div>
+                    <div className="task-grid">
+                        {previousTasks.map(task => (
+                            <TaskCard key={task.id} task={task} />
+                        ))}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }
 
-function TaskCard({ task, onToggle, isUpdating }: { task: Task, onToggle: () => void, isUpdating: boolean }) {
-    const isCompleted = task.employee_task_status === 'COMPLETED';
+function TaskCard({ task }: { task: Task }) {
+    const statusUpper = (task.status || '').toUpperCase();
+    const isApproved = ['APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes(statusUpper);
     
+    // Determine badge styling and label based on status
+    let statusLabel = task.status || 'Pending';
+    let badgeClass = 'status-pending';
+    
+    if (isApproved) {
+        statusLabel = 'Approved';
+        badgeClass = 'status-approved';
+    } else if (statusUpper === 'PENDING' || statusUpper === 'CONTENT NOT STARTED') {
+        statusLabel = 'Not Started';
+        badgeClass = 'status-not-started';
+    } else if (statusUpper === 'WAITING FOR APPROVAL' || statusUpper === 'WAITING FOR FINAL APPROVAL') {
+        statusLabel = 'Waiting Approval';
+        badgeClass = 'status-waiting';
+    }
+
     return (
-        <div className={`task-card ${isCompleted ? 'completed' : ''}`}>
+        <div className={`task-card ${isApproved ? 'completed' : ''}`}>
             <div className="task-card-header">
-                <span className="task-client-badge">{task.clients.company_name}</span>
+                <span className="task-client-badge">{task.clients?.company_name || 'Freelancer Task'}</span>
                 <div className="task-type-badge">
                     {task.content_type === 'Reel' || task.content_type === 'YouTube' ? <Video size={14} /> : <FileText size={14} />}
                     {(task.content_type === 'Special Poster' || task.content_type === 'Special Day Poster' ? '🎉 ' : '') + task.content_type}
@@ -368,23 +183,13 @@ function TaskCard({ task, onToggle, isUpdating }: { task: Task, onToggle: () => 
                     <Calendar size={14} />
                     Due: {format(parseISO(task.scheduled_datetime), 'MMM do')}
                 </div>
-                <button 
-                    className={`btn-complete-toggle ${isCompleted ? 'completed' : 'pending'}`}
-                    onClick={(e) => { e.stopPropagation(); onToggle(); }}
-                    disabled={isUpdating}
-                >
-                    {isUpdating ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Loader2 size={16} className="spinner-btn-icon" /> Updating...
-                        </div>
-                    ) : isCompleted ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <CheckCircle2 size={16} /> Done
-                        </div>
-                    ) : 'Mark Complete'}
-                </button>
+                <div className={`status-badge-premium ${badgeClass}`}>
+                    {isApproved ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+                    <span>{statusLabel}</span>
+                </div>
             </div>
         </div>
     );
 }
+
 

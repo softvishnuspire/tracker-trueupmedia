@@ -218,7 +218,9 @@ export const adminApi = {
     acceptOnboarding: (id: string, password: string) => adminBase.post(`/api/admin/onboarding-requests/${id}/accept`, { password }),
     rejectOnboarding: (id: string) => adminBase.post(`/api/admin/onboarding-requests/${id}/reject`),
     getTrackingStats: (date?: string) => adminBase.get<TrackingProductivityResponse>(`/api/admin/tracking/productivity${date ? `?date=${date}` : ''}`),
+    getStreaks: (month?: string) => adminBase.get<any>(`/api/admin/streaks${month ? `?month=${month}` : ''}`),
 };
+
 
 const cooBase = axios.create({
     baseURL: API_BASE_URL,

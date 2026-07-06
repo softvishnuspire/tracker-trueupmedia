@@ -4938,6 +4938,358 @@ app.patch('/api/admin/settings', requireRoles(ADMIN_ROLES), async (req, res) => 
     }
 });
 
+// ─── Streaks System Helper & Endpoint ───
+const toIstDateString = (dateLike) => {
+    if (!dateLike) return null;
+    try {
+        if (typeof dateLike === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateLike)) {
+            return dateLike;
+        }
+        const d = new Date(dateLike);
+        if (isNaN(d.getTime())) return null;
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        return formatter.format(d); // YYYY-MM-DD
+    } catch (e) {
+        return null;
+    }
+};
+
+async function syncMonthlyStreaks(monthStr) {
+    if (!monthStr || !/^\d{4}-\d{2}$/.test(monthStr)) {
+        throw new Error('Invalid month format, expected YYYY-MM');
+    }
+
+    const [year, mon] = monthStr.split('-');
+    const startDate = `${year}-${mon}-01`;
+    const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+    const endDate = `${year}-${mon}-${String(lastDay).padStart(2, '0')}`;
+
+    console.log(`[StreakSync] Syncing streaks for ${monthStr} (${startDate} to ${endDate})`);
+
+    // 1. Fetch all users
+    const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('user_id, name, email, role, role_identifier');
+    if (usersError) throw usersError;
+
+    // Filter TLs and Employees
+    const teamLeads = users.filter(u => {
+        const r = normalizeRole(u.role);
+        const ri = normalizeRole(u.role_identifier);
+        return ri.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
+    });
+
+    const employees = users.filter(u => {
+        const r = normalizeRole(u.role);
+        const ri = normalizeRole(u.role_identifier);
+        return ['EMPLOYEE'].includes(r) || ['EMPLOYEE'].includes(ri);
+    });
+
+    // 2. Fetch all active, non-deleted clients
+    const { data: clients, error: clientsError } = await supabase
+        .from('clients')
+        .select('id, company_name, team_lead_id')
+        .eq('is_active', true)
+        .eq('is_deleted', false);
+    if (clientsError) throw clientsError;
+
+    // 3. Fetch all POC communications for the month
+    const { data: pocComms, error: pocError } = await supabase
+        .from('poc_communications')
+        .select('client_id, team_lead_id, note_date')
+        .gte('note_date', startDate)
+        .lte('note_date', endDate);
+    if (pocError) throw pocError;
+
+    // 4. Fetch all tasks (content_items and freelancer_tasks) assigned to employees in the month
+    const startOfMonthTS = `${startDate}T00:00:00.000Z`;
+    const endOfMonthTS = `${endDate}T23:59:59.999Z`;
+
+    const [contentItemsRes, freelancerTasksRes] = await Promise.all([
+        supabase
+            .from('content_items')
+            .select('id, assigned_to, status, assigned_at')
+            .not('assigned_to', 'is', null)
+            .gte('assigned_at', startOfMonthTS)
+            .lte('assigned_at', endOfMonthTS),
+        supabase
+            .from('freelancer_tasks')
+            .select('id, assigned_to, status, assigned_at')
+            .not('assigned_to', 'is', null)
+            .gte('assigned_at', startOfMonthTS)
+            .lte('assigned_at', endOfMonthTS)
+    ]);
+
+    if (contentItemsRes.error) throw contentItemsRes.error;
+    if (freelancerTasksRes.error) throw freelancerTasksRes.error;
+
+    const allTasks = [
+        ...(contentItemsRes.data || []),
+        ...(freelancerTasksRes.data || [])
+    ];
+
+    // Calculate dates in month
+    const monthDates = [];
+    for (let day = 1; day <= lastDay; day++) {
+        monthDates.push(`${year}-${mon}-${String(day).padStart(2, '0')}`);
+    }
+
+    const streaksToUpsert = [];
+    const streaksToDelete = [];
+
+    // --- Process Team Leads ---
+    for (const tl of teamLeads) {
+        const tlClients = clients.filter(c => c.team_lead_id === tl.user_id);
+        const tlClientIds = tlClients.map(c => c.id);
+
+        if (tlClientIds.length === 0) {
+            for (const d of monthDates) {
+                streaksToDelete.push({ user_id: tl.user_id, streak_date: d, streak_type: 'TL_COMMUNICATION' });
+            }
+            continue;
+        }
+
+        const tlComms = pocComms.filter(p => p.team_lead_id === tl.user_id);
+
+        for (const d of monthDates) {
+            const communicatedClientIds = new Set(
+                tlComms
+                    .filter(p => toIstDateString(p.note_date) === d)
+                    .map(p => p.client_id)
+            );
+
+            // Check if all assigned clients are communicated with
+            const allCommunicated = tlClientIds.every(cid => communicatedClientIds.has(cid));
+
+            if (allCommunicated) {
+                streaksToUpsert.push({ user_id: tl.user_id, streak_date: d, streak_type: 'TL_COMMUNICATION' });
+            } else {
+                streaksToDelete.push({ user_id: tl.user_id, streak_date: d, streak_type: 'TL_COMMUNICATION' });
+            }
+        }
+    }
+
+    // --- Process Employees ---
+    for (const emp of employees) {
+        const empTasks = allTasks.filter(t => t.assigned_to === emp.user_id);
+
+        const tasksByDate = {};
+        for (const t of empTasks) {
+            const dateStr = toIstDateString(t.assigned_at);
+            if (!dateStr || !dateStr.startsWith(monthStr)) continue;
+            if (!tasksByDate[dateStr]) tasksByDate[dateStr] = [];
+            tasksByDate[dateStr].push(t);
+        }
+
+        for (const d of monthDates) {
+            const dayTasks = tasksByDate[d] || [];
+            
+            if (dayTasks.length === 0) {
+                streaksToDelete.push({ user_id: emp.user_id, streak_date: d, streak_type: 'EMPLOYEE_TASKS' });
+                continue;
+            }
+
+            const allApproved = dayTasks.every(t => 
+                ['APPROVED', 'WAITING FOR POSTING', 'POSTED'].includes((t.status || '').toUpperCase())
+            );
+
+            if (allApproved) {
+                streaksToUpsert.push({ user_id: emp.user_id, streak_date: d, streak_type: 'EMPLOYEE_TASKS' });
+            } else {
+                streaksToDelete.push({ user_id: emp.user_id, streak_date: d, streak_type: 'EMPLOYEE_TASKS' });
+            }
+        }
+    }
+
+    try {
+        // Fetch existing streaks for this month
+        const { data: existingStreaks, error: existError } = await supabase
+            .from('user_streaks')
+            .select('id, user_id, streak_date, streak_type')
+            .gte('streak_date', startDate)
+            .lte('streak_date', endDate);
+
+        if (existError) {
+            console.error('[StreakSync] Error fetching existing streaks. Table might not exist:', existError.message);
+            return;
+        }
+
+        const existingMap = new Map();
+        existingStreaks.forEach(s => {
+            const key = `${s.user_id}_${toIstDateString(s.streak_date)}_${s.streak_type}`;
+            existingMap.set(key, s.id);
+        });
+
+        const toInsert = [];
+        const toDeleteIds = [];
+
+        streaksToUpsert.forEach(s => {
+            const key = `${s.user_id}_${s.streak_date}_${s.streak_type}`;
+            if (!existingMap.has(key)) {
+                toInsert.push(s);
+            }
+        });
+
+        streaksToDelete.forEach(s => {
+            const key = `${s.user_id}_${s.streak_date}_${s.streak_type}`;
+            if (existingMap.has(key)) {
+                toDeleteIds.push(existingMap.get(key));
+            }
+        });
+
+        console.log(`[StreakSync] Deleting ${toDeleteIds.length} obsolete streaks and inserting ${toInsert.length} new streaks.`);
+
+        if (toDeleteIds.length > 0) {
+            await supabase.from('user_streaks').delete().in('id', toDeleteIds);
+        }
+
+        if (toInsert.length > 0) {
+            await supabase.from('user_streaks').insert(toInsert);
+        }
+    } catch (e) {
+        console.error('[StreakSync] Table user_streaks might not exist. Run migration first.', e.message);
+    }
+}
+
+app.get('/api/admin/streaks', requireRoles(ADMIN_ROLES), async (req, res) => {
+    const { month } = req.query;
+    
+    let selectedMonth = month;
+    if (!selectedMonth) {
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit'
+        });
+        selectedMonth = formatter.format(now).substring(0, 7);
+    }
+
+    try {
+        await syncMonthlyStreaks(selectedMonth);
+
+        const { data: users, error: usersError } = await supabase
+            .from('users')
+            .select('user_id, name, email, role, role_identifier');
+        if (usersError) throw usersError;
+
+        const { data: clients, error: clientsError } = await supabase
+            .from('clients')
+            .select('id, company_name, team_lead_id')
+            .eq('is_active', true)
+            .eq('is_deleted', false);
+        if (clientsError) throw clientsError;
+
+        const { data: streaks, error: streaksError } = await supabase
+            .from('user_streaks')
+            .select('*')
+            .gte('streak_date', `${selectedMonth}-01`)
+            .lte('streak_date', `${selectedMonth}-31`);
+
+        const streaksData = streaksError ? [] : (streaks || []);
+
+        const teamLeads = users.filter(u => {
+            const r = normalizeRole(u.role);
+            const ri = normalizeRole(u.role_identifier);
+            return ri.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
+        });
+
+        const employees = users.filter(u => {
+            const r = normalizeRole(u.role);
+            const ri = normalizeRole(u.role_identifier);
+            return ['EMPLOYEE'].includes(r) || ['EMPLOYEE'].includes(ri);
+        });
+
+        const tlResponse = teamLeads.map(tl => {
+            const tlClients = clients.filter(c => c.team_lead_id === tl.user_id);
+            const tlStreaks = streaksData.filter(s => s.user_id === tl.user_id && s.streak_type === 'TL_COMMUNICATION');
+            return {
+                id: tl.user_id,
+                name: tl.name,
+                email: tl.email,
+                role: tl.role_identifier || tl.role,
+                streakCount: tlStreaks.length,
+                streakDays: tlStreaks.map(s => toIstDateString(s.streak_date)),
+                assignedClients: tlClients.map(c => c.company_name)
+            };
+        });
+
+        const empResponse = employees.map(emp => {
+            const empStreaks = streaksData.filter(s => s.user_id === emp.user_id && s.streak_type === 'EMPLOYEE_TASKS');
+            return {
+                id: emp.user_id,
+                name: emp.name,
+                email: emp.email,
+                role: emp.role_identifier || emp.role,
+                streakCount: empStreaks.length,
+                streakDays: empStreaks.map(s => toIstDateString(s.streak_date))
+            };
+        });
+
+        res.json({
+            month: selectedMonth,
+            teamLeads: tlResponse,
+            employees: empResponse
+        });
+
+    } catch (error) {
+        console.error('[Streaks API] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+async function backfillAllStreaks() {
+    try {
+        console.log('🔄 Running historical streaks backfill...');
+        // Fetch all assigned_at dates from content_items and freelancer_tasks, and note_date from poc_communications
+        const [contentRes, freelanceRes, pocRes] = await Promise.all([
+            supabase.from('content_items').select('assigned_at').not('assigned_at', 'is', null),
+            supabase.from('freelancer_tasks').select('assigned_at').not('assigned_at', 'is', null),
+            supabase.from('poc_communications').select('note_date')
+        ]);
+
+        const months = new Set();
+        const addMonth = (dateStr) => {
+            if (!dateStr) return;
+            const month = toIstDateString(dateStr)?.substring(0, 7); // YYYY-MM
+            if (month && /^\d{4}-\d{2}$/.test(month)) {
+                months.add(month);
+            }
+        };
+
+        if (contentRes.data) contentRes.data.forEach(x => addMonth(x.assigned_at));
+        if (freelanceRes.data) freelanceRes.data.forEach(x => addMonth(x.assigned_at));
+        if (pocRes.data) pocRes.data.forEach(x => addMonth(x.note_date));
+
+        // Also ensure current month is added
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit'
+        });
+        months.add(formatter.format(now).substring(0, 7));
+
+        console.log(`[StreakBackfill] Found ${months.size} distinct months containing data to backfill:`, Array.from(months));
+
+        // Sync each month
+        for (const month of months) {
+            await syncMonthlyStreaks(month);
+        }
+        console.log('✅ Historical streaks backfill completed successfully.');
+    } catch (err) {
+        console.error('⚠️ Warning: Historical streaks backfill failed (probably user_streaks table doesn\'t exist yet):', err.message);
+    }
+}
+
+// Trigger backfill asynchronously on startup (wait 3 seconds to let database connection initialize)
+setTimeout(backfillAllStreaks, 3000);
+
 app.use((err, req, res, next) => {
     console.error('Unhandled Error:', err);
     res.status(500).json({ error: 'Internal Server Error', message: err.message });
