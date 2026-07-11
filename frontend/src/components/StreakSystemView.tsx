@@ -302,8 +302,8 @@ function StreakCard({ user, days, month, type }: { user: StreakUser, days: strin
                 <div>
                     <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {user.name}
-                        {hasPerfectStreak && <Sparkles size={16} style={{ color: 'var(--accent)' }} title="Outstanding Performer" />}
-                        {hasGreatStreak && !hasPerfectStreak && <Award size={16} style={{ color: '#eab308' }} title="Gold Standard" />}
+                        {hasPerfectStreak && <span title="Outstanding Performer"><Sparkles size={16} style={{ color: 'var(--accent)' }} /></span>}
+                        {hasGreatStreak && !hasPerfectStreak && <span title="Gold Standard"><Award size={16} style={{ color: '#eab308' }} /></span>}
                     </h3>
                     <p style={{ margin: '4px 0', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 500 }}>
                         {user.role} • {user.email}

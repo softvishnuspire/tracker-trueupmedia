@@ -36,9 +36,9 @@ interface Task {
     description: string;
     content_type: string;
     scheduled_datetime: string;
-    assigned_at?: string;
     status: string;
-    clients: { company_name: string } | null;
+    assigned_at?: string;
+    clients?: { company_name: string } | null;
 }
 
 export default function EmployeeDashboard() {

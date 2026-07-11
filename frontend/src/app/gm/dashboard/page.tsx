@@ -175,7 +175,7 @@ export default function GMDashboard() {
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [globalCalendarData, setGlobalCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc' | 'tracking' | 'employees'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc' | 'tracking' | 'employees' | 'streaks'>('dashboard');
     const [productionEmployees, setProductionEmployees] = useState<any[]>([]);
     const [isEmployeeAssignModalOpen, setIsEmployeeAssignModalOpen] = useState(false);
     const [isTaskAssignModalOpen, setIsTaskAssignModalOpen] = useState(false);
