@@ -15,7 +15,7 @@ import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/uti
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import '../../gm/dashboard/gm.css';
 
 interface ContentDetails {
@@ -89,17 +89,9 @@ export default function AdminDashboard() {
   const selectedClientData = clients.find(c => c.id === selectedClient);
   const isBiMonthlyView = !!selectedClient && selectedClientData?.batch_type === '15-15';
 
-  const periodStart = isBiMonthlyView
-    ? (currentMonth.getDate() >= 15
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-        : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
-    : startOfMonth(currentMonth);
-
-  const periodEnd = isBiMonthlyView
-    ? (currentMonth.getDate() >= 15
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
-        : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
-    : endOfMonth(currentMonth);
+  const { periodStart, periodEnd } = isBiMonthlyView
+    ? get15BiMonthlyPeriod(currentMonth)
+    : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
   const isDayInPeriod = useCallback((date: Date) => {
     if (!isBiMonthlyView) return isSameMonth(date, currentMonth);

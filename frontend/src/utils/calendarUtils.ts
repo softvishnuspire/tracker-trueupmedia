@@ -46,3 +46,44 @@ export function isCrossMonthRescheduled(item: ContentItem): boolean {
         return false;
     }
 }
+
+/**
+ * Calculates the start and end dates for a 15-15 bi-monthly cycle.
+ * The period is calculated dynamically based on a reference date (refDate)
+ * and its relation to the actual real-world current period.
+ */
+export function get15BiMonthlyPeriod(refDate: Date): { periodStart: Date; periodEnd: Date } {
+    const today = new Date();
+    
+    // Helper to get the period anchor month (15th of the cycle's starting month)
+    const getPeriodAnchor = (date: Date): Date => {
+        const d = new Date(date.getTime());
+        if (d.getDate() >= 15) {
+            return new Date(d.getFullYear(), d.getMonth(), 15, 0, 0, 0, 0);
+        } else {
+            return new Date(d.getFullYear(), d.getMonth() - 1, 15, 0, 0, 0, 0);
+        }
+    };
+
+    const currentAnchor = getPeriodAnchor(today);
+    const selectedAnchor = getPeriodAnchor(refDate);
+
+    const diffMonths = (selectedAnchor.getFullYear() - currentAnchor.getFullYear()) * 12 + (selectedAnchor.getMonth() - currentAnchor.getMonth());
+
+    let periodStart: Date;
+    let periodEnd: Date;
+
+    if (diffMonths === 0) {
+        periodStart = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth(), 15, 0, 0, 0, 0);
+        periodEnd = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth() + 1, 15, 23, 59, 59, 999);
+    } else if (diffMonths > 0) {
+        periodStart = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth(), 16, 0, 0, 0, 0);
+        periodEnd = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth() + 1, 15, 23, 59, 59, 999);
+    } else {
+        periodStart = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth(), 15, 0, 0, 0, 0);
+        periodEnd = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth() + 1, 14, 23, 59, 59, 999);
+    }
+
+    return { periodStart, periodEnd };
+}
+

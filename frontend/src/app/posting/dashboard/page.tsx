@@ -27,6 +27,7 @@ import { usePageLoading } from '@/components/ui/TopProgressBar';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
+import { get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import '../posting.css';
 
 interface ContentItem {
@@ -69,20 +70,22 @@ export default function PostingDashboard() {
     const router = useRouter();
     const supabase = createClient();
 
-    const getClientBatchType = (clientId: string) => {
-        if (clientId === 'all') return '1-1';
-        const client = clients.find(c => c.id === clientId);
-        return client?.batch_type || '1-1';
-    };
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const isBiMonthlyView = selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+
+    const { periodStart, periodEnd } = isBiMonthlyView
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
     const getPeriodLabel = () => {
+        if (isBiMonthlyView) {
+            return `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`;
+        }
         return `Current Month (${format(startOfMonth(currentMonth), 'MMM d')} - ${format(endOfMonth(currentMonth), 'MMM d')})`;
     };
 
     const isDayInPeriod = (date: Date) => {
-        const start = startOfMonth(currentMonth);
-        const end = endOfMonth(currentMonth);
-        return date >= start && date <= end;
+        return date >= periodStart && date <= periodEnd;
     };
 
     const fetchClients = useCallback(async () => {
@@ -609,17 +612,6 @@ export default function PostingDashboard() {
     };
 
     const getDays = () => {
-        const isBiMonthly = selectedClient !== 'all' && getClientBatchType(selectedClient) === '15-15';
-        if (!isBiMonthly) {
-            return eachDayOfInterval({
-                start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-                end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
-            });
-        }
-
-        const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15);
-        const periodEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 14);
-        
         return eachDayOfInterval({
             start: startOfWeek(periodStart, { weekStartsOn: 1 }),
             end: endOfWeek(periodEnd, { weekStartsOn: 1 })

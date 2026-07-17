@@ -37,7 +37,7 @@ import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -76,13 +76,9 @@ export default function CooMasterCalendar() {
     const selectedClientData = clients.find(c => c.id === selectedClient);
     const isBiMonthlyView = selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
-    const periodStart = isBiMonthlyView
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-        : startOfMonth(currentMonth);
-
-    const periodEnd = isBiMonthlyView
-        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 15, 23, 59, 59)
-        : endOfMonth(currentMonth);
+    const { periodStart, periodEnd } = isBiMonthlyView
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
     const isDayInPeriod = (day: Date): boolean => {
         if (!isBiMonthlyView) return isSameMonth(day, currentMonth);

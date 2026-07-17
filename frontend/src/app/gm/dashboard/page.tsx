@@ -82,7 +82,7 @@ import {
 } from '@/lib/api';
 import { downloadAllEmployeesReport, downloadEmployeeReport } from '@/utils/pdfExport';
 import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -291,17 +291,9 @@ export default function GMDashboard() {
     const selectedClientData = clients.find(c => c.id === selectedClient);
     const isBiMonthlyView = (view === 'client' || view === 'master' || view === 'dashboard') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
-    const periodStart = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
-        : startOfMonth(currentMonth);
-
-    const periodEnd = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
-        : endOfMonth(currentMonth);
+    const { periodStart, periodEnd } = isBiMonthlyView
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
     const isDayInPeriod = (day: Date): boolean => {
         if (!isBiMonthlyView) return isSameMonth(day, currentMonth);

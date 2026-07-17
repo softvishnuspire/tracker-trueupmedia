@@ -50,7 +50,7 @@ import {
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { formatIST, getClientAbbreviation } from '@/lib/utils';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -257,17 +257,9 @@ export default function ProductionHeadDashboard() {
     const selectedClientData = clients.find(c => c.id === selectedClient);
     const isBiMonthlyView = (view === 'client' || view === 'viewTaskClient' || view === 'master' || view === 'dashboard') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
-    const periodStart = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
-        : startOfMonth(currentMonth);
-
-    const periodEnd = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
-        : endOfMonth(currentMonth);
+    const { periodStart, periodEnd } = isBiMonthlyView
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
     const getPeriodLabel = useCallback(() => {
         if (isBiMonthlyView) {

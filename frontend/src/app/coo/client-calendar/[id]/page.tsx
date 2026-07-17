@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { formatIST, formatISTForm, convertISTToUTC } from '@/lib/utils';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import ScheduleExport from '@/components/ScheduleExport';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
@@ -132,13 +132,9 @@ export default function CooClientCalendarPage() {
 
     const isBiMonthly = (client?.batch_type || '1-1') === '15-15';
 
-    const periodStart = isBiMonthly
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-        : startOfMonth(currentMonth);
-    const nextMonth = addMonths(currentMonth, 1);
-    const periodEnd = isBiMonthly
-        ? new Date(addMonths(currentMonth, 1).getFullYear(), addMonths(currentMonth, 1).getMonth(), 15, 23, 59, 59)
-        : endOfMonth(currentMonth);
+    const { periodStart, periodEnd } = isBiMonthly
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
     const days = viewMode === 'month'
         ? eachDayOfInterval({

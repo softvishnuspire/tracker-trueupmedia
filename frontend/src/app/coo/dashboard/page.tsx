@@ -56,7 +56,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import './coo.css';
 
 export default function CooDashboard() {
@@ -112,17 +112,9 @@ export default function CooDashboard() {
     const selectedClientData = clients.find(c => c.id === selectedClient);
     const isBiMonthlyView = selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
-    const periodStart = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
-        : startOfMonth(currentMonth);
-
-    const periodEnd = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
-        : endOfMonth(currentMonth);
+    const { periodStart, periodEnd } = isBiMonthlyView
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
     const isDayInPeriod = (day: Date): boolean => {
         if (!isBiMonthlyView) return isSameMonth(day, currentMonth);

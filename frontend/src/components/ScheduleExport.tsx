@@ -1,5 +1,6 @@
 import React from 'react';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, startOfWeek, endOfWeek, addMonths } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
+import { get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 interface ContentItem {
     id: string;
     title: string;
@@ -61,13 +62,9 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
 
     // Period Calculation
     const isBiMonthly = batchType === '15-15';
-    const periodStart = isBiMonthly
-        ? new Date(month.getFullYear(), month.getMonth(), 15, 0, 0, 0, 0)
-        : startOfMonth(month);
-    const nextMonth = addMonths(month, 1);
-    const periodEnd = isBiMonthly
-        ? new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 15, 23, 59, 59, 999)
-        : endOfMonth(month);
+    const { periodStart, periodEnd } = isBiMonthly
+        ? get15BiMonthlyPeriod(month)
+        : { periodStart: startOfMonth(month), periodEnd: endOfMonth(month) };
 
     const periodLabel = isBiMonthly
         ? `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`

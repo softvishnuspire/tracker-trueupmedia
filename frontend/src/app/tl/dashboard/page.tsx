@@ -53,7 +53,7 @@ import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
@@ -704,17 +704,9 @@ export default function TLDashboard() {
     const selectedClientData = clients.find(c => c.id === selectedClient);
     const isBiMonthlyView = view === 'client' && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
-    const periodStart = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
-        : startOfMonth(currentMonth);
-
-    const periodEnd = isBiMonthlyView
-        ? (currentMonth.getDate() >= 15
-            ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
-            : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
-        : endOfMonth(currentMonth);
+    const { periodStart, periodEnd } = isBiMonthlyView
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
     const days = eachDayOfInterval({
         start: startOfWeek(periodStart, { weekStartsOn: 1 }),
@@ -798,19 +790,10 @@ export default function TLDashboard() {
 
     const clientStatuses = clients.map(client => {
         const is1515 = client.batch_type === '15-15';
-        const isSecondHalf = currentMonth.getDate() >= 15;
         
-        const clientPeriodStart = is1515
-            ? (isSecondHalf
-                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-                : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
-            : startOfMonth(currentMonth);
-
-        const clientPeriodEnd = is1515
-            ? (isSecondHalf
-                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 15)
-                : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15))
-            : endOfMonth(currentMonth);
+        const { periodStart: clientPeriodStart, periodEnd: clientPeriodEnd } = is1515
+            ? get15BiMonthlyPeriod(currentMonth)
+            : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
         const clientItems = calendarData.filter(item => {
             if (item.client_id !== client.id) return false;

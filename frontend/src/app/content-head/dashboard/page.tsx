@@ -33,7 +33,7 @@ import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { useDebouncedRefresh } from '@/hooks/useDebouncedRefresh';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { getClientAbbreviation, formatIST, getISTDate } from '@/lib/utils';
 import './content-head.css';
 
@@ -121,20 +121,10 @@ export default function ContentHeadDashboard() {
         return Boolean(selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15');
     }, [selectedClient, selectedClientData]);
 
-    const periodStart = useMemo(() => {
+    const { periodStart, periodEnd } = useMemo(() => {
         return isBiMonthlyView
-            ? (currentMonth.getDate() >= 15
-                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15)
-                : new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 15))
-            : startOfMonth(currentMonth);
-    }, [currentMonth, isBiMonthlyView]);
-
-    const periodEnd = useMemo(() => {
-        return isBiMonthlyView
-            ? (currentMonth.getDate() >= 15
-                ? new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 14)
-                : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 14))
-            : endOfMonth(currentMonth);
+            ? get15BiMonthlyPeriod(currentMonth)
+            : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
     }, [currentMonth, isBiMonthlyView]);
 
     const getPeriodLabel = useCallback(() => {

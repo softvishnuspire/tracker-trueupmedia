@@ -39,7 +39,7 @@ import {
 import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import ScheduleExport from '@/components/ScheduleExport';
 import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -131,13 +131,9 @@ export default function ClientCalendarPage() {
     // For 15-15 clients, the period spans from 15th of current month to 15th of next month
     const isBiMonthly = (client?.batch_type || '1-1') === '15-15';
 
-    const periodStart = isBiMonthly
-        ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15, 0, 0, 0, 0)
-        : startOfMonth(currentMonth);
-    const nextMonth = addMonths(currentMonth, 1);
-    const periodEnd = isBiMonthly
-        ? new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 15, 23, 59, 59, 999)
-        : endOfMonth(currentMonth);
+    const { periodStart, periodEnd } = isBiMonthly
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
 
     const days = viewMode === 'month' 
         ? eachDayOfInterval({
