@@ -33,7 +33,14 @@ import {
     ShieldAlert,
     ArrowRight,
     MessageSquare,
-    Calendar
+    Calendar,
+    X,
+    AlertTriangle,
+    Undo2,
+    Loader2,
+    Check,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import {
     gmApi,
@@ -48,7 +55,7 @@ import {
     ContentDetails,
     settingsApi
 } from '@/lib/api';
-import { getClientAbbreviation, getISTDate } from '@/lib/utils';
+import { getClientAbbreviation, getISTDate, formatIST } from '@/lib/utils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -267,9 +274,84 @@ export default function CooDashboard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedClient, currentMonth, clients.length]);
 
-    const handleItemClick = (item: ContentItem) => {
-        // Redirect to calendar details directly
-        router.push(`/coo/master-calendar?taskId=${item.id}`);
+    const [selectedItem, setSelectedItem] = useState<ContentDetails | null>(null);
+    const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
+    const [statusNote, setStatusNote] = useState('');
+    const [actionId, setActionId] = useState<string | null>(null);
+
+    const handleItemClick = async (item: ContentItem) => {
+        try {
+            const res = await cooApi.getContentDetails(item.id);
+            const fetchedItem = res.data.item;
+            
+            // Find all tasks on the same day
+            const day = getCalendarItemDate(fetchedItem);
+            const tasksOnDay = calendarData.filter(i => isSameDay(getCalendarItemDate(i), day));
+            
+            if (!tasksOnDay.some(t => t.id === fetchedItem.id)) {
+                tasksOnDay.push(fetchedItem);
+            }
+            
+            tasksOnDay.sort((a, b) => new Date(a.scheduled_datetime).getTime() - new Date(b.scheduled_datetime).getTime());
+            
+            setDayTasks(tasksOnDay);
+            setSelectedItem(res.data);
+            setStatusNote('');
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const navigateToTask = async (direction: 'next' | 'prev') => {
+        if (!selectedItem || dayTasks.length <= 1) return;
+        
+        const currentIndex = dayTasks.findIndex(t => t.id === selectedItem.item.id);
+        let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+        
+        if (nextIndex < 0) nextIndex = dayTasks.length - 1;
+        if (nextIndex >= dayTasks.length) nextIndex = 0;
+        
+        const nextTask = dayTasks[nextIndex];
+        try {
+            const res = await cooApi.getContentDetails(nextTask.id);
+            setSelectedItem(res.data);
+            setStatusNote('');
+        } catch (err) { console.error(err); }
+    };
+
+    const handleStatusUpdate = async (newStatus: string) => {
+        if (!selectedItem) return;
+        const targetId = selectedItem.item.id;
+        setActionId(`status-${targetId}`);
+        const currentNote = statusNote;
+        try {
+            await cooApi.updateStatus(targetId, newStatus, currentNote.trim() || undefined);
+            const res = await cooApi.getContentDetails(targetId);
+            setSelectedItem(res.data);
+            setStatusNote('');
+            fetchDashboardStats();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleUndoStatus = async () => {
+        if (!selectedItem) return;
+        if (!window.confirm('Are you sure you want to undo the last status change?')) return;
+        const targetId = selectedItem.item.id;
+        setActionId(`undo-${targetId}`);
+        try {
+            await cooApi.undoStatus(targetId);
+            const res = await cooApi.getContentDetails(targetId);
+            setSelectedItem(res.data);
+            fetchDashboardStats();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
     };
 
     const globalMonthCounts = globalCalendarData.filter(item => {
@@ -784,6 +866,288 @@ export default function CooDashboard() {
                     </div>
                 )}
             </div>
+
+            {selectedItem && (
+                <div className="modal-overlay">
+                    <div className="modal-content modal-lg">
+                        <div className="modal-header">
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                                    <span className={`type-badge ${selectedItem.item.content_type.toLowerCase()}`}>
+                                        {selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type}
+                                    </span>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
+                                    {selectedItem.item.clients?.company_name && (
+                                        <Link href={`/coo/client-calendar/${selectedItem.item.client_id}`} className="client-link-hover">
+                                            {selectedItem.item.clients?.company_name}
+                                        </Link>
+                                    )}
+                                    {selectedItem.item.clients?.team_lead?.name && (
+                                        <>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500 }}>
+                                                TL: {selectedItem.item.clients.team_lead.name}
+                                            </span>
+                                        </>
+                                    )}
+                                    {dayTasks.length > 1 && (
+                                        <>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
+                                            <span className="task-counter" style={{ color: 'var(--accent)', fontWeight: 800, fontSize: '11px', textTransform: 'uppercase' }}>
+                                                Task {dayTasks.findIndex(t => t.id === selectedItem.item.id) + 1} of {dayTasks.length}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                                <h3 className="modal-title">{selectedItem.item.title || (selectedItem.item.content_type === 'Special Poster' || selectedItem.item.content_type === 'Special Day Poster' ? '🎉 ' + selectedItem.item.content_type : selectedItem.item.content_type)}</h3>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
+                                    Team Lead: {selectedItem.item.clients?.team_lead?.name || 'Not Assigned'}
+                                </p>
+                                <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)', marginTop: '2px' }}>
+                                    Assigned To: {selectedItem.item.assigned_employee ? `${selectedItem.item.assigned_employee.name} ${selectedItem.item.assigned_employee.role_identifier ? `(${selectedItem.item.assigned_employee.role_identifier})` : ''}` : 'Not Assigned'}
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                {dayTasks.length > 1 && (
+                                    <div className="task-nav-buttons" style={{ display: 'flex', gap: '4px', marginRight: '8px', paddingRight: '12px', borderRight: '1px solid var(--border)' }}>
+                                        <button
+                                            onClick={() => navigateToTask('prev')}
+                                            className="nav-btn"
+                                            style={{
+                                                width: '32px', height: '32px', borderRadius: '8px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                                                color: 'var(--text-primary)', cursor: 'pointer'
+                                            }}
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => navigateToTask('next')}
+                                            className="nav-btn"
+                                            style={{
+                                                width: '32px', height: '32px', borderRadius: '8px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                                                color: 'var(--text-primary)', cursor: 'pointer'
+                                            }}
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
+                                )}
+                                <button onClick={() => setSelectedItem(null)} className="modal-close"><X size={20}/></button>
+                            </div>
+                        </div>
+
+                        <div className="detail-grid" style={{ padding: '32px' }}>
+                            <div className="detail-info">
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+                                    <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                                        {selectedItem.item.is_rescheduled && selectedItem.item.original_scheduled_datetime ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', gridColumn: 'span 1' }}>
+                                                <div>
+                                                    <label className="detail-label">Calendar Date</label>
+                                                    <div className="date-item">
+                                                        <Calendar size={14} />
+                                                        <span className="date-display">
+                                                            Actual Date: {formatIST(getDisplayDate(selectedItem.item.original_scheduled_datetime), 'dd/MM/yyyy')} rescheduled to {formatIST(getDisplayDate(selectedItem.item.scheduled_datetime), 'dd/MM/yy')}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {selectedItem.item.reschedule_history && selectedItem.item.reschedule_history.length > 0 && (
+                                                    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border)', width: '100%' }}>
+                                                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule History</span>
+                                                        {selectedItem.item.reschedule_history.map((h: any, idx: number) => (
+                                                            <div key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '6px' }}>
+                                                                <span>{idx + 1}.</span>
+                                                                <span>{formatIST(getDisplayDate(h.from), 'dd/MM/yyyy')}</span>
+                                                                <span>➔</span>
+                                                                <span>{formatIST(getDisplayDate(h.to), 'dd/MM/yy')}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <label className="detail-label">Calendar Date</label>
+                                                <div className="date-item">
+                                                    <Calendar size={14} />
+                                                    <span className="date-display">{format(getDisplayDate(selectedItem.item.scheduled_datetime), 'MMM d, yyyy')}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label className="detail-label">Posting Time</label>
+                                            <div className="date-item">
+                                                <Clock size={14} />
+                                                <span className="date-display">{formatIST(selectedItem.item.scheduled_datetime, 'hh:mm a')}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="detail-label">Workflow Status (Historical)</label>
+                                <div style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
+                                    <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '4px' }}>Current Status</p>
+                                    <p style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)' }}>{selectedItem.item.status}</p>
+                                </div>
+
+                                {(() => {
+                                    const flows: any = {
+                                        Reel: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                        YouTube: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'],
+                                        Post: ['PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED']
+                                    };
+                                    const flow = flows[selectedItem.item.content_type] || [];
+                                    const currentIdx = flow.indexOf(selectedItem.item.status);
+                                    const nextStatus = flow[currentIdx + 1];
+                                    const isSpecialStatus = selectedItem.item.status === 'POSTED';
+
+                                    if (!nextStatus || isSpecialStatus) return null;
+
+                                    return (
+                                        <div style={{ marginBottom: '24px', padding: '16px', background: 'var(--bg-elevated)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                                            <label className="detail-label">Advance to Next Step</label>
+                                            <textarea
+                                                placeholder="Add a note (optional)..."
+                                                value={statusNote}
+                                                onChange={(e) => setStatusNote(e.target.value)}
+                                                style={{ width: '100%', padding: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px', marginBottom: '12px', resize: 'none', height: '60px' }}
+                                            />
+                                            <button
+                                                onClick={() => handleStatusUpdate(nextStatus)}
+                                                disabled={actionId !== null}
+                                                style={{ width: '100%', padding: '12px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+                                            >
+                                                {actionId === `status-${selectedItem.item.id}` ? (
+                                                    <>
+                                                        Advancing...
+                                                        <Loader2 size={16} className="spinner-btn-icon" />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        Advance to {nextStatus}
+                                                        <ChevronRight size={18} />
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <label className="detail-label" style={{ marginBottom: 0 }}>Activity Log</label>
+                                    <button 
+                                        onClick={handleUndoStatus} 
+                                        disabled={actionId !== null}
+                                        className="btn-undo" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px' }}
+                                    >
+                                        {actionId === `undo-${selectedItem.item.id}` ? (
+                                            <Loader2 size={14} className="spinner-btn-icon" />
+                                        ) : (
+                                            <Undo2 size={14} />
+                                        )}
+                                        Undo Last Action
+                                    </button>
+                                </div>
+                                <div style={{ marginTop: '24px', position: 'relative', paddingLeft: '12px', display: 'flex', flexDirection: 'column' }}>
+                                    <div style={{
+                                        position: 'absolute', left: '23px', top: '12px', bottom: '12px',
+                                        width: '2px', background: 'linear-gradient(to bottom, #10b981 0%, var(--border) 100%)', opacity: 0.3, zIndex: 1
+                                    }}></div>
+                                    {(() => {
+                                        const flows: any = {
+                                            Reel: [
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            YouTube: [
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ],
+                                            Post: [
+                                                'PENDING', 'CONTENT NOT STARTED', 'CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED',
+                                                'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'
+                                            ]
+                                        };
+                                        const flow = flows[selectedItem.item.content_type] || [];
+                                        const currentStatus = selectedItem.item.status;
+                                        const currentIdx = flow.indexOf(currentStatus);
+
+                                        return flow.map((status: string, idx: number) => {
+                                            const isCompleted = idx < currentIdx || currentStatus === 'POSTED';
+                                            const isCurrent = idx === currentIdx && currentStatus !== 'POSTED';
+                                            const historyEntry = selectedItem.history.find((h: any) => h.new_status === status);
+
+                                            return (
+                                                <div key={status} style={{
+                                                    display: 'flex', alignItems: 'flex-start', gap: '20px',
+                                                    paddingBottom: idx === flow.length - 1 ? 0 : '32px',
+                                                    position: 'relative', zIndex: 2
+                                                }}>
+                                                    <div style={{
+                                                        width: '24px', height: '24px', borderRadius: '50%',
+                                                        background: isCompleted ? '#10b981' : isCurrent ? 'var(--accent)' : 'var(--bg-surface)',
+                                                        border: `2px solid ${isCompleted ? '#10b981' : isCurrent ? 'var(--accent)' : '#ef4444'}`,
+                                                        flexShrink: 0, marginTop: '2px', display: 'flex',
+                                                        alignItems: 'center', justifyContent: 'center'
+                                                    }}>
+                                                        {isCompleted ? (
+                                                            <Check size={14} color="white" strokeWidth={3} />
+                                                        ) : isCurrent ? (
+                                                            <div style={{ width: '8px', height: '8px', background: 'white', borderRadius: '50%' }}></div>
+                                                        ) : (
+                                                            <div style={{ width: '6px', height: '6px', background: '#ef4444', borderRadius: '50%' }}></div>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ flex: 1 }}>
+                                                        <span style={{
+                                                            fontSize: isCurrent ? '15px' : '14px', fontWeight: 800,
+                                                            color: isCompleted ? '#10b981' : isCurrent ? 'var(--text-primary)' : '#ef4444',
+                                                            letterSpacing: '0.02em'
+                                                        }}>{status}</span>
+                                                        {historyEntry && (
+                                                            <div style={{
+                                                                display: 'flex', flexDirection: 'column', marginTop: '6px',
+                                                                padding: '10px 14px', background: 'rgba(255, 255, 255, 0.03)',
+                                                                borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)'
+                                                            }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                                        {historyEntry.users?.role_identifier || historyEntry.users?.name || 'Updated'}
+                                                                    </span>
+                                                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                                        {format(parseISO(historyEntry.changed_at), 'MMM d, HH:mm')}
+                                                                    </span>
+                                                                </div>
+                                                                {historyEntry.note && (
+                                                                    <div style={{
+                                                                        marginTop: '8px', padding: '8px 12px',
+                                                                        background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px',
+                                                                        fontSize: '12px', color: 'var(--text-secondary)',
+                                                                        fontStyle: 'italic', borderLeft: '3px solid var(--accent)'
+                                                                    }}>
+                                                                        "{historyEntry.note}"
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
