@@ -1,16 +1,11 @@
+"use client";
+
 import React from 'react';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
-import { get15BiMonthlyPeriod } from '@/utils/calendarUtils';
-interface ContentItem {
-    id: string;
-    title: string;
-    description: string;
-    content_type: 'Post' | 'Reel' | 'YouTube' | 'Special Poster' | 'Special Day Poster';
-    scheduled_datetime: string;
-    status: string;
-    client_id: string;
-    clients?: { company_name: string };
-}
+import { get15BiMonthlyPeriod, isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { ContentItem } from '@/lib/api';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 interface ScheduleExportProps {
     data: ContentItem[];
@@ -31,9 +26,6 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
         element.style.display = 'block';
 
         try {
-            const html2canvas = (await import('html2canvas')).default;
-            const { jsPDF } = await import('jspdf');
-
             const canvas = await html2canvas(element, {
                 scale: 3, // Increased scale for high-definition clarity
                 useCORS: true,
@@ -228,9 +220,16 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                         {summaryOnly ? (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                                 {(() => {
-                                                    const postCount = dayItems.filter(i => i.content_type === 'Post').length;
-                                                    const reelCount = dayItems.filter(i => i.content_type === 'Reel').length;
-                                                    const youtubeCount = dayItems.filter(i => i.content_type === 'YouTube').length;
+                                                    const rescheduledItems = dayItems.filter(i => i.is_rescheduled || isCrossMonthRescheduled(i));
+                                                    const normalItems = dayItems.filter(i => !(i.is_rescheduled || isCrossMonthRescheduled(i)));
+                                                    const emergencyItems = normalItems.filter(i => i.is_emergency);
+                                                    const regularItems = normalItems.filter(i => !i.is_emergency);
+
+                                                    const postCount = regularItems.filter(i => i.content_type === 'Post').length;
+                                                    const reelCount = regularItems.filter(i => i.content_type === 'Reel').length;
+                                                    const youtubeCount = regularItems.filter(i => i.content_type === 'YouTube').length;
+                                                    const emergencyCount = emergencyItems.length;
+                                                    const rescheduledCount = rescheduledItems.length;
 
                                                     return (
                                                         <>
@@ -258,14 +257,35 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                                                     {youtubeCount} YT
                                                                 </div>
                                                             )}
+                                                            {emergencyCount > 0 && (
+                                                                <div style={{
+                                                                    fontSize: '9px', fontWeight: 800, padding: '3px 6px', borderRadius: '6px',
+                                                                    background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', textAlign: 'center', border: '1px solid rgba(239, 68, 68, 0.2)'
+                                                                }}>
+                                                                    {emergencyCount} EMERG
+                                                                </div>
+                                                            )}
+                                                            {rescheduledCount > 0 && (
+                                                                <div style={{
+                                                                    fontSize: '9px', fontWeight: 800, padding: '3px 6px', borderRadius: '6px',
+                                                                    background: 'rgba(249, 115, 22, 0.1)', color: '#f97316', textAlign: 'center', border: '1px solid rgba(249, 115, 22, 0.2)'
+                                                                }}>
+                                                                    {rescheduledCount} RESCHED
+                                                                </div>
+                                                            )}
                                                         </>
                                                     );
                                                 })()}
                                             </div>
                                         ) : (
                                             dayItems.map((item, i) => {
+                                                const isRescheduled = item.is_rescheduled || isCrossMonthRescheduled(item);
                                                 let typeBg = '#4f46e5'; // default Post (Indigo)
-                                                if (item.content_type === 'Reel') {
+                                                if (isRescheduled) {
+                                                    typeBg = '#f97316'; // Rescheduled (Bright Orange)
+                                                } else if (item.is_emergency) {
+                                                    typeBg = '#ef4444'; // Emergency (Red)
+                                                } else if (item.content_type === 'Reel') {
                                                     typeBg = '#0891b2'; // Cyan
                                                 } else if (item.content_type === 'YouTube') {
                                                     typeBg = '#dc2626'; // Red
@@ -292,7 +312,10 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                                                         gap: '5px'
                                                     }}>
                                                         <span style={{ fontSize: '7px', opacity: 0.85 }}>●</span>
-                                                        <span style={{ textTransform: 'uppercase' }}>{item.content_type}</span>
+                                                        <span style={{ textTransform: 'uppercase' }}>
+                                                            {isCrossMonthRescheduled(item) ? '[RM] ' : item.is_rescheduled ? '[R] ' : ''}
+                                                            {item.content_type}
+                                                        </span>
                                                         {item.title && (
                                                             <span style={{ 
                                                                 fontWeight: 600, 
