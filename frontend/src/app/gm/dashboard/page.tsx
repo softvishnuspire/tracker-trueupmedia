@@ -2879,19 +2879,15 @@ export default function GMDashboard() {
                         <div className="calendar-legend-bar">
                             <div className="legend-item">
                                 <span className="legend-color reel"></span>
-                                <span className="legend-label">Reel</span>
+                                <span className="legend-label">Reels</span>
                             </div>
                             <div className="legend-item">
                                 <span className="legend-color post"></span>
-                                <span className="legend-label">Post</span>
+                                <span className="legend-label">Posters</span>
                             </div>
                             <div className="legend-item">
                                 <span className="legend-color emergency"></span>
                                 <span className="legend-label">Emergency</span>
-                            </div>
-                            <div className="legend-item">
-                                <span className="legend-color pending"></span>
-                                <span className="legend-label">Pending</span>
                             </div>
                             <div className="legend-item">
                                 <span className="legend-color rescheduled"></span>
@@ -2993,7 +2989,7 @@ export default function GMDashboard() {
                                                                         handleItemClick(item);
                                                                     }
                                                                 }}
-                                                                className={isPocView ? 'content-item post' : `content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${item.is_emergency ? 'emergency' : ''}`}
+                                                                className={isPocView ? 'content-item post' : `content-item ${(item as ContentItem).is_emergency ? 'emergency' : ((item as ContentItem).is_rescheduled || isCrossMonthRescheduled(item as ContentItem)) ? 'rescheduled' : (item as ContentItem).content_type.toLowerCase().replace(/\s+/g, '-')}`}
                                                             >
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
                                                                     {isPocView ? <FileText size={10} /> : item.content_type === 'Post' ? <FileText size={10} /> : <Video size={10} />}
@@ -3036,7 +3032,7 @@ export default function GMDashboard() {
                                                             return (
                                                                 <div
                                                                     key={item.id}
-                                                                    className={`mobile-dot ${isPocView ? 'post' : isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase().replace(/\s+/g, '-')} ${!isPocView && item.is_emergency ? 'emergency' : ''}`}
+                                                                    className={`mobile-dot ${isPocView ? 'post' : (!isPocView && item.is_emergency) ? 'emergency' : (item.is_rescheduled || isCrossMonthRescheduled(item)) ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')}`}
                                                                 >
                                                                     {label}
                                                                 </div>

@@ -1427,19 +1427,15 @@ export default function TLDashboard() {
                         <div className="calendar-legend-bar">
                             <div className="legend-item">
                                 <span className="legend-color reel"></span>
-                                <span className="legend-label">Reel</span>
+                                <span className="legend-label">Reels</span>
                             </div>
                             <div className="legend-item">
                                 <span className="legend-color post"></span>
-                                <span className="legend-label">Post</span>
+                                <span className="legend-label">Posters</span>
                             </div>
                             <div className="legend-item">
                                 <span className="legend-color emergency"></span>
                                 <span className="legend-label">Emergency</span>
-                            </div>
-                            <div className="legend-item">
-                                <span className="legend-color pending"></span>
-                                <span className="legend-label">Pending</span>
                             </div>
                             <div className="legend-item">
                                 <span className="legend-color rescheduled"></span>
@@ -1501,7 +1497,7 @@ export default function TLDashboard() {
                                                                         handleItemClick(item);
                                                                     }
                                                                 }}
-                                                                className={isPocView ? 'content-item post' : `content-item ${(item as ContentItem).is_rescheduled ? 'rescheduled' : (((item as ContentItem).status || '').toUpperCase() === 'PENDING' ? 'pending' : (item as ContentItem).content_type.toLowerCase().replace(/\s+/g, '-'))} ${(item as ContentItem).is_emergency ? 'emergency' : ''}`}
+                                                                className={isPocView ? 'content-item post' : `content-item ${(item as ContentItem).is_emergency ? 'emergency' : (item as ContentItem).is_rescheduled ? 'rescheduled' : (item as ContentItem).content_type.toLowerCase().replace(/\s+/g, '-')}`}
                                                                 title={isPocView ? (item as PocNote).note_text : (item as ContentItem).content_type}
                                                             >
                                                                 {isPocView ? <FileText size={10}/> : (item as ContentItem).content_type === 'Post' ? <FileText size={10}/> : <Video size={10}/>}
@@ -1540,7 +1536,7 @@ export default function TLDashboard() {
                                                             return (
                                                                 <div
                                                                     key={item.id}
-                                                                    className={`mobile-dot ${isPocView ? 'post' : casted.is_rescheduled ? 'rescheduled' : ((casted.status || '').toUpperCase() === 'PENDING' ? 'pending' : (casted.content_type || '').toLowerCase().replace(/\s+/g, '-'))} ${!isPocView && casted.is_emergency ? 'emergency' : ''}`}
+                                                                    className={`mobile-dot ${isPocView ? 'post' : casted.is_emergency ? 'emergency' : casted.is_rescheduled ? 'rescheduled' : (casted.content_type || '').toLowerCase().replace(/\s+/g, '-')}`}
                                                                 >
                                                                     {label}
                                                                 </div>

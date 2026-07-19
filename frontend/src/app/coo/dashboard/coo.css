@@ -647,16 +647,12 @@
         border: none !important;
     }
 
-    .mobile-dot.post {
-        background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%) !important;
+    .mobile-dot.post, .mobile-dot.poster, .mobile-dot.special-poster, .mobile-dot.special-day-poster {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
     }
 
-    .mobile-dot.reel {
-        background: linear-gradient(135deg, #ec4899 0%, #db2777 100%) !important;
-    }
-
-    .mobile-dot.youtube {
-        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+    .mobile-dot.reel, .mobile-dot.youtube {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
     }
 
     .mobile-dot.emergency {
@@ -664,16 +660,8 @@
         box-shadow: 0 0 6px rgba(239, 68, 68, 0.6) !important;
     }
 
-    .mobile-dot.pending {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
-    }
-
-    .mobile-dot.rescheduled {
-        background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%) !important;
-    }
-
-    .mobile-dot.rescheduled-cross-month {
-        background: #f97316 !important;
+    .mobile-dot.rescheduled, .mobile-dot.rescheduled-cross-month {
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
     }
 
     /* Aggressively hide all desktop event blocks on mobile */
@@ -1274,44 +1262,54 @@
     max-width: 100%;
 }
 
-.content-item.post {
-    background: rgba(6, 182, 212, 0.1);
-    color: #06b6d4;
-    border: 1px solid rgba(6, 182, 212, 0.2);
+.content-item.post,
+.content-item.poster,
+.content-item.special-poster,
+.content-item.special-day-poster {
+    background: rgba(245, 158, 11, 0.1) !important;
+    color: #f59e0b !important;
+    border: 1px solid rgba(245, 158, 11, 0.2) !important;
 }
 
-.content-item.post:hover {
-    background: rgba(6, 182, 212, 0.2);
+.content-item.post:hover,
+.content-item.poster:hover,
+.content-item.special-poster:hover,
+.content-item.special-day-poster:hover {
+    background: rgba(245, 158, 11, 0.2) !important;
 }
 
-.content-item.reel {
-    background: rgba(236, 72, 153, 0.1);
-    color: #ec4899;
-    border: 1px solid rgba(236, 72, 153, 0.2);
+.content-item.reel,
+.content-item.youtube {
+    background: rgba(16, 185, 129, 0.1) !important;
+    color: #10b981 !important;
+    border: 1px solid rgba(16, 185, 129, 0.2) !important;
 }
 
-.content-item.reel:hover {
-    background: rgba(236, 72, 153, 0.2);
+.content-item.reel:hover,
+.content-item.youtube:hover {
+    background: rgba(16, 185, 129, 0.2) !important;
 }
 
-.content-item.rescheduled {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.content-item.rescheduled:hover {
-    background: rgba(239, 68, 68, 0.2);
-}
-
+.content-item.rescheduled,
 .content-item.rescheduled-cross-month {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-    border: 1px solid rgba(249, 115, 22, 0.2);
+    background: rgba(249, 115, 22, 0.1) !important;
+    color: #f97316 !important;
+    border: 1px solid rgba(249, 115, 22, 0.2) !important;
 }
 
+.content-item.rescheduled:hover,
 .content-item.rescheduled-cross-month:hover {
-    background: rgba(249, 115, 22, 0.2);
+    background: rgba(249, 115, 22, 0.2) !important;
+}
+
+.content-item.emergency {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #ef4444 !important;
+    border: 1px solid rgba(239, 68, 68, 0.2) !important;
+}
+
+.content-item.emergency:hover {
+    background: rgba(239, 68, 68, 0.2) !important;
 }
 
 /* ─── Modals ─── */
@@ -3743,25 +3741,20 @@
     flex-shrink: 0;
 }
 
-.legend-color.reel {
-    background: #ec4899;
+.legend-color.reel, .legend-color.youtube {
+    background: #10b981;
 }
 
-.legend-color.post {
-    background: #06b6d4;
+.legend-color.post, .legend-color.poster {
+    background: #f59e0b;
 }
 
 .legend-color.emergency {
     background: #ef4444;
-    box-shadow: 0 0 6px #ef4444;
-}
-
-.legend-color.pending {
-    background: #f59e0b;
 }
 
 .legend-color.rescheduled {
-    background: #a855f7;
+    background: #f97316;
 }
 
 @media (max-width: 768px) {

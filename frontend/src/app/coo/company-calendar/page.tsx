@@ -423,19 +423,15 @@ export default function CooCompanyCalendar() {
             <div className="calendar-legend-bar">
                 <div className="legend-item">
                     <span className="legend-color reel"></span>
-                    <span className="legend-label">Reel</span>
+                    <span className="legend-label">Reels</span>
                 </div>
                 <div className="legend-item">
                     <span className="legend-color post"></span>
-                    <span className="legend-label">Post</span>
+                    <span className="legend-label">Posters</span>
                 </div>
                 <div className="legend-item">
                     <span className="legend-color emergency"></span>
                     <span className="legend-label">Emergency</span>
-                </div>
-                <div className="legend-item">
-                    <span className="legend-color pending"></span>
-                    <span className="legend-label">Pending</span>
                 </div>
                 <div className="legend-item">
                     <span className="legend-color rescheduled"></span>
@@ -493,7 +489,7 @@ export default function CooCompanyCalendar() {
                                                 <div
                                                     key={item.id}
                                                     onClick={() => handleItemClick(item)}
-                                                    className={`content-item ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    className={`content-item ${item.is_emergency ? 'emergency' : (item.is_rescheduled || isCrossMonthRescheduled(item)) ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')}`}
                                                     title={`${item.clients?.company_name} - ${item.content_type}${item.clients?.team_lead?.name ? ` (TL: ${item.clients.team_lead.name})` : ''}`}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
@@ -542,7 +538,7 @@ export default function CooCompanyCalendar() {
                                             {dayContent.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className={`mobile-dot ${isCrossMonthRescheduled(item) ? 'rescheduled-cross-month' : item.is_rescheduled ? 'rescheduled' : (item.status || '').toUpperCase() === 'PENDING' ? 'pending' : item.content_type.toLowerCase()} ${item.is_emergency ? 'emergency' : ''}`}
+                                                    className={`mobile-dot ${item.is_emergency ? 'emergency' : (item.is_rescheduled || isCrossMonthRescheduled(item)) ? 'rescheduled' : item.content_type.toLowerCase().replace(/\s+/g, '-')}`}
                                                 >
                                                     {item.clients?.company_name?.substring(0, 3).toUpperCase() || 'CLI'}
                                                 </div>
