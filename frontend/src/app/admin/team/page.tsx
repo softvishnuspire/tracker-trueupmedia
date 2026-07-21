@@ -60,7 +60,7 @@ export default function TeamManagement() {
         await adminApi.deleteTeamMember(id);
         fetchTeam();
       } catch (err: any) {
-        alert(err.message);
+        alert(err.response?.data?.error || err.message);
       }
     }
   };

@@ -14,7 +14,9 @@ import {
     addMonths,
     subMonths,
     parseISO,
-    isBefore
+    isBefore,
+    startOfDay,
+    endOfDay
 } from 'date-fns';
 import {
     ChevronLeft,
@@ -82,7 +84,7 @@ export default function CooMasterCalendar() {
 
     const isDayInPeriod = (day: Date): boolean => {
         if (!isBiMonthlyView) return isSameMonth(day, currentMonth);
-        return day >= periodStart && day <= periodEnd;
+        return day >= startOfDay(periodStart) && day <= endOfDay(periodEnd);
     };
 
     const fetchMasterData = useCallback(async (isSilent = false) => {
@@ -441,7 +443,9 @@ export default function CooMasterCalendar() {
                         </button>
                         <span className="month-label">
                             {viewMode === 'month'
-                                ? format(currentMonth, 'MMMM yyyy')
+                                ? (isBiMonthlyView
+                                    ? `${format(periodStart, 'd MMM')} – ${format(periodEnd, 'd MMM yyyy')}`
+                                    : format(currentMonth, 'MMMM yyyy'))
                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                             }
                         </span>

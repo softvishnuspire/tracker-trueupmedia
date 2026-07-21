@@ -3,12 +3,12 @@
 import React from 'react';
 import ClientManagementView from '@/components/ClientManagementView';
 
-export default function AdminClientManagement() {
+export default function GmClientManagement() {
   return (
     <ClientManagementView
-      role="admin"
-      basePath="/admin"
-      title="Client Management & Team Assignments"
+      role="gm"
+      basePath="/gm"
+      title="GM Client Management & Team Assignments"
       subtitle="Add, edit, and assign clients to Team Leads, Video Editors, Post Designers, and Writers."
     />
   );

@@ -267,7 +267,7 @@ export default function TLDashboard() {
                 const merged = responses.flatMap((response) => response.data || []);
                 const deduped = Array.from(new Map(merged.map((item) => [item.id, item])).values());
                 setCalendarData(deduped);
-            } else if (view === 'dashboard') {
+            } else if (view === 'dashboard' || (selectedClient !== 'all' && selectedClientData?.batch_type === '15-15')) {
                 const isSecondHalf = currentMonth.getDate() >= 15;
                 const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
                 const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
@@ -702,7 +702,7 @@ export default function TLDashboard() {
 
 
     const selectedClientData = clients.find(c => c.id === selectedClient);
-    const isBiMonthlyView = view === 'client' && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+    const isBiMonthlyView = (view === 'client' || view === 'master') && selectedClient && selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
 
     const { periodStart, periodEnd } = isBiMonthlyView
         ? get15BiMonthlyPeriod(currentMonth)

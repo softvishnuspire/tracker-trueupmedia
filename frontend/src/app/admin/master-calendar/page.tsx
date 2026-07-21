@@ -16,7 +16,8 @@ import {
     parseISO,
     isPast,
     isBefore,
-    startOfDay
+    startOfDay,
+    endOfDay
 } from 'date-fns';
 import {
     ChevronLeft,
@@ -44,7 +45,7 @@ import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { createClient } from '@/utils/supabase/client';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -117,6 +118,18 @@ export default function MasterCalendar() {
     };
 
 
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const isBiMonthlyView = selectedClient !== 'all' && selectedClientData?.batch_type === '15-15';
+
+    const { periodStart, periodEnd } = isBiMonthlyView
+        ? get15BiMonthlyPeriod(currentMonth)
+        : { periodStart: startOfMonth(currentMonth), periodEnd: endOfMonth(currentMonth) };
+
+    const isDayInPeriod = (day: Date): boolean => {
+        if (!isBiMonthlyView) return isSameMonth(day, currentMonth);
+        return day >= startOfDay(periodStart) && day <= endOfDay(periodEnd);
+    };
+
     const fetchMasterData = useCallback(async (isSilent = false) => {
         if (!isSilent) {
             startLoading();
@@ -129,12 +142,24 @@ export default function MasterCalendar() {
             setIsRefreshing(true);
         }
         try {
+            const currentMonthStr = format(currentMonth, 'yyyy-MM');
             const res = await adminApi.getMasterCalendar(
-                format(currentMonth, 'yyyy-MM'),
+                currentMonthStr,
                 selectedClient === 'all' ? undefined : selectedClient,
                 selectedType === 'all' ? undefined : selectedType
             );
-            setCalendarData(res.data);
+
+            if (isBiMonthlyView) {
+                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
+                const nextRes = await adminApi.getMasterCalendar(
+                    nextMonthStr,
+                    selectedClient,
+                    selectedType === 'all' ? undefined : selectedType
+                );
+                setCalendarData([...res.data, ...nextRes.data]);
+            } else {
+                setCalendarData(res.data);
+            }
         } catch (err) {
             console.error(err);
             toastError('Failed to refresh calendar data.');
@@ -143,7 +168,7 @@ export default function MasterCalendar() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [currentMonth, selectedClient, selectedType, calendarData.length, startLoading, stopLoading, toastError]);
+    }, [currentMonth, selectedClient, selectedType, isBiMonthlyView, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
         const isSilent = calendarData.length > 0;
@@ -179,8 +204,8 @@ export default function MasterCalendar() {
 
     const days = viewMode === 'month'
         ? eachDayOfInterval({
-            start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 }),
-            end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
+            start: startOfWeek(periodStart, { weekStartsOn: 1 }),
+            end: endOfWeek(periodEnd, { weekStartsOn: 1 })
         })
         : eachDayOfInterval({
             start: startOfWeek(currentMonth, { weekStartsOn: 1 }),
@@ -313,9 +338,10 @@ export default function MasterCalendar() {
         }
     };
 
-    const monthStatusCounts = calendarData.reduce(
+    const monthStatusCounts = calendarData
+        .filter((item) => isDayInPeriod(parseISO(item.scheduled_datetime)) && !isCrossMonthRescheduled(item))
+        .reduce(
         (acc, item) => {
-            if (isCrossMonthRescheduled(item)) return acc;
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();
             
@@ -401,7 +427,9 @@ export default function MasterCalendar() {
                         </button>
                         <span className="month-label">
                             {viewMode === 'month'
-                                ? format(currentMonth, 'MMMM yyyy')
+                                ? (isBiMonthlyView
+                                    ? `${format(periodStart, 'd MMM')} – ${format(periodEnd, 'd MMM yyyy')}`
+                                    : format(currentMonth, 'MMMM yyyy'))
                                 : `Week of ${format(startOfWeek(currentMonth, { weekStartsOn: 1 }), 'MMM d')}`
                             }
                         </span>
@@ -527,7 +555,7 @@ export default function MasterCalendar() {
                                                 }
                                             }
                                         }}
-                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isSameMonth(day, currentMonth) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+                                        className={`calendar-day ${viewMode === 'week' ? 'weekly-cell' : ''} ${!isDayInPeriod(day) && viewMode === 'month' ? 'other-month' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
                                         style={{ minHeight: viewMode === 'week' ? '300px' : '110px', cursor: dayContent.length > 0 ? 'pointer' : 'default' }}
                                     >
                                         <span className="day-number">{format(day, 'd')}</span>

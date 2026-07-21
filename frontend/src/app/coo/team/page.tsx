@@ -157,7 +157,7 @@ export default function TeamManagement() {
         fetchTeam();
         fetchTeamLeadsAndClients();
       } catch (err: any) {
-        alert(err.message);
+        alert(err.response?.data?.error || err.message);
       }
     }
   };

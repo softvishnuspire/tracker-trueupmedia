@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
     format,
     startOfMonth,
@@ -1446,6 +1447,10 @@ export default function GMDashboard() {
                         <LayoutDashboard size={20} />
                         <span>Dashboard Overview</span>
                     </div>
+                    <Link href="/gm/clients" className="nav-item">
+                        <Users size={20} />
+                        <span>Client Management</span>
+                    </Link>
                     <div
                         onClick={() => {
                             setView('client');

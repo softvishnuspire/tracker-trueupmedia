@@ -1,6 +1,37 @@
 # GRAPH REPORT
 
-## Latest Changes — 2026-07-05 (Implementation of Streak System for Employees & Team Leads)
+## Latest Changes — 2026-07-21 (Master Calendar 15-15 Bi-Monthly Client Selection Support)
+- **Goal**: Ensure that when selecting a client with a `15-15` batch cycle in the Master Calendar view, the calendar dynamically switches to the 15-15 bi-monthly range (spanning from the 15th to 15th), fetches adjacent month calendar data, renders the correct date boundaries, and updates status summary metrics accordingly.
+- **Affected Files**:
+    - `frontend/src/app/admin/master-calendar/page.tsx`
+    - `frontend/src/app/coo/master-calendar/page.tsx`
+    - `frontend/src/app/tl/dashboard/page.tsx`
+    - `graphify-out/GRAPH_REPORT.md`
+- **System Impact**: Synchronizes Master Calendar views across Admin, COO, and TL panels with 15-15 bi-monthly cycle logic (`get15BiMonthlyPeriod`). Ensures multi-month API fetching (`currentMonth` and `nextMonth` / `startMonth` and `endMonth`), dynamically renders grid interval days spanning 15th to 15th, formats the period range header label (e.g. `15 Jun – 15 Jul 2026`), and filters status metrics by active period bounds.
+
+## Previous Changes — 2026-07-21 (Client Management & Team Member Assignment Access for COO, GM, and Manager)
+- **Goal**: Enable COO, GM, and Manager roles to manage client profiles and assign/reassign Team Leads, Video Editors, Post Designers, and Content Writers directly to clients, aligned with GM/Admin panel capabilities.
+- **Affected Files**:
+    - `backend/index.js`
+    - `frontend/src/lib/api.ts`
+    - `frontend/src/components/ClientManagementView.tsx` [NEW]
+    - `frontend/src/app/admin/clients/page.tsx`
+    - `frontend/src/app/coo/clients/page.tsx`
+    - `frontend/src/app/gm/clients/page.tsx` [NEW]
+    - `frontend/src/app/manager/clients/page.tsx` [NEW]
+    - `frontend/src/app/gm/dashboard/page.tsx`
+    - `frontend/src/app/manager/dashboard/page.tsx`
+- **System Impact**: Integrates Team Lead (`team_lead_id`), Video Editor (`reel_employee_id`), Post Designer (`post_employee_id`), and Writer (`writer_employee_id`) assignment controls into backend client endpoints (`/api/admin/clients`, `/api/coo/clients`, `/api/gm/clients`). Replaces individual client management pages with a unified `ClientManagementView` component across Admin, COO, GM, and Manager panels. Automatically cascades editor/designer assignments to matching client content items (`Reel`, `YouTube`, `Post`) upon update and flushes client Redis caches.
+
+## Previous Changes — 2026-07-21 (Employee Deletion Foreign Key Cleanup Fix)
+- **Goal**: Fix employee/team member deletion failures by ensuring all foreign key references (`writer_employee_id`, `user_streaks`, `notification_recipients`, `poc_communications`, `freelancer_tasks`, `emergency_logs`, and client assignments across all roles) are safely unassigned or cleaned up prior to removing the user record from Supabase Auth and PostgreSQL `users` table.
+- **Affected Files**:
+    - `backend/index.js`
+    - `frontend/src/app/admin/team/page.tsx`
+    - `frontend/src/app/coo/team/page.tsx`
+- **System Impact**: Prevents PostgreSQL foreign key constraint violation errors (`23503`) when deleting employees or team leads who have records in `user_streaks`, `notification_recipients`, `poc_communications`, `freelancer_tasks`, or assigned writing duties. Ensures full server cache flushing (`myCache.flushAll()`) upon deletion and displays clear API error responses in admin/COO team management alerts.
+
+## Previous Changes — 2026-07-05 (Implementation of Streak System for Employees & Team Leads)
 - **Goal**: Implement a monthly streak tracking system. Award streaks to Team Leads when they communicate with all assigned clients via POC communication, and to Employees when all assigned tasks on a given day are approved. Remove manual task status toggling in the Employee Dashboard and show read-only status badges instead. Display accumulated monthly streaks on a dedicated dashboard view for Admins, COOs, GMs, and Managers.
 - **Affected Files**:
     - `backend/index.js`

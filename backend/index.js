@@ -1004,7 +1004,10 @@ app.get('/api/admin/clients', async (req, res) => {
     const cached = myCache.get("admin_clients");
     if (cached) return res.json(cached);
 
-    const { data, error } = await supabase.from('clients').select('*, team_lead:team_lead_id (name)').eq('is_deleted', false).order('company_name');
+    const { data, error } = await supabase.from('clients')
+        .select('*, team_lead:team_lead_id (name), reel_employee:reel_employee_id (name), post_employee:post_employee_id (name), writer_employee:writer_employee_id (name)')
+        .eq('is_deleted', false)
+        .order('company_name');
     if (error) return res.status(500).json({ error: error.message });
     myCache.set("admin_clients", data);
     res.json(data);
@@ -1012,7 +1015,7 @@ app.get('/api/admin/clients', async (req, res) => {
 
 app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
     console.log('POST /api/admin/clients - Body:', req.body);
-    const { company_name, phone, email, address, posts_per_month, reels_per_month, youtube_per_month, batch_type, password } = req.body;
+    const { company_name, phone, email, address, posts_per_month, reels_per_month, youtube_per_month, batch_type, password, team_lead_id, reel_employee_id, post_employee_id, writer_employee_id } = req.body;
 
     if (!company_name) return res.status(400).json({ error: 'Company Name is mandatory' });
     if (!email) return res.status(400).json({ error: 'Email is mandatory' });
@@ -1061,17 +1064,21 @@ app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
             reels_per_month: parseInt(reels_per_month) || 0,
             youtube_per_month: parseInt(youtube_per_month) || 0,
             batch_type: resolvedBatch,
+            team_lead_id: team_lead_id || null,
+            reel_employee_id: reel_employee_id || null,
+            post_employee_id: post_employee_id || null,
+            writer_employee_id: writer_employee_id || null,
             is_active: true,
             is_deleted: false,
             password_hash: password
-        }]).select();
+        }]).select('*, team_lead:team_lead_id (name), reel_employee:reel_employee_id (name), post_employee:post_employee_id (name), writer_employee:writer_employee_id (name)');
 
         if (clientError) {
             console.error(`[Admin] DB insertion error for client ${email}:`, clientError.message);
             return res.status(500).json({ error: clientError.message });
         }
 
-        myCache.del(["gm_clients", "admin_clients"]);
+        myCache.del(["gm_clients", "admin_clients", "coo_clients"]);
         await invalidateClientCaches(data[0].id);
         res.json(data[0]);
     } catch (error) {
@@ -1083,7 +1090,7 @@ app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
 app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     console.log(`PUT /api/admin/clients/${id} - Body:`, req.body);
-    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, youtube_per_month, batch_type, password } = req.body;
+    const { company_name, phone, email, address, is_active, posts_per_month, reels_per_month, youtube_per_month, batch_type, password, team_lead_id, reel_employee_id, post_employee_id, writer_employee_id } = req.body;
 
     const updateObj = {
         company_name,
@@ -1095,8 +1102,15 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
         youtube_per_month: parseInt(youtube_per_month),
         batch_type,
         is_active,
+        team_lead_id: team_lead_id !== undefined ? (team_lead_id || null) : undefined,
+        reel_employee_id: reel_employee_id !== undefined ? (reel_employee_id || null) : undefined,
+        post_employee_id: post_employee_id !== undefined ? (post_employee_id || null) : undefined,
+        writer_employee_id: writer_employee_id !== undefined ? (writer_employee_id || null) : undefined,
         updated_at: new Date().toISOString()
     };
+
+    // Clean undefined fields
+    Object.keys(updateObj).forEach(key => updateObj[key] === undefined && delete updateObj[key]);
 
     if (password) {
         updateObj.password_hash = password;
@@ -1112,14 +1126,22 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
         }
     }
 
-    const { data, error } = await supabase.from('clients').update(updateObj).eq('id', id).select();
+    const { data, error } = await supabase.from('clients').update(updateObj).eq('id', id).select('*, team_lead:team_lead_id (name), reel_employee:reel_employee_id (name), post_employee:post_employee_id (name), writer_employee:writer_employee_id (name)');
 
     if (error) {
         console.error(`[Admin] Error updating client ${id}:`, error.message);
         return res.status(500).json({ error: error.message });
     }
 
-    myCache.del(["gm_clients", "admin_clients"]);
+    // Cascade assignments to content_items for matching content types if assigned
+    if (reel_employee_id) {
+        await supabase.from('content_items').update({ assigned_to: reel_employee_id }).eq('client_id', id).in('content_type', ['Reel', 'YouTube']);
+    }
+    if (post_employee_id) {
+        await supabase.from('content_items').update({ assigned_to: post_employee_id }).eq('client_id', id).eq('content_type', 'Post');
+    }
+
+    myCache.del(["gm_clients", "admin_clients", "coo_clients"]);
     await invalidateClientCaches(id);
     res.json(data[0]);
 });
@@ -1351,78 +1373,43 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     try {
         console.log(`[Admin] Starting deletion sequence for ${id}`);
 
-        // 1. Unassign from clients (team lead)
-        const { error: unassignTlError } = await supabase
-            .from('clients')
-            .update({ team_lead_id: null })
-            .eq('team_lead_id', id);
-        if (unassignTlError) console.warn('[Admin] Client TL unassign warning:', unassignTlError.message);
+        // 1. Unassign from clients across all role fields
+        await supabase.from('clients').update({ team_lead_id: null }).eq('team_lead_id', id);
+        await supabase.from('clients').update({ employee_id: null }).eq('employee_id', id);
+        await supabase.from('clients').update({ reel_employee_id: null }).eq('reel_employee_id', id);
+        await supabase.from('clients').update({ post_employee_id: null }).eq('post_employee_id', id);
+        await supabase.from('clients').update({ writer_employee_id: null }).eq('writer_employee_id', id);
 
-        // 1b. Unassign from clients (generic employee)
-        const { error: unassignEmpError } = await supabase
-            .from('clients')
-            .update({ employee_id: null })
-            .eq('employee_id', id);
-        if (unassignEmpError) console.warn('[Admin] Client employee_id unassign warning:', unassignEmpError.message);
+        // 2. Clear assigned_to in content_items & freelancer_tasks
+        await supabase.from('content_items').update({ assigned_to: null, assigned_at: null }).eq('assigned_to', id);
+        await supabase.from('freelancer_tasks').update({ assigned_to: null }).eq('assigned_to', id);
 
-        // 1c. Unassign from clients (reel editor)
-        const { error: unassignReelError } = await supabase
-            .from('clients')
-            .update({ reel_employee_id: null })
-            .eq('reel_employee_id', id);
-        if (unassignReelError) console.warn('[Admin] Client reel_employee_id unassign warning:', unassignReelError.message);
+        // 3. Clear references in status_logs & notifications
+        await supabase.from('status_logs').update({ changed_by: null }).eq('changed_by', id);
+        await supabase.from('notifications').update({ sender_id: null }).eq('sender_id', id);
 
-        // 1d. Unassign from clients (post editor)
-        const { error: unassignPostError } = await supabase
-            .from('clients')
-            .update({ post_employee_id: null })
-            .eq('post_employee_id', id);
-        if (unassignPostError) console.warn('[Admin] Client post_employee_id unassign warning:', unassignPostError.message);
+        // 4. Delete user notifications & notification recipients
+        await supabase.from('user_notifications').delete().eq('user_id', id);
+        await supabase.from('notification_recipients').delete().eq('user_id', id);
 
-        // 1e. Clear assigned_to in content_items
-        const { error: contentAssignError } = await supabase
-            .from('content_items')
-            .update({ assigned_to: null, assigned_at: null })
-            .eq('assigned_to', id);
-        if (contentAssignError) console.warn('[Admin] Content items assigned_to cleanup warning:', contentAssignError.message);
-
-
-        // 2. Clear references in status_logs (set to null so history is preserved)
-        const { error: logError } = await supabase
-            .from('status_logs')
-            .update({ changed_by: null })
-            .eq('changed_by', id);
-        if (logError) console.warn('[Admin] Status logs cleanup warning:', logError.message);
-
-        // 3. Clear references in notifications
-        const { error: notifError } = await supabase
-            .from('notifications')
-            .update({ sender_id: null })
-            .eq('sender_id', id);
-        if (notifError) console.warn('[Admin] Notifications cleanup warning:', notifError.message);
-
-        // 4. Delete user notifications (recipient entries)
-        const { error: userNotifError } = await supabase
-            .from('user_notifications')
-            .delete()
-            .eq('user_id', id);
-        if (userNotifError) console.warn('[Admin] User notifications deletion warning:', userNotifError.message);
-
-        // 5. Clear references in emergency logs
-        const { error: emergencyError } = await supabase
-            .from('emergency_logs')
-            .delete()
-            .eq('user_id', id);
-        if (emergencyError) console.warn('[Admin] Emergency logs cleanup warning:', emergencyError.message);
-
-        // 6. Delete from Auth (prevents future logins)
-        // Note: Using service role key, this should work.
-        const { error: authError } = await supabase.auth.admin.deleteUser(id);
-        if (authError && authError.message !== 'User not found') {
-            console.error(`[Admin] Auth deletion error for ${id}:`, authError.message);
+        // 5. Clear emergency logs & user streaks
+        await supabase.from('emergency_logs').delete().eq('user_id', id);
+        try {
+            await supabase.from('user_streaks').delete().eq('user_id', id);
+        } catch (sErr) {
+            console.warn('[Admin] user_streaks deletion warning:', sErr.message);
         }
 
-        // 7. Finally delete from users table
+        // 6. Clear POC communications
+        await supabase.from('poc_communications').update({ team_lead_id: null }).eq('team_lead_id', id);
+
+        // 7. Delete from Auth (prevents future logins)
+        const { error: authError } = await supabase.auth.admin.deleteUser(id);
+        if (authError && authError.message !== 'User not found') {
+            console.warn(`[Admin] Auth deletion notice for ${id}:`, authError.message);
+        }
+
+        // 8. Finally delete from users table
         const { error: dbError } = await supabase.from('users').delete().eq('user_id', id);
         if (dbError) {
             console.error(`[Admin] DB deletion error for ${id}:`, dbError.message);
@@ -1430,7 +1417,7 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
         }
 
         console.log(`[Admin] Successfully deleted user ${id}`);
-        myCache.del("admin_team");
+        myCache.flushAll();
         res.json({ message: 'User deleted successfully' });
     } catch (error) {
         console.error(`[Admin] Crash during deletion of ${id}:`, error);
@@ -3405,45 +3392,36 @@ app.delete('/api/content-head/writers/:id', requireRoles(CONTENT_HEAD_ROLES), as
             return res.status(403).json({ error: 'Content Head can only delete Content Writers' });
         }
 
-        // 2. Unassign writer from clients
-        const { error: unassignWriterError } = await supabase
-            .from('clients')
-            .update({ writer_employee_id: null })
-            .eq('writer_employee_id', id);
-        if (unassignWriterError) console.warn('[Content Head] Client writer unassign warning:', unassignWriterError.message);
+        // 2. Unassign writer from clients across all fields
+        await supabase.from('clients').update({ writer_employee_id: null }).eq('writer_employee_id', id);
+        await supabase.from('clients').update({ employee_id: null }).eq('employee_id', id);
+        await supabase.from('clients').update({ reel_employee_id: null }).eq('reel_employee_id', id);
+        await supabase.from('clients').update({ post_employee_id: null }).eq('post_employee_id', id);
 
-        // 3. Clear assigned_to in content_items for this writer
-        const { error: contentAssignError } = await supabase
-            .from('content_items')
-            .update({ assigned_to: null, assigned_at: null })
-            .eq('assigned_to', id);
-        if (contentAssignError) console.warn('[Content Head] Content items assigned_to cleanup warning:', contentAssignError.message);
+        // 3. Clear assigned_to in content_items & freelancer_tasks
+        await supabase.from('content_items').update({ assigned_to: null, assigned_at: null }).eq('assigned_to', id);
+        await supabase.from('freelancer_tasks').update({ assigned_to: null }).eq('assigned_to', id);
 
-        // 4. Clear references in status_logs (set to null so history is preserved)
-        const { error: logError } = await supabase
-            .from('status_logs')
-            .update({ changed_by: null })
-            .eq('changed_by', id);
-        if (logError) console.warn('[Content Head] Status logs cleanup warning:', logError.message);
+        // 4. Clear references in status_logs & notifications
+        await supabase.from('status_logs').update({ changed_by: null }).eq('changed_by', id);
+        await supabase.from('notifications').update({ sender_id: null }).eq('sender_id', id);
 
-        // 5. Clear references in notifications
-        const { error: notifError } = await supabase
-            .from('notifications')
-            .update({ sender_id: null })
-            .eq('sender_id', id);
-        if (notifError) console.warn('[Content Head] Notifications cleanup warning:', notifError.message);
+        // 5. Delete user notifications & notification recipients
+        await supabase.from('user_notifications').delete().eq('user_id', id);
+        await supabase.from('notification_recipients').delete().eq('user_id', id);
 
-        // 6. Delete user notifications (recipient entries)
-        const { error: userNotifError } = await supabase
-            .from('user_notifications')
-            .delete()
-            .eq('user_id', id);
-        if (userNotifError) console.warn('[Content Head] User notifications deletion warning:', userNotifError.message);
+        // 6. Clear emergency logs & user streaks
+        await supabase.from('emergency_logs').delete().eq('user_id', id);
+        try {
+            await supabase.from('user_streaks').delete().eq('user_id', id);
+        } catch (sErr) {
+            console.warn('[Content Head] user_streaks deletion warning:', sErr.message);
+        }
 
         // 7. Delete from Auth (prevents future logins)
         const { error: authError } = await supabase.auth.admin.deleteUser(id);
         if (authError && authError.message !== 'User not found') {
-            console.error(`[Content Head] Auth deletion error for ${id}:`, authError.message);
+            console.warn(`[Content Head] Auth deletion notice for ${id}:`, authError.message);
         }
 
         // 8. Finally delete from users table
@@ -3454,7 +3432,7 @@ app.delete('/api/content-head/writers/:id', requireRoles(CONTENT_HEAD_ROLES), as
         }
 
         console.log(`[Content Head] Successfully deleted writer ${id}`);
-        myCache.del(["admin_team", "writers_list", "gm_clients", "admin_clients", "ph_clients"]);
+        myCache.flushAll();
         res.json({ message: 'Content Writer deleted successfully' });
     } catch (error) {
         console.error(`[Content Head] Crash during deletion of ${id}:`, error);

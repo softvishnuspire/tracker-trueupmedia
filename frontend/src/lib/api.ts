@@ -30,11 +30,15 @@ export interface Client {
     youtube_per_month?: number;
     batch_type?: '1-1' | '15-15';
     password?: string; // For adding/updating clients
-    team_lead?: { name: string; role_identifier?: string };
-    employee_id?: string | null;
-    writer_employee_id?: string | null;
+    team_lead_id?: string | null;
     reel_employee_id?: string | null;
     post_employee_id?: string | null;
+    writer_employee_id?: string | null;
+    employee_id?: string | null;
+    team_lead?: { name: string; role_identifier?: string };
+    reel_employee?: { name: string; role_identifier?: string };
+    post_employee?: { name: string; role_identifier?: string };
+    writer_employee?: { name: string; role_identifier?: string };
     created_at?: string;
 }
 
@@ -95,6 +99,9 @@ export interface PocNote {
 
 export const gmApi = {
     getClients: () => api.get<Client[]>('/api/gm/clients'),
+    addClient: (data: Partial<Client>) => api.post('/api/admin/clients', data),
+    updateClient: (id: string, data: Partial<Client>) => api.put(`/api/admin/clients/${id}`, data),
+    deleteClient: (id: string) => api.delete(`/api/admin/clients/${id}`),
     getCalendar: (clientId: string, month: string) => api.get(`/api/gm/calendar?client_id=${clientId}&month=${month}`),
     getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
         api.get<ContentItem[]>(`/api/gm/master-calendar?month=${month}${clientId ? `&client_id=${clientId}` : ''}${contentType ? `&content_type=${contentType}` : ''}${asOfDate ? `&asOfDate=${asOfDate}` : ''}`),
@@ -236,6 +243,9 @@ cooBase.interceptors.request.use(async (config) => {
 
 export const cooApi = {
     getClients: () => cooBase.get<Client[]>('/api/coo/clients'),
+    addClient: (data: Partial<Client>) => cooBase.post('/api/admin/clients', data),
+    updateClient: (id: string, data: Partial<Client>) => cooBase.put(`/api/admin/clients/${id}`, data),
+    deleteClient: (id: string) => cooBase.delete(`/api/admin/clients/${id}`),
     getStats: () => cooBase.get('/api/coo/stats'),
     getTeam: () => cooBase.get<TeamMember[]>('/api/coo/team'),
     getMasterCalendar: (month: string, clientId?: string, contentType?: string, asOfDate?: string) =>
@@ -247,6 +257,14 @@ export const cooApi = {
     addContent: (data: Partial<ContentItem>) => cooBase.post('/api/coo/content', data),
     updateContent: (id: string, data: Partial<ContentItem>) => cooBase.put(`/api/coo/content/${id}`, data),
     deleteContent: (id: string) => cooBase.delete(`/api/coo/content/${id}`),
+};
+
+export const managerApi = {
+    getClients: () => api.get<Client[]>('/api/admin/clients'),
+    addClient: (data: Partial<Client>) => api.post('/api/admin/clients', data),
+    updateClient: (id: string, data: Partial<Client>) => api.put(`/api/admin/clients/${id}`, data),
+    deleteClient: (id: string) => api.delete(`/api/admin/clients/${id}`),
+    getTeam: () => api.get<TeamMember[]>('/api/admin/team'),
 };
 
 const phBase = axios.create({
