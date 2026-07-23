@@ -2579,8 +2579,8 @@ export default function GMDashboard() {
                                                     </div>
                                                 </div>
 
-                                                <div className="card-body">
-                                                    <div className="stats-2x2-grid">
+                                                <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                    <div className="stats-2x2-grid" style={{ marginBottom: 0 }}>
                                                         <div className="metric-box daily">
                                                             <div className="box-header">
                                                                 <Target size={12} className="text-accent" />
@@ -2614,7 +2614,8 @@ export default function GMDashboard() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="compact-task-list" style={{ marginBottom: '8px' }}>
+                                                    {/* Active Workload Section */}
+                                                    <div className="compact-task-list" style={{ marginBottom: 0 }}>
                                                         <button 
                                                             className="list-header" 
                                                             style={{ 
@@ -2628,55 +2629,68 @@ export default function GMDashboard() {
                                                                 padding: 0,
                                                                 textAlign: 'left'
                                                             }}
-                                                            onClick={() => setExpandedEmpClients(prev => ({ ...prev, [emp.id]: !prev[emp.id] }))}
+                                                            onClick={() => setExpandedEmpClients(prev => ({ ...prev, [`${emp.id}-active`]: !prev[`${emp.id}-active`] }))}
                                                         >
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                <Briefcase size={10} />
-                                                                <span>ASSIGNED CLIENTS ({(emp.assignedClients || []).length})</span>
+                                                                <Activity size={10} style={{ color: 'var(--accent)' }} />
+                                                                <span>ACTIVE WORKLOAD ({(emp.activeWorkload || []).length})</span>
                                                             </div>
                                                             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-                                                                {expandedEmpClients[emp.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                                {expandedEmpClients[`${emp.id}-active`] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                             </div>
                                                         </button>
                                                         
-                                                        {expandedEmpClients[emp.id] && (
-                                                            <div className="tasks-container scrollable-list" style={{ marginTop: '10px' }}>
-                                                                {(emp.assignedClients || []).length > 0 ? (
-                                                                    (emp.assignedClients || []).map(client => (
-                                                                        <div key={client.id} className="mini-task-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                            <span className="task-name" style={{ fontSize: '13px' }}>{client.name}</span>
-                                                                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '6px', border: '1px solid var(--border)' }}>{client.role}</span>
-                                                                        </div>
+                                                        {expandedEmpClients[`${emp.id}-active`] && (
+                                                            <div className="tasks-container scrollable-list" style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                {(emp.activeWorkload || []).length > 0 ? (
+                                                                    (emp.activeWorkload || []).map(task => (
+                                                                        <TrackingTaskItem key={task.id} task={task} />
                                                                     ))
                                                                 ) : (
-                                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', padding: '4px' }}>No assigned clients</div>
+                                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', padding: '4px' }}>No active tasks</div>
                                                                 )}
                                                             </div>
                                                         )}
                                                     </div>
 
-                                                    {emp.tasks && emp.tasks.length > 0 && (
-                                                        <div className="compact-task-list">
-                                                            <div className="list-header">
-                                                                <Activity size={10} />
-                                                                <span>RECENT TASKS</span>
+                                                    {/* Recently Completed Tasks Section */}
+                                                    <div className="compact-task-list" style={{ marginTop: 0 }}>
+                                                        <button 
+                                                            className="list-header" 
+                                                            style={{ 
+                                                                background: 'none', 
+                                                                border: 'none', 
+                                                                width: '100%', 
+                                                                display: 'flex', 
+                                                                justifyContent: 'space-between', 
+                                                                alignItems: 'center', 
+                                                                cursor: 'pointer',
+                                                                padding: 0,
+                                                                textAlign: 'left'
+                                                            }}
+                                                            onClick={() => setExpandedEmpClients(prev => ({ ...prev, [`${emp.id}-completed`]: !prev[`${emp.id}-completed`] }))}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <CheckCircle2 size={10} style={{ color: 'var(--success)' }} />
+                                                                <span>RECENTLY COMPLETED ({(emp.recentlyCompleted || []).length})</span>
                                                             </div>
-                                                            <div className="tasks-container scrollable-list">
-                                                                {emp.tasks.map(task => {
-                                                                    const isDone = (task.employeeStatus || '').toUpperCase() === 'COMPLETED';
-                                                                    return (
-                                                                        <div key={task.id} className="mini-task-item">
-                                                                            <span className={`status-dot ${isDone ? 'done' : 'pending'}`}></span>
-                                                                            <div className="task-info">
-                                                                                <span className="task-name">{task.title}</span>
-                                                                                <span className="task-client">{task.clientName}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
+                                                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                                                                {expandedEmpClients[`${emp.id}-completed`] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                             </div>
-                                                        </div>
-                                                    )}
+                                                        </button>
+                                                        
+                                                        {expandedEmpClients[`${emp.id}-completed`] && (
+                                                            <div className="tasks-container scrollable-list" style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                {(emp.recentlyCompleted || []).length > 0 ? (
+                                                                    (emp.recentlyCompleted || []).map(task => (
+                                                                        <TrackingTaskItem key={task.id} task={task} isCompleted={true} />
+                                                                    ))
+                                                                ) : (
+                                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', padding: '4px' }}>No completed tasks recently</div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </motion.div>
                                         )) : (
@@ -2759,17 +2773,7 @@ export default function GMDashboard() {
                                             <div style={{ display: 'flex', gap: '8px' }}>
                                                 <button 
                                                     className="btn-assign-client"
-                                                    onClick={() => {
-                                                        setAssigningToEmployee(emp);
-                                                        setIsEmployeeAssignModalOpen(true);
-                                                    }}
-                                                >
-                                                    <Plus size={16} />
-                                                    Assign Client
-                                                </button>
-                                                <button 
-                                                    className="btn-assign-client"
-                                                    style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                                                    style={{ background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' }}
                                                     onClick={() => {
                                                         setAssigningToEmployee(emp);
                                                         setIsTaskAssignModalOpen(true);
@@ -2781,59 +2785,7 @@ export default function GMDashboard() {
                                             </div>
                                         </div>
  
-                                        <div className="assigned-clients-section">
-                                            <h4 className="section-title">ASSIGNED CLIENTS ({assignedClients.length})</h4>
-                                            <div className="client-tags-grid">
-                                                {assignedClients.map(client => (
-                                                    <div key={client.id} className="client-tag-pill">
-                                                        <span>{client.company_name}</span>
-                                                        <button 
-                                                            className="remove-tag"
-                                                            onClick={async (e) => {
-                                                                e.stopPropagation();
-                                                                if (confirm(`Unassign ${client.company_name} from ${emp.name}?`)) {
-                                                                    const previousClients = [...clients];
-                                                                    
-                                                                    // Optimistic state update
-                                                                    setClients(prev => prev.map(c => {
-                                                                        if (c.id === client.id) {
-                                                                            const updated = { ...c };
-                                                                            if (emp.role_identifier === 'REEL') updated.reel_employee_id = null;
-                                                                            else if (emp.role_identifier === 'POST') updated.post_employee_id = null;
-                                                                            else updated.employee_id = null;
-                                                                            return updated;
-                                                                        }
-                                                                        return c;
-                                                                    }));
- 
-                                                                    try {
-                                                                        await phApi.assignEmployeeToClient(client.id, null, emp.user_id);
-                                                                        toastSuccess(`Unassigned ${client.company_name}`);
-                                                                        
-                                                                        // Silently refresh in background
-                                                                        setTimeout(async () => {
-                                                                            const cRes = await phApi.getClients();
-                                                                            setClients(cRes.data);
-                                                                        }, 500);
-                                                                    } catch (err) {
-                                                                        console.error(err);
-                                                                        setClients(previousClients);
-                                                                        toastError('Failed to unassign client.');
-                                                                    }
-                                                                }
-                                                            }}
-                                                         >
-                                                             <X size={12} />
-                                                         </button>
-                                                     </div>
-                                                 ))}
-                                                 {assignedClients.length === 0 && (
-                                                     <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No clients assigned yet.</p>
-                                                 )}
-                                             </div>
-                                         </div>
-
-                                         <div className="assigned-clients-section" style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                                        <div className="assigned-clients-section" style={{ marginTop: '16px' }}>
                                              <h4 className="section-title">ASSIGNED TASKS ({assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).length})</h4>
                                              <div className="client-tags-grid">
                                                  {assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).map(task => (
@@ -3955,3 +3907,147 @@ export default function GMDashboard() {
         </div>
     );
 }
+
+function TrackingTaskItem({ task, isCompleted = false }: { task: any, isCompleted?: boolean }) {
+    const [showComments, setShowComments] = useState(false);
+    
+    // Determine priority
+    let priorityLabel = 'Normal';
+    let priorityClass = 'priority-normal';
+    if (task.isEmergency) {
+        priorityLabel = 'Emergency';
+        priorityClass = 'priority-emergency';
+    } else if (task.isRescheduled) {
+        priorityLabel = 'Rescheduled';
+        priorityClass = 'priority-rescheduled';
+    }
+
+    // Determine status badge class
+    let badgeClass = 'status-pending';
+    const statusUpper = (task.status || '').toUpperCase();
+    if (isCompleted) {
+        badgeClass = 'status-approved';
+    } else if (statusUpper === 'PENDING' || statusUpper === 'CONTENT NOT STARTED') {
+        badgeClass = 'status-not-started';
+    } else if (statusUpper === 'WAITING FOR APPROVAL' || statusUpper === 'WAITING FOR FINAL APPROVAL') {
+        badgeClass = 'status-waiting';
+    }
+
+    const formatShortDate = (dateStr: string) => {
+        try {
+            return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        } catch {
+            return 'N/A';
+        }
+    };
+
+    const formatFullDate = (dateStr: string) => {
+        try {
+            return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        } catch {
+            return '';
+        }
+    };
+
+    return (
+        <div style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+        }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                <span style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    color: 'var(--accent)',
+                    background: 'var(--accent-glow)',
+                    padding: '2px 6px',
+                    borderRadius: '6px',
+                    textTransform: 'uppercase'
+                }}>{task.clientName}</span>
+                <span style={{
+                    fontSize: '10px',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    background: task.isEmergency ? 'rgba(239, 68, 68, 0.15)' : task.isRescheduled ? 'rgba(139, 92, 246, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                    color: task.isEmergency ? '#ef4444' : task.isRescheduled ? '#8b5cf6' : 'var(--text-muted)'
+                }}>{priorityLabel}</span>
+            </div>
+
+            <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)' }}>{task.title}</div>
+            {task.description && (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {task.description}
+                </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', borderTop: '1px solid var(--border)', paddingTop: '6px', marginTop: '4px' }}>
+                <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <CalendarIcon size={10} />
+                    Due: {task.scheduledDate ? formatShortDate(task.scheduledDate) : 'N/A'}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className={`status-badge-premium ${badgeClass}`} style={{ fontSize: '10px', padding: '2px 8px' }}>
+                        {isCompleted ? 'Completed' : task.status}
+                    </span>
+                    {(task.comments || []).length > 0 && (
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowComments(!showComments);
+                            }}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                padding: '2px',
+                                fontSize: '10px',
+                                fontWeight: 700
+                            }}
+                        >
+                            <MessageSquare size={10} />
+                            <span>{(task.comments || []).length}</span>
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {showComments && (task.comments || []).length > 0 && (
+                <div style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    marginTop: '4px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                }}>
+                    <div style={{ fontSize: '9px', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>STATUS HISTORY / COMMENTS</div>
+                    {(task.comments || []).map((comment: any, idx: number) => (
+                        <div key={idx} style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', borderLeft: '2px solid var(--accent)', paddingLeft: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                <span>{comment.changedBy}</span>
+                                <span>{comment.changedAt ? formatFullDate(comment.changedAt) : ''}</span>
+                            </div>
+                            <div style={{ color: 'var(--text-primary)', marginTop: '2px' }}>
+                                {comment.note || `Transitioned to status: ${comment.status}`}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+

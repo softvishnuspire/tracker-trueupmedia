@@ -469,7 +469,7 @@ export default function ClientManagementView({ role, basePath, title = "Client M
 
               <div style={{ margin: '16px 0 8px 0', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                 <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>
-                  Team Member & Role Assignments
+                  Default Auto-Assignments (Optional / Legacy)
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">

@@ -1487,15 +1487,15 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
             freelanceUpdatedRes
         ] = await Promise.all([
             // Content Items
-            supabase.from('content_items').select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, clients(company_name)').gte('scheduled_datetime', dayStart).lte('scheduled_datetime', dayEnd),
-            supabase.from('content_items').select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, clients(company_name)').not('status', 'in', '("POSTED","APPROVED")'),
-            supabase.from('content_items').select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, clients(company_name)').gte('assigned_at', dayStart).lte('assigned_at', dayEnd),
-            supabase.from('content_items').select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, clients(company_name)').gte('updated_at', dayStart).lte('updated_at', dayEnd),
+            supabase.from('content_items').select('id, title, description, client_id, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled, clients(company_name)').gte('scheduled_datetime', dayStart).lte('scheduled_datetime', dayEnd),
+            supabase.from('content_items').select('id, title, description, client_id, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled, clients(company_name)').not('status', 'in', '("POSTED","APPROVED")'),
+            supabase.from('content_items').select('id, title, description, client_id, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled, clients(company_name)').gte('assigned_at', dayStart).lte('assigned_at', dayEnd),
+            supabase.from('content_items').select('id, title, description, client_id, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled, clients(company_name)').gte('updated_at', dayStart).lte('updated_at', dayEnd),
             // Freelancer Tasks
-            supabase.from('freelancer_tasks').select('id, title, assigned_to, employee_task_status, status, scheduled_datetime').gte('scheduled_datetime', dayStart).lte('scheduled_datetime', dayEnd),
-            supabase.from('freelancer_tasks').select('id, title, assigned_to, employee_task_status, status, scheduled_datetime').not('status', 'in', '("POSTED","APPROVED")'),
-            supabase.from('freelancer_tasks').select('id, title, assigned_to, employee_task_status, status, scheduled_datetime').gte('assigned_at', dayStart).lte('assigned_at', dayEnd),
-            supabase.from('freelancer_tasks').select('id, title, assigned_to, employee_task_status, status, scheduled_datetime').gte('updated_at', dayStart).lte('updated_at', dayEnd)
+            supabase.from('freelancer_tasks').select('id, title, description, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled').gte('scheduled_datetime', dayStart).lte('scheduled_datetime', dayEnd),
+            supabase.from('freelancer_tasks').select('id, title, description, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled').not('status', 'in', '("POSTED","APPROVED")'),
+            supabase.from('freelancer_tasks').select('id, title, description, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled').gte('assigned_at', dayStart).lte('assigned_at', dayEnd),
+            supabase.from('freelancer_tasks').select('id, title, description, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled').gte('updated_at', dayStart).lte('updated_at', dayEnd)
         ]);
 
         const taskMap = new Map();
@@ -1569,12 +1569,12 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
             const [contentRes, freelancerRes] = await Promise.all([
                 supabase
                     .from('content_items')
-                    .select('id, title, client_id, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, clients(company_name)')
+                    .select('id, title, description, client_id, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled, clients(company_name)')
                     .in('assigned_to', employeeIds)
                     .or(`scheduled_datetime.gte.${startOfMonth},employee_task_status.eq.PENDING`),
                 supabase
                     .from('freelancer_tasks')
-                    .select('id, title, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at')
+                    .select('id, title, description, assigned_to, employee_task_status, status, scheduled_datetime, assigned_at, is_emergency, is_rescheduled')
                     .in('assigned_to', employeeIds)
                     .or(`scheduled_datetime.gte.${startOfMonth},employee_task_status.eq.PENDING`)
             ]);
@@ -1599,6 +1599,33 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
         };
 
         const selectedDateKey = String(today);
+
+        // Fetch all status logs for these tasks to extract comments/updates
+        const poolTaskIds = employeeTaskPool.map(t => t.id);
+        let statusLogsMap = {};
+        if (poolTaskIds.length > 0) {
+            const { data: logsData, error: logsError } = await supabase
+                .from('status_logs')
+                .select('item_id, old_status, new_status, note, changed_at, users:changed_by(name)')
+                .in('item_id', poolTaskIds)
+                .order('changed_at', { ascending: false });
+            
+            if (logsError) {
+                console.error('[ProductivityAggregation] Error fetching status logs:', logsError.message);
+            } else if (logsData) {
+                logsData.forEach(log => {
+                    if (!statusLogsMap[log.item_id]) {
+                        statusLogsMap[log.item_id] = [];
+                    }
+                    statusLogsMap[log.item_id].push({
+                        note: log.note,
+                        status: log.new_status,
+                        changedAt: log.changed_at,
+                        changedBy: log.users?.name || 'Employee'
+                    });
+                });
+            }
+        }
 
         const empStats = employees.map(emp => {
             const empTaskCandidates = employeeTaskPool.filter(t => t.assigned_to === emp.user_id);
@@ -3586,7 +3613,7 @@ app.get('/api/employee/tasks', requireRoles(EMPLOYEE_ROLES), async (req, res) =>
 
 app.patch('/api/employee/tasks/:id/status', requireRoles(EMPLOYEE_ROLES), async (req, res) => {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, general_status, note } = req.body;
     const userId = req.user.id;
 
     try {
@@ -3610,15 +3637,43 @@ app.patch('/api/employee/tasks/:id/status', requireRoles(EMPLOYEE_ROLES), async 
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
+        const updatePayload = {};
+        if (status !== undefined) {
+            updatePayload.employee_task_status = status;
+        }
+        if (general_status !== undefined) {
+            updatePayload.status = general_status;
+        }
+
         const { data, error } = await supabase
             .from(table)
-            .update({ employee_task_status: status })
+            .update(updatePayload)
             .eq('id', id)
             .select();
 
         if (error) return res.status(500).json({ error: error.message });
-        await invalidateContentCaches(data[0], item);
-        res.json(data[0]);
+
+        const updatedItem = data[0];
+
+        // Insert to status_logs if table is content_items AND (note is provided OR general_status changed)
+        if (table === 'content_items') {
+            const oldStatus = item.status;
+            const newStatus = general_status || item.status;
+            if (note || oldStatus !== newStatus) {
+                const logData = {
+                    item_id: id,
+                    old_status: oldStatus,
+                    new_status: newStatus,
+                    note: note || null,
+                    changed_by: userId,
+                    changed_at: new Date().toISOString()
+                };
+                await supabase.from('status_logs').insert([logData]);
+            }
+        }
+
+        await invalidateContentCaches(updatedItem, item);
+        res.json(updatedItem);
     } catch (err) {
         console.error('[EmployeeTasks] Status Update Error:', err.message);
         res.status(500).json({ error: err.message });

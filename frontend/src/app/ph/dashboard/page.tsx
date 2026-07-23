@@ -1467,17 +1467,7 @@ export default function ProductionHeadDashboard() {
                                             <div style={{ display: 'flex', gap: '8px' }}>
                                                 <button 
                                                     className="btn-assign-client"
-                                                    onClick={() => {
-                                                        setAssigningToEmployee(emp);
-                                                        setIsAssignModalOpen(true);
-                                                    }}
-                                                >
-                                                    <Plus size={16} />
-                                                    Assign Client
-                                                </button>
-                                                <button 
-                                                    className="btn-assign-client"
-                                                    style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                                                    style={{ background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' }}
                                                     onClick={() => {
                                                         setAssigningToEmployee(emp);
                                                         setIsTaskAssignModalOpen(true);
@@ -1489,62 +1479,7 @@ export default function ProductionHeadDashboard() {
                                             </div>
                                         </div>
 
-                                        <div className="assigned-clients-section">
-                                            <h4 className="section-title">ASSIGNED CLIENTS ({assignedClients.length})</h4>
-                                            <div className="client-tags-grid">
-                                                {assignedClients.map(client => (
-                                                    <div key={client.id} className="client-tag-pill">
-                                                        <span>{client.company_name}</span>
-                                                        <button 
-                                                            className="remove-tag"
-                                                            onClick={async (e) => {
-                                                                e.stopPropagation();
-                                                                if (confirm(`Unassign ${client.company_name} from ${emp.name}?`)) {
-                                                                    const previousClients = [...clients];
-                                                                    
-                                                                    // Optimistic state update
-                                                                    setClients(prev => prev.map(c => {
-                                                                        if (c.id === client.id) {
-                                                                            const updated = { ...c };
-                                                                            if (emp.role_identifier === 'REEL') updated.reel_employee_id = null;
-                                                                            else if (emp.role_identifier === 'POST') updated.post_employee_id = null;
-                                                                            else updated.employee_id = null;
-                                                                            return updated;
-                                                                        }
-                                                                        return c;
-                                                                    }));
-
-                                                                    try {
-                                                                        await phApi.assignEmployeeToClient(client.id, null, emp.user_id);
-                                                                        toastSuccess(`Unassigned ${client.company_name}`);
-                                                                        
-                                                                        // Silently refresh in background
-                                                                        setTimeout(async () => {
-                                                                            const cRes = await phApi.getClients();
-                                                                            setClients(cRes.data);
-                                                                            fetchTodayStats(true);
-                                                                            fetchMasterCalendar(true);
-                                                                            fetchClientCalendar(true);
-                                                                        }, 500);
-                                                                    } catch (err) {
-                                                                        console.error(err);
-                                                                        setClients(previousClients);
-                                                                        toastError('Failed to unassign client.');
-                                                                    }
-                                                                }
-                                                            }}
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                                {assignedClients.length === 0 && (
-                                                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', gridColumn: '1/-1', margin: 0 }}>No clients assigned yet.</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="assigned-clients-section" style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                                        <div className="assigned-clients-section" style={{ marginTop: '0px', borderTop: 'none', paddingTop: '0px' }}>
                                             <h4 className="section-title">ASSIGNED TASKS ({assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).length})</h4>
                                             <div className="client-tags-grid">
                                                 {assignableTasks.filter(t => t.assigned_to === emp.user_id && isTaskActiveForRole(t, emp.role_identifier)).map(task => (

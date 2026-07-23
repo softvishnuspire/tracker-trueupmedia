@@ -189,10 +189,56 @@ export interface EmployeeTrackingStats {
     tasks?: {
         id: string;
         title: string;
+        description?: string;
         clientName: string;
         status: string;
         employeeStatus?: string;
         scheduledDate: string;
+        assignedDate?: string;
+        isEmergency?: boolean;
+        isRescheduled?: boolean;
+        comments?: {
+            note?: string | null;
+            status: string;
+            changedAt: string;
+            changedBy: string;
+        }[];
+    }[];
+    activeWorkload?: {
+        id: string;
+        title: string;
+        description?: string;
+        clientName: string;
+        status: string;
+        employeeStatus?: string;
+        scheduledDate: string;
+        assignedDate?: string;
+        isEmergency?: boolean;
+        isRescheduled?: boolean;
+        comments?: {
+            note?: string | null;
+            status: string;
+            changedAt: string;
+            changedBy: string;
+        }[];
+    }[];
+    recentlyCompleted?: {
+        id: string;
+        title: string;
+        description?: string;
+        clientName: string;
+        status: string;
+        employeeStatus?: string;
+        scheduledDate: string;
+        assignedDate?: string;
+        isEmergency?: boolean;
+        isRescheduled?: boolean;
+        comments?: {
+            note?: string | null;
+            status: string;
+            changedAt: string;
+            changedBy: string;
+        }[];
     }[];
 }
 
@@ -321,8 +367,8 @@ employeeBase.interceptors.request.use(async (config) => {
 
 export const employeeApi = {
     getTasks: (month?: string) => employeeBase.get<ContentItem[]>(`/api/employee/tasks${month ? `?month=${month}` : ''}`),
-    updateTaskStatus: (id: string, status: 'PENDING' | 'COMPLETED') =>
-        employeeBase.patch(`/api/employee/tasks/${id}/status`, { status }),
+    updateTaskStatus: (id: string, status: 'PENDING' | 'COMPLETED', generalStatus?: string, note?: string) =>
+        employeeBase.patch(`/api/employee/tasks/${id}/status`, { status, general_status: generalStatus, note }),
 };
 
 const tlBase = axios.create({
