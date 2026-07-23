@@ -1379,10 +1379,15 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
         await supabase.from('clients').update({ reel_employee_id: null }).eq('reel_employee_id', id);
         await supabase.from('clients').update({ post_employee_id: null }).eq('post_employee_id', id);
         await supabase.from('clients').update({ writer_employee_id: null }).eq('writer_employee_id', id);
+        await supabase.from('clients').update({ created_by: null }).eq('created_by', id);
 
-        // 2. Clear assigned_to in content_items & freelancer_tasks
+        // 2. Clear assigned_to and created_by in content_items & freelancer_tasks
         await supabase.from('content_items').update({ assigned_to: null, assigned_at: null }).eq('assigned_to', id);
+        await supabase.from('content_items').update({ created_by: null }).eq('created_by', id);
+        
         await supabase.from('freelancer_tasks').update({ assigned_to: null }).eq('assigned_to', id);
+        await supabase.from('freelancer_tasks').update({ created_by: null }).eq('created_by', id);
+        await supabase.from('freelancer_tasks').update({ emergency_marked_by: null }).eq('emergency_marked_by', id);
 
         // 3. Clear references in status_logs & notifications
         await supabase.from('status_logs').update({ changed_by: null }).eq('changed_by', id);
@@ -1402,6 +1407,7 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
 
         // 6. Clear POC communications
         await supabase.from('poc_communications').update({ team_lead_id: null }).eq('team_lead_id', id);
+        await supabase.from('poc_communications').update({ updated_by: null }).eq('updated_by', id);
 
         // 7. Delete from Auth (prevents future logins)
         const { error: authError } = await supabase.auth.admin.deleteUser(id);
@@ -3397,10 +3403,15 @@ app.delete('/api/content-head/writers/:id', requireRoles(CONTENT_HEAD_ROLES), as
         await supabase.from('clients').update({ employee_id: null }).eq('employee_id', id);
         await supabase.from('clients').update({ reel_employee_id: null }).eq('reel_employee_id', id);
         await supabase.from('clients').update({ post_employee_id: null }).eq('post_employee_id', id);
+        await supabase.from('clients').update({ created_by: null }).eq('created_by', id);
 
-        // 3. Clear assigned_to in content_items & freelancer_tasks
+        // 3. Clear assigned_to and created_by in content_items & freelancer_tasks
         await supabase.from('content_items').update({ assigned_to: null, assigned_at: null }).eq('assigned_to', id);
+        await supabase.from('content_items').update({ created_by: null }).eq('created_by', id);
+        
         await supabase.from('freelancer_tasks').update({ assigned_to: null }).eq('assigned_to', id);
+        await supabase.from('freelancer_tasks').update({ created_by: null }).eq('created_by', id);
+        await supabase.from('freelancer_tasks').update({ emergency_marked_by: null }).eq('emergency_marked_by', id);
 
         // 4. Clear references in status_logs & notifications
         await supabase.from('status_logs').update({ changed_by: null }).eq('changed_by', id);
@@ -3417,6 +3428,10 @@ app.delete('/api/content-head/writers/:id', requireRoles(CONTENT_HEAD_ROLES), as
         } catch (sErr) {
             console.warn('[Content Head] user_streaks deletion warning:', sErr.message);
         }
+
+        // Added POC communications cleanup
+        await supabase.from('poc_communications').update({ team_lead_id: null }).eq('team_lead_id', id);
+        await supabase.from('poc_communications').update({ updated_by: null }).eq('updated_by', id);
 
         // 7. Delete from Auth (prevents future logins)
         const { error: authError } = await supabase.auth.admin.deleteUser(id);

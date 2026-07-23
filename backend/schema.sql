@@ -103,7 +103,7 @@ CREATE TABLE public.onboarding_requests (
 );
 CREATE TABLE public.poc_communications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  team_lead_id uuid NOT NULL,
+  team_lead_id uuid,
   note_date date NOT NULL,
   note_text text NOT NULL,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
