@@ -3,10 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { adminApi, cooApi, gmApi, managerApi, Client, ContentItem, TeamMember } from '@/lib/api';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { Plus, Search, Edit2, Trash2, X, Calendar as CalendarIcon, UserCheck, Film, Image as ImageIcon, FileText } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format } from 'date-fns';
+import { format, subMonths, addMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 interface ClientManagementViewProps {
   role: 'admin' | 'coo' | 'gm' | 'manager';
@@ -54,17 +54,30 @@ export default function ClientManagementView({ role, basePath, title = "Client M
     try {
       setLoading(true);
       const api = getApi();
-      const [clientsRes, teamRes] = await Promise.all([
+      const now = new Date();
+      const currMonthStr = format(now, 'yyyy-MM');
+      const prevMonthStr = format(subMonths(now, 1), 'yyyy-MM');
+      const nextMonthStr = format(addMonths(now, 1), 'yyyy-MM');
+
+      const [clientsRes, teamRes, prevRes, currRes, nextRes] = await Promise.all([
         api.getClients(),
         adminApi.getTeam().catch(() => ({ data: [] })),
+        adminApi.getMasterCalendar(prevMonthStr).catch(() => ({ data: [] })),
+        adminApi.getMasterCalendar(currMonthStr).catch(() => ({ data: [] })),
+        adminApi.getMasterCalendar(nextMonthStr).catch(() => ({ data: [] })),
       ]);
 
       setClients(clientsRes.data || []);
       setTeamMembers(teamRes.data || []);
 
-      const monthStr = format(new Date(), 'yyyy-MM');
-      const calendarRes = await adminApi.getMasterCalendar(monthStr).catch(() => ({ data: [] }));
-      setContentItems(calendarRes.data || []);
+      const itemsMap = new Map<string, ContentItem>();
+      [...(prevRes.data || []), ...(currRes.data || []), ...(nextRes.data || [])].forEach(item => {
+        if (item && item.id) {
+          itemsMap.set(item.id, item);
+        }
+      });
+
+      setContentItems(Array.from(itemsMap.values()));
     } catch (err: any) {
       setError(err.message || 'Failed to load client data');
     } finally {
@@ -74,6 +87,13 @@ export default function ClientManagementView({ role, basePath, title = "Client M
 
   useEffect(() => {
     fetchData();
+    const handleFocus = () => {
+      fetchData();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [role]);
 
   const handleAddClick = () => {
@@ -164,11 +184,30 @@ export default function ClientManagementView({ role, basePath, title = "Client M
     c.company_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getClientScheduledCounts = (client: Client) => {
+    const now = new Date();
+    const is1515 = client.batch_type === '15-15';
+    const { periodStart, periodEnd } = is1515
+      ? get15BiMonthlyPeriod(now)
+      : { periodStart: startOfMonth(now), periodEnd: endOfMonth(now) };
+
+    const clientItems = contentItems.filter(item => {
+      if (item.client_id !== client.id || !item.scheduled_datetime) return false;
+      const itemDate = new Date(item.scheduled_datetime);
+      return itemDate >= periodStart && itemDate <= periodEnd;
+    });
+
+    const actualReels = clientItems.filter(item => (item.content_type || '').toUpperCase() === 'REEL').length;
+    const actualPosts = clientItems.filter(item => (item.content_type || '').toUpperCase() === 'POST').length;
+
+    return { actualReels, actualPosts };
+  };
+
   const totalReelsTarget = clients.reduce((sum, c) => sum + (c.reels_per_month || 0), 0);
   const totalPostsTarget = clients.reduce((sum, c) => sum + (c.posts_per_month || 0), 0);
 
-  const actualReelsScheduled = contentItems.filter(item => !isCrossMonthRescheduled(item) && (item.content_type || '').toUpperCase() === 'REEL').length;
-  const actualPostsScheduled = contentItems.filter(item => !isCrossMonthRescheduled(item) && (item.content_type || '').toUpperCase() === 'POST').length;
+  const actualReelsScheduled = clients.reduce((sum, c) => sum + getClientScheduledCounts(c).actualReels, 0);
+  const actualPostsScheduled = clients.reduce((sum, c) => sum + getClientScheduledCounts(c).actualPosts, 0);
 
   const getAllocationStyle = (actual: number, target: number) => {
     if (target === 0) return { color: 'var(--text-secondary)' };
@@ -269,8 +308,7 @@ export default function ClientManagementView({ role, basePath, title = "Client M
                 ) : (
                   <>
                     {filteredClients.map((client, index) => {
-                      const clientActualReels = contentItems.filter(item => !isCrossMonthRescheduled(item) && item.client_id === client.id && (item.content_type || '').toUpperCase() === 'REEL').length;
-                      const clientActualPosts = contentItems.filter(item => !isCrossMonthRescheduled(item) && item.client_id === client.id && (item.content_type || '').toUpperCase() === 'POST').length;
+                      const { actualReels: clientActualReels, actualPosts: clientActualPosts } = getClientScheduledCounts(client);
 
                       return (
                         <tr key={client.id || index}>

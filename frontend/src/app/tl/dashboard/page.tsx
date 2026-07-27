@@ -799,7 +799,7 @@ export default function TLDashboard() {
         const clientItems = calendarData.filter(item => {
             if (item.client_id !== client.id) return false;
             const itemDate = parseISO(item.scheduled_datetime);
-            return itemDate >= startOfDay(clientPeriodStart) && itemDate <= endOfDay(clientPeriodEnd) && !isCrossMonthRescheduled(item);
+            return itemDate >= startOfDay(clientPeriodStart) && itemDate <= endOfDay(clientPeriodEnd);
         });
 
         const totalTasks = clientItems.length;

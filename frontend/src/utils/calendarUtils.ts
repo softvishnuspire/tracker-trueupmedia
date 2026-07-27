@@ -53,35 +53,20 @@ export function isCrossMonthRescheduled(item: ContentItem): boolean {
  * and its relation to the actual real-world current period.
  */
 export function get15BiMonthlyPeriod(refDate: Date): { periodStart: Date; periodEnd: Date } {
-    const today = new Date();
-    
-    // Helper to get the period anchor month (15th of the cycle's starting month)
-    const getPeriodAnchor = (date: Date): Date => {
-        const d = new Date(date.getTime());
-        if (d.getDate() >= 15) {
-            return new Date(d.getFullYear(), d.getMonth(), 15, 0, 0, 0, 0);
-        } else {
-            return new Date(d.getFullYear(), d.getMonth() - 1, 15, 0, 0, 0, 0);
-        }
-    };
-
-    const currentAnchor = getPeriodAnchor(today);
-    const selectedAnchor = getPeriodAnchor(refDate);
-
-    const diffMonths = (selectedAnchor.getFullYear() - currentAnchor.getFullYear()) * 12 + (selectedAnchor.getMonth() - currentAnchor.getMonth());
+    const d = new Date(refDate.getTime());
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    const day = d.getDate();
 
     let periodStart: Date;
     let periodEnd: Date;
 
-    if (diffMonths === 0) {
-        periodStart = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth(), 15, 0, 0, 0, 0);
-        periodEnd = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth() + 1, 15, 23, 59, 59, 999);
-    } else if (diffMonths > 0) {
-        periodStart = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth(), 16, 0, 0, 0, 0);
-        periodEnd = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth() + 1, 15, 23, 59, 59, 999);
+    if (day >= 15) {
+        periodStart = new Date(year, month, 15, 0, 0, 0, 0);
+        periodEnd = new Date(year, month + 1, 14, 23, 59, 59, 999);
     } else {
-        periodStart = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth(), 15, 0, 0, 0, 0);
-        periodEnd = new Date(selectedAnchor.getFullYear(), selectedAnchor.getMonth() + 1, 14, 23, 59, 59, 999);
+        periodStart = new Date(year, month - 1, 15, 0, 0, 0, 0);
+        periodEnd = new Date(year, month, 14, 23, 59, 59, 999);
     }
 
     return { periodStart, periodEnd };
