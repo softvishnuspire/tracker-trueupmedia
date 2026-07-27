@@ -48,6 +48,7 @@ import { tlApi, gmApi, emergencyApi, dashboardApi, ContentItem, PocNote, StatusH
 import { createClient } from '@/utils/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ScheduleExport from '@/components/ScheduleExport';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -1804,6 +1805,7 @@ export default function TLDashboard() {
                         </div>
 
                         <div className="detail-grid">
+                            <ReviewNoteCard history={activeItem.history} style={{ gridColumn: '1 / -1' }} />
                             <div className="detail-info">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
                                     <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>

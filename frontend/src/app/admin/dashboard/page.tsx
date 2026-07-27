@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import '../../gm/dashboard/gm.css';
 
 interface ContentDetails {
@@ -1022,6 +1023,7 @@ export default function AdminDashboard() {
               )}
 
               <div className="detail-grid">
+                <ReviewNoteCard history={activeItem.history} style={{ gridColumn: '1 / -1' }} />
                 <div className="detail-section">
                   <label className="detail-label">Schedule Info</label>
                   <div className="info-card">

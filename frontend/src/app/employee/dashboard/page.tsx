@@ -1,28 +1,29 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-    format, 
-    isToday, 
-    isBefore, 
-    startOfToday, 
-    parseISO 
+import {
+    format,
+    isToday,
+    isBefore,
+    startOfToday,
+    parseISO
 } from 'date-fns';
-import { 
-    CheckCircle2, 
-    Clock, 
-    Video, 
-    FileText, 
+import {
+    CheckCircle2,
+    Clock,
+    Video,
+    FileText,
     Calendar,
     History as HistoryIcon,
     Loader2,
     X,
     RotateCcw
 } from 'lucide-react';
-import { employeeApi } from '@/lib/api';
+import { employeeApi, gmApi } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import './employee.css';
 
 interface Task {
@@ -113,7 +114,7 @@ const STATUS_FLOWS: Record<string, string[]> = {
 export default function EmployeeDashboard() {
     const { error: toastError, success: toastSuccess } = useToast();
     const { startLoading, stopLoading } = usePageLoading();
-    
+
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -177,8 +178,8 @@ export default function EmployeeDashboard() {
                         {format(new Date(), 'EEEE, MMMM do')} • You have {todayTasks.length} pending assignments today.
                     </p>
                 </div>
-                <button 
-                    onClick={() => fetchDashboardTasks(true)} 
+                <button
+                    onClick={() => fetchDashboardTasks(true)}
                     style={{
                         background: 'var(--bg-elevated)',
                         border: '1px solid var(--border)',
@@ -211,7 +212,7 @@ export default function EmployeeDashboard() {
                     <div className="empty-tasks">
                         <div className="empty-icon-box"><CheckCircle2 size={32} /></div>
                         <h3>No Tasks for Today</h3>
-                        <p>Enjoy your day! Check back later for new assignments.</p>
+                        <p>Enjoy your day! Check back later for new assignments. Rest well man you deserve it.</p>
                     </div>
                 ) : (
                     <div className="task-grid">
@@ -263,8 +264,8 @@ export default function EmployeeDashboard() {
             )}
 
             {isModalOpen && selectedTask && (
-                <ProgressUpdateModal 
-                    task={selectedTask} 
+                <ProgressUpdateModal
+                    task={selectedTask}
                     onClose={() => {
                         setIsModalOpen(false);
                         setSelectedTask(null);
@@ -288,7 +289,7 @@ interface TaskCardProps {
 
 function TaskCard({ task, onUpdateClick }: TaskCardProps) {
     const isCompleted = (task.employee_task_status || '').toUpperCase() === 'COMPLETED';
-    
+
     // Determine priority
     let priorityLabel = 'Normal';
     let priorityClass = 'priority-normal';
@@ -357,7 +358,7 @@ function TaskCard({ task, onUpdateClick }: TaskCardProps) {
                         {isCompleted ? <CheckCircle2 size={14} /> : <Clock size={14} />}
                         <span>{statusLabel}</span>
                     </div>
-                    <button 
+                    <button
                         onClick={(e) => {
                             e.stopPropagation();
                             onUpdateClick(task);
@@ -392,6 +393,19 @@ function ProgressUpdateModal({ task, onClose, onSuccess }: ModalProps) {
     const [isCompleted, setIsCompleted] = useState((task.employee_task_status || '').toUpperCase() === 'COMPLETED');
     const [selectedGeneralStatus, setSelectedGeneralStatus] = useState(task.status);
     const [progressNote, setProgressNote] = useState('');
+    const [history, setHistory] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (task?.id) {
+            gmApi.getContentDetails(task.id)
+                .then(res => {
+                    if (res.data?.history) {
+                        setHistory(res.data.history);
+                    }
+                })
+                .catch(err => console.error('Error fetching task history for review note:', err));
+        }
+    }, [task?.id]);
 
     const availableStatuses = STATUS_FLOWS[task.content_type] || ['PENDING', 'COMPLETED'];
 
@@ -460,6 +474,7 @@ function ProgressUpdateModal({ task, onClose, onSuccess }: ModalProps) {
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <ReviewNoteCard history={history} />
                     <div style={{
                         background: 'var(--bg-elevated)',
                         padding: '16px',
@@ -473,7 +488,7 @@ function ProgressUpdateModal({ task, onClose, onSuccess }: ModalProps) {
                     {!task.is_freelancer_task && (
                         <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Task Production Status</label>
-                            <select 
+                            <select
                                 value={selectedGeneralStatus}
                                 onChange={(e) => setSelectedGeneralStatus(e.target.value)}
                                 style={{
@@ -508,7 +523,7 @@ function ProgressUpdateModal({ task, onClose, onSuccess }: ModalProps) {
                         borderRadius: '16px',
                         border: '1px solid var(--border)'
                     }}>
-                        <input 
+                        <input
                             type="checkbox"
                             id="complete-checkbox"
                             checked={isCompleted}
@@ -522,7 +537,7 @@ function ProgressUpdateModal({ task, onClose, onSuccess }: ModalProps) {
 
                     <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Progress Update / Note (Optional)</label>
-                        <textarea 
+                        <textarea
                             value={progressNote}
                             onChange={(e) => setProgressNote(e.target.value)}
                             placeholder="Write a brief note on what you did, next steps, or blockers..."

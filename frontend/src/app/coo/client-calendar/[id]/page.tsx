@@ -40,6 +40,7 @@ import { cooApi, emergencyApi, ContentItem } from '@/lib/api';
 import { formatIST, formatISTForm, convertISTToUTC } from '@/lib/utils';
 import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import ScheduleExport from '@/components/ScheduleExport';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -919,6 +920,7 @@ export default function CooClientCalendarPage() {
                         </div>
 
                         <div className="detail-grid" style={{ padding: '32px' }}>
+                            <ReviewNoteCard history={selectedItem.history} style={{ gridColumn: '1 / -1' }} />
                             <div className="detail-info">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
                                     <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>

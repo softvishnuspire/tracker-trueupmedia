@@ -32,6 +32,7 @@ import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 import { useDebouncedRefresh } from '@/hooks/useDebouncedRefresh';
 import NotificationBell from '@/components/NotificationBell';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ThemeToggle from '@/components/ThemeToggle';
 import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { getClientAbbreviation, formatIST, getISTDate } from '@/lib/utils';
@@ -808,8 +809,8 @@ export default function ContentHeadDashboard() {
                             <div className="client-list">
                                 {clients
                                     .sort((a, b) => (a.company_name || '').localeCompare(b.company_name || ''))
-                                    .map(c => (
-                                        <div key={c.id} onClick={() => setSelectedClient(c.id)} className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}>
+                                    .map((c, idx) => (
+                                        <div key={c.id || `client-${idx}`} onClick={() => setSelectedClient(c.id)} className={`client-item ${selectedClient === c.id ? 'selected' : ''}`}>
                                             <div className="client-avatar">{c.company_name?.charAt(0).toUpperCase() || '?'}</div>
                                             <span>{c.company_name}</span>
                                         </div>
@@ -873,7 +874,7 @@ export default function ContentHeadDashboard() {
                                 <div className="client-dropdown-wrapper">
                                     <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
                                         <option value="all" disabled={selectedClient !== 'all'}>Select a client</option>
-                                        {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                                        {clients.map((c, idx) => <option key={c.id || `client-opt1-${idx}`} value={c.id}>{c.company_name}</option>)}
                                     </select>
                                     <ChevronDown size={16} className="dropdown-chevron" />
                                 </div>
@@ -884,7 +885,7 @@ export default function ContentHeadDashboard() {
                                     <div className="client-dropdown-wrapper">
                                         <select className="client-dropdown" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
                                             <option value="all">All Clients</option>
-                                            {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                                            {clients.map((c, idx) => <option key={c.id || `client-opt2-${idx}`} value={c.id}>{c.company_name}</option>)}
                                         </select>
                                         <ChevronDown size={14} className="dropdown-chevron" />
                                     </div>
@@ -996,14 +997,14 @@ export default function ContentHeadDashboard() {
                                     </p>
                                 ) : (
                                     <div className="client-stats-grid">
-                                        {clientStats.map(cs => {
+                                        {clientStats.map((cs, idx) => {
                                             const pct = cs.total > 0 ? Math.round((cs.approved / cs.total) * 100) : 0;
                                             const isComplete = pct === 100;
                                             const reelPct = cs.reelsTotal > 0 ? Math.round((cs.reelsApproved / cs.reelsTotal) * 100) : -1;
                                             const postPct = cs.postsTotal > 0 ? Math.round((cs.postsApproved / cs.postsTotal) * 100) : -1;
 
                                             return (
-                                                <div key={cs.clientId} className={`client-stat-card ${isComplete ? 'complete' : ''}`}>
+                                                <div key={cs.clientId || `cs-${idx}`} className={`client-stat-card ${isComplete ? 'complete' : ''}`}>
                                                     <div className="client-stat-header">
                                                         <div className="client-stat-avatar">
                                                             {cs.clientName.charAt(0).toUpperCase()}
@@ -1078,8 +1079,8 @@ export default function ContentHeadDashboard() {
                                 </div>
                             ) : (
                                 <div className="posting-queue">
-                                    {pendingTasks.map(item => (
-                                        <div key={item.id} className="queue-item" style={{ borderLeft: '4px solid var(--warning)' }}>
+                                    {pendingTasks.map((item, idx) => (
+                                        <div key={item.id || `pending-${idx}`} className="queue-item" style={{ borderLeft: '4px solid var(--warning)' }}>
                                             <div className="queue-item-left" onClick={() => handleItemClick(item)}>
                                                 <div className="queue-time-badge">
                                                     <span className="time-text">{format(parseISO(item.scheduled_datetime), 'dd')}</span>
@@ -1149,8 +1150,8 @@ export default function ContentHeadDashboard() {
                                 </p>
                             ) : (
                                 <div className="posting-queue">
-                                    {approvedTasks.map(item => (
-                                        <div key={item.id} className="queue-item" style={{ borderLeft: '4px solid var(--success)' }}>
+                                    {approvedTasks.map((item, idx) => (
+                                        <div key={item.id || `approved-${idx}`} className="queue-item" style={{ borderLeft: '4px solid var(--success)' }}>
                                             <div className="queue-item-left" onClick={() => handleItemClick(item)}>
                                                 <div className="queue-time-badge">
                                                     <span className="time-text">{format(parseISO(item.scheduled_datetime), 'dd')}</span>
@@ -1216,7 +1217,7 @@ export default function ContentHeadDashboard() {
 
                             {loading && calendarData.length === 0 ? (
                                 Array.from({ length: 35 }).map((_, idx) => (
-                                    <div key={idx} className="calendar-day" style={{ minHeight: '120px' }}>
+                                    <div key={`skel-${idx}`} className="calendar-day" style={{ minHeight: '120px' }}>
                                         <Skeleton className="h-6 w-8 mb-2" />
                                         <Skeleton className="h-4 w-full" />
                                     </div>
@@ -1232,12 +1233,12 @@ export default function ContentHeadDashboard() {
 
                                     return (
                                         <div 
-                                            key={idx} 
+                                            key={day.toISOString() || `day-${idx}`} 
                                             className={`calendar-day ${!isCurrentPeriod ? 'other-month' : ''} ${isToday ? 'today' : ''}`}
                                         >
                                             <span className="day-number">{format(day, 'd')}</span>
                                             <div className="day-items">
-                                                {dayItems.map(item => {
+                                                {dayItems.map((item, itemIdx) => {
                                                     const statusUpper = (item.status || '').toUpperCase();
                                                     const isApproved = isApprovedByContentHead(statusUpper);
                                                     const isWaiting = statusUpper === 'WAITING FOR APPROVAL';
@@ -1255,7 +1256,7 @@ export default function ContentHeadDashboard() {
 
                                                     return (
                                                         <div 
-                                                            key={item.id} 
+                                                            key={item.id || `day-item-${idx}-${itemIdx}`} 
                                                             className={`content-item ${item.content_type.toLowerCase()} ${statusBorderClass}`}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -1406,12 +1407,12 @@ export default function ContentHeadDashboard() {
                                         w.name?.toLowerCase().includes(searchWriterQuery.toLowerCase()) ||
                                         w.email?.toLowerCase().includes(searchWriterQuery.toLowerCase())
                                     )
-                                    .map(writer => {
+                                    .map((writer, writerIdx) => {
                                         const stats = getWriterStats(writer.user_id);
                                         const assignedClients = clients.filter(c => c.writer_employee_id === writer.user_id);
 
                                         return (
-                                            <div key={writer.user_id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)' }}>
+                                            <div key={writer.user_id || writer.id || writer.email || `writer-${writerIdx}`} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)' }}>
                                                 {/* Writer Profile Header */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
@@ -1448,8 +1449,8 @@ export default function ContentHeadDashboard() {
                                                         {assignedClients.length === 0 ? (
                                                             <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No clients assigned</span>
                                                         ) : (
-                                                            assignedClients.map(client => (
-                                                                <div key={client.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(13, 148, 136, 0.08)', border: '1px solid rgba(13, 148, 136, 0.2)', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, color: '#0d9488' }}>
+                                                            assignedClients.map((client, clientIdx) => (
+                                                                <div key={client.id || `assigned-${clientIdx}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(13, 148, 136, 0.08)', border: '1px solid rgba(13, 148, 136, 0.2)', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, color: '#0d9488' }}>
                                                                     <span>{client.company_name}</span>
                                                                     <button 
                                                                         onClick={() => handleUnassignClient(client.id, writer.user_id)}
@@ -1515,8 +1516,8 @@ export default function ContentHeadDashboard() {
                                                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
                                                         <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>Today's Schedule</span>
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '120px', overflowY: 'auto' }}>
-                                                            {stats.tasks.map((task: any) => (
-                                                                <div key={task.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elevated)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                                            {stats.tasks.map((task: any, taskIdx: number) => (
+                                                                <div key={task.id || task.task_id || `writer-task-${taskIdx}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elevated)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                                                                     <div style={{ minWidth: 0, flex: 1, paddingRight: '8px' }}>
                                                                         <span style={{ fontSize: '10px', color: '#0d9488', fontWeight: 800, display: 'block' }}>{task.clientName}</span>
                                                                         <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
@@ -1576,6 +1577,7 @@ export default function ContentHeadDashboard() {
                         </div>
 
                         <div className="detail-grid">
+                            <ReviewNoteCard history={activeItem.history} style={{ gridColumn: '1 / -1' }} />
                             <div className="detail-info">
                                 <div>
                                     <span className="detail-label">Description</span>
@@ -1664,8 +1666,8 @@ export default function ContentHeadDashboard() {
                             <h3 className="detail-label" style={{ marginBottom: '16px' }}>Activity History</h3>
                             <div className="log-list">
                                 {activeItem.history && activeItem.history.length > 0 ? (
-                                    activeItem.history.map((log: any) => (
-                                        <div key={log.id} className="log-item">
+                                    activeItem.history.map((log: any, logIdx: number) => (
+                                        <div key={log.log_id || log.id || `log-${logIdx}`} className="log-item">
                                             <div className="log-dot"></div>
                                             <div className="log-content">
                                                 <p className="log-title">
@@ -1793,12 +1795,12 @@ export default function ContentHeadDashboard() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
                                 {clients
                                     .filter(c => c.company_name?.toLowerCase().includes(assignClientSearchQuery.toLowerCase()))
-                                    .map(client => {
+                                    .map((client, clientIdx) => {
                                         const isAlreadyAssignedToThisWriter = client.writer_employee_id === selectedWriterForAssignment.user_id;
                                         const currentWriterAssigned = writers.find(w => w.user_id === client.writer_employee_id);
 
                                         return (
-                                            <div key={client.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                                            <div key={client.id || `assign-modal-${clientIdx}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '10px' }}>
                                                 <div>
                                                     <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>{client.company_name}</span>
                                                     {currentWriterAssigned && (

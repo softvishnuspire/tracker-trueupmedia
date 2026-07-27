@@ -309,9 +309,9 @@ export default function NotificationBell() {
                                     <Bell size={32} style={{ opacity: 0.2, marginBottom: '12px' }} />
                                     <p style={{ fontSize: '13px', fontWeight: 600 }}>No notifications yet.</p>
                                 </div>
-                            ) : notifications.map((item) => (
+                            ) : notifications.map((item, idx) => (
                                 <div 
-                                    key={item.id} 
+                                    key={item.id || item.notification_id || `notif-${idx}`} 
                                     style={{ 
                                         borderRadius: 14, 
                                         padding: 16, 

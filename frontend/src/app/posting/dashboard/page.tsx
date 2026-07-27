@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import NotificationBell from '@/components/NotificationBell';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { get15BiMonthlyPeriod } from '@/utils/calendarUtils';
@@ -1220,6 +1221,7 @@ export default function PostingDashboard() {
                         
                         <div className="modal-body" style={{ padding: '32px' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                                <ReviewNoteCard history={activeItem.history} style={{ gridColumn: '1 / -1' }} />
                                 <div className="detail-section">
                                         <p className="detail-value">
                                             {activeItem.item.clients?.company_name && (

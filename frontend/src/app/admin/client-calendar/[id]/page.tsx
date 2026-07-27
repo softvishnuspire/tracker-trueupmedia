@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '@/lib/api';
 import ScheduleExport from '@/components/ScheduleExport';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
 import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -841,6 +842,7 @@ export default function ClientCalendarPage() {
                         </div>
                         
                         <div className="detail-grid" style={{ padding: '32px' }}>
+                            <ReviewNoteCard history={selectedItem.history} style={{ gridColumn: '1 / -1' }} />
                             <div className="detail-info">
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
                                     <div style={{ width: '100%' }}>

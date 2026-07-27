@@ -92,6 +92,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import NotificationBell from '@/components/NotificationBell';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import Image from 'next/image';
@@ -3249,6 +3250,7 @@ export default function GMDashboard() {
                         </div>
 
                         <div className="detail-grid" style={{ padding: '32px' }}>
+                            <ReviewNoteCard history={activeItem.history} style={{ gridColumn: '1 / -1' }} />
                             <div className="detail-main">
 
 

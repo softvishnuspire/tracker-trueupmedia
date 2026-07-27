@@ -54,6 +54,7 @@ import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarU
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ThemeToggle from '@/components/ThemeToggle';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -1844,6 +1845,7 @@ export default function ProductionHeadDashboard() {
                                 </div>
                             )}
                             <div style={{ display: 'grid', gridTemplateColumns: view === 'viewTaskClient' ? '1fr' : '1fr 1fr', gap: '32px' }}>
+                                <ReviewNoteCard history={activeItem.history} style={{ gridColumn: '1 / -1' }} />
                                 <div className="detail-section">
                                         <p className="detail-value">
                                             {activeItem.item.clients?.company_name && (

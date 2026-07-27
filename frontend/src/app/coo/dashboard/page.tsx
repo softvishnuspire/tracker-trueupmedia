@@ -63,6 +63,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import './coo.css';
 
@@ -941,6 +942,7 @@ export default function CooDashboard() {
                         </div>
 
                         <div className="detail-grid" style={{ padding: '32px' }}>
+                            <ReviewNoteCard history={selectedItem.history} style={{ gridColumn: '1 / -1' }} />
                             <div className="detail-info">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
                                     <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
