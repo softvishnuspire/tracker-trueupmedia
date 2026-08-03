@@ -13,23 +13,52 @@ interface ReviewNoteCardProps {
 export default function ReviewNoteCard({ history, className = '', style }: ReviewNoteCardProps) {
     const [showAllNotes, setShowAllNotes] = useState(false);
 
-    if (!history || !Array.isArray(history) || history.length === 0) {
-        return null;
-    }
-
-    // Filter all history items that have a non-empty note
-    const notes = history.filter((h: any) => h.note && typeof h.note === 'string' && h.note.trim() !== '');
+    const safeHistory = Array.isArray(history) ? history : [];
+    const notes = safeHistory.filter((h: any) => h.note && typeof h.note === 'string' && h.note.trim() !== '');
 
     if (notes.length === 0) {
-        return null;
+        return (
+            <div 
+                className={`review-note-card-container ${className}`}
+                style={{
+                    background: 'rgba(99, 102, 241, 0.04)',
+                    border: '1px dashed rgba(99, 102, 241, 0.25)',
+                    borderRadius: '14px',
+                    padding: '14px 16px',
+                    marginBottom: '20px',
+                    ...style
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ 
+                        width: '24px', 
+                        height: '24px', 
+                        borderRadius: '6px', 
+                        background: 'rgba(99, 102, 241, 0.12)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        color: 'var(--accent, #6366f1)' 
+                    }}>
+                        <MessageSquare size={14} />
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--accent, #6366f1)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Review Note
+                    </span>
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)', fontStyle: 'italic', marginTop: '8px' }}>
+                    No review note added for this task yet.
+                </div>
+            </div>
+        );
     }
 
     const latestNote = notes[0];
     const previousNotes = notes.slice(1);
 
     const getAuthorDisplay = (noteItem: any) => {
-        const name = noteItem.users?.name || 'Reviewer';
-        const role = noteItem.users?.role_identifier || noteItem.users?.role;
+        const name = noteItem.users?.name || noteItem.author_name || noteItem.changed_by_name || noteItem.user_name || 'Reviewer';
+        const role = noteItem.users?.role_identifier || noteItem.users?.role || noteItem.author_role || noteItem.user_role;
         return role ? `${name} (${role})` : name;
     };
 

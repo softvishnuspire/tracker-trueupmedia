@@ -21,7 +21,7 @@ import {
     FileText, Video, CheckCircle2, X, LogOut, Filter, Menu, Clock, ShieldAlert, Check, 
     AlertTriangle, ArrowRight, CalendarClock, Undo2, Lock, ListFilter, Play,
     Users, Plus, Search, Mail, User as UserIcon, Trophy, Target, Briefcase, Trash2, TrendingUp, Building2,
-    Loader2
+    Loader2, MessageSquare, Edit
 } from 'lucide-react';
 import { gmApi, emergencyApi, settingsApi, adminApi, contentHeadApi } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
@@ -35,7 +35,7 @@ import NotificationBell from '@/components/NotificationBell';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ThemeToggle from '@/components/ThemeToggle';
 import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
-import { getClientAbbreviation, formatIST, getISTDate } from '@/lib/utils';
+import { getClientAbbreviation, formatIST, getISTDate, formatISTForm, convertISTToUTC } from '@/lib/utils';
 import './content-head.css';
 
 interface ContentItem {
@@ -89,6 +89,19 @@ export default function ContentHeadDashboard() {
     const [assignClientSearchQuery, setAssignClientSearchQuery] = useState('');
     const [writerProductivity, setWriterProductivity] = useState<any[]>([]);
     const [loadingWriters, setLoadingWriters] = useState(false);
+
+    // Task Scheduling & Editing State
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
+    const [isRescheduling, setIsRescheduling] = useState(false);
+    const [submittingContent, setSubmittingContent] = useState(false);
+    const [formData, setFormData] = useState({
+        content_type: 'Post' as ContentItem['content_type'],
+        scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'10:00"),
+        client_id: 'all',
+        title: '',
+        description: ''
+    });
 
     const router = useRouter();
     const supabase = createClient();
@@ -360,6 +373,25 @@ export default function ContentHeadDashboard() {
         }
     }, [isDetailsOpen, view, selectedClient]);
 
+    const [isSavingNote, setIsSavingNote] = useState(false);
+
+    const handleSaveReviewNote = async (id: string) => {
+        if (!statusNote.trim()) return;
+        setIsSavingNote(true);
+        try {
+            await gmApi.addReviewNote(id, statusNote.trim(), user?.id);
+            toastSuccess('Review note saved successfully!');
+            setStatusNote('');
+            const res = await gmApi.getContentDetails(id);
+            setActiveItem(res.data);
+        } catch (err: any) {
+            console.error('Error saving review note:', err);
+            toastError(err.response?.data?.error || 'Failed to save review note.');
+        } finally {
+            setIsSavingNote(false);
+        }
+    };
+
     const handleApproveContent = async (id: string) => {
         setActionId(id);
         const actorId = user?.id;
@@ -506,6 +538,125 @@ export default function ContentHeadDashboard() {
             const res = await gmApi.getContentDetails(nextTask.id);
             setActiveItem(res.data);
         } catch (err) { console.error(err); }
+    };
+
+    const handleEditClick = (item: ContentItem) => {
+        setIsRescheduling(false);
+        setEditingItem(item);
+        setFormData({
+            content_type: item.content_type,
+            scheduled_datetime: formatISTForm(item.scheduled_datetime, 'yyyy-MM-dd') + 'T' + formatISTForm(item.scheduled_datetime, 'HH:mm'),
+            client_id: item.client_id,
+            title: item.title || '',
+            description: item.description || ''
+        });
+        setIsDetailsOpen(false);
+        setShowAddModal(true);
+    };
+
+    const handleRescheduleClick = (item: ContentItem) => {
+        setIsRescheduling(true);
+        setEditingItem(item);
+        setFormData({
+            content_type: item.content_type,
+            scheduled_datetime: formatISTForm(item.scheduled_datetime, 'yyyy-MM-dd') + 'T' + formatISTForm(item.scheduled_datetime, 'HH:mm'),
+            client_id: item.client_id,
+            title: item.title || '',
+            description: item.description || ''
+        });
+        setIsDetailsOpen(false);
+        setShowAddModal(true);
+    };
+
+    const handleDeleteContent = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this content item?')) return;
+        setActionId(`delete-${id}`);
+        try {
+            await performOptimisticAction({
+                backup: () => ({
+                    calendar: [...calendarData],
+                    pending: [...pendingTasks],
+                    approved: [...approvedTasks],
+                    active: activeItem ? { ...activeItem } : null,
+                    dayTasks: [...dayTasks]
+                }),
+                update: () => {
+                    setCalendarData(prev => prev.filter(item => item.id !== id));
+                    setPendingTasks(prev => prev.filter(item => item.id !== id));
+                    setApprovedTasks(prev => prev.filter(item => item.id !== id));
+                    setDayTasks(prev => prev.filter(item => item.id !== id));
+                    setIsDetailsOpen(false);
+                    setActiveItem(null);
+                },
+                action: () => gmApi.deleteContent(id),
+                rollback: (backup) => {
+                    setCalendarData(backup.calendar);
+                    setPendingTasks(backup.pending);
+                    setApprovedTasks(backup.approved);
+                    setDayTasks(backup.dayTasks);
+                    if (backup.active) setActiveItem(backup.active);
+                },
+                successMessage: 'Content deleted successfully.',
+                errorMessage: 'Failed to delete content.',
+                refresh: () => fetchData(true)
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleAddContent = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const targetClientId = selectedClient !== 'all' ? selectedClient : formData.client_id;
+        if (!targetClientId || targetClientId === 'all') {
+            toastError('Please select a client to schedule content.');
+            return;
+        }
+
+        setSubmittingContent(true);
+        try {
+            const [datePart, timePart] = formData.scheduled_datetime.split('T');
+            const utcScheduledDatetime = convertISTToUTC(datePart, timePart || '10:00');
+
+            if (editingItem) {
+                await gmApi.updateContent(editingItem.id, {
+                    title: formData.title,
+                    description: formData.description,
+                    scheduled_datetime: utcScheduledDatetime,
+                    is_rescheduled: isRescheduling ? true : editingItem.is_rescheduled
+                });
+                toastSuccess('Content item updated successfully.');
+            } else {
+                await gmApi.addContent({
+                    client_id: targetClientId,
+                    title: formData.title,
+                    description: formData.description,
+                    content_type: formData.content_type,
+                    scheduled_datetime: utcScheduledDatetime
+                });
+                toastSuccess('Content item scheduled successfully.');
+            }
+
+            setShowAddModal(false);
+            setEditingItem(null);
+            setIsRescheduling(false);
+            setFormData({
+                content_type: 'Post',
+                scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'10:00"),
+                client_id: selectedClient !== 'all' ? selectedClient : (clients[0]?.id || 'all'),
+                title: '',
+                description: ''
+            });
+            fetchData(true);
+        } catch (err: any) {
+            console.error(err);
+            const errorMsg = err.response?.data?.error || 'Error saving content item';
+            toastError(errorMsg);
+        } finally {
+            setSubmittingContent(false);
+        }
     };
 
     const handleLogout = async () => {
@@ -905,6 +1056,38 @@ export default function ContentHeadDashboard() {
                                     )}
                                 </div>
                             )}
+
+                            {view !== 'employees' && (
+                                <button
+                                    onClick={() => {
+                                        setEditingItem(null);
+                                        setIsRescheduling(false);
+                                        setFormData({
+                                            content_type: 'Post',
+                                            scheduled_datetime: format(new Date(), "yyyy-MM-dd'T'10:00"),
+                                            client_id: selectedClient !== 'all' ? selectedClient : (clients[0]?.id || 'all'),
+                                            title: '',
+                                            description: ''
+                                        });
+                                        setShowAddModal(true);
+                                    }}
+                                    className="btn-mark-posted"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 14px',
+                                        fontSize: '13px',
+                                        fontWeight: 700,
+                                        borderRadius: '10px',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                    title="Schedule New Task / Reel / Post"
+                                >
+                                    <Plus size={16} />
+                                    <span>Schedule Task</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </header>
@@ -1235,8 +1418,59 @@ export default function ContentHeadDashboard() {
                                         <div 
                                             key={day.toISOString() || `day-${idx}`} 
                                             className={`calendar-day ${!isCurrentPeriod ? 'other-month' : ''} ${isToday ? 'today' : ''}`}
+                                            onClick={() => {
+                                                if (!isCurrentPeriod) return;
+                                                if (dayItems.length === 0) {
+                                                    setEditingItem(null);
+                                                    setIsRescheduling(false);
+                                                    setFormData({
+                                                        content_type: 'Post',
+                                                        scheduled_datetime: format(day, "yyyy-MM-dd") + 'T10:00',
+                                                        client_id: selectedClient !== 'all' ? selectedClient : (clients[0]?.id || 'all'),
+                                                        title: '',
+                                                        description: ''
+                                                    });
+                                                    setShowAddModal(true);
+                                                }
+                                            }}
+                                            style={{ cursor: isCurrentPeriod ? 'pointer' : 'default' }}
                                         >
-                                            <span className="day-number">{format(day, 'd')}</span>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                <span className="day-number">{format(day, 'd')}</span>
+                                                {isCurrentPeriod && (
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingItem(null);
+                                                            setIsRescheduling(false);
+                                                            setFormData({
+                                                                content_type: 'Post',
+                                                                scheduled_datetime: format(day, "yyyy-MM-dd") + 'T10:00',
+                                                                client_id: selectedClient !== 'all' ? selectedClient : (clients[0]?.id || 'all'),
+                                                                title: '',
+                                                                description: ''
+                                                            });
+                                                            setShowAddModal(true);
+                                                        }}
+                                                        className="add-task-btn"
+                                                        style={{
+                                                            background: 'rgba(255, 255, 255, 0.05)',
+                                                            border: '1px solid var(--border)',
+                                                            borderRadius: '6px',
+                                                            padding: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            color: 'var(--text-muted)',
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s ease'
+                                                        }}
+                                                        title="Schedule Task"
+                                                    >
+                                                        <Plus size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
                                             <div className="day-items">
                                                 {dayItems.map((item, itemIdx) => {
                                                     const statusUpper = (item.status || '').toUpperCase();
@@ -1571,9 +1805,62 @@ export default function ContentHeadDashboard() {
                                 </div>
                                 <h2 className="modal-title">{activeItem.item.title}</h2>
                             </div>
-                            <button className="modal-close" onClick={() => setIsDetailsOpen(false)}>
-                                <X size={20} />
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                    onClick={() => handleEditClick(activeItem.item)}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '6px 12px',
+                                        fontSize: '12px',
+                                        borderRadius: '8px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}
+                                    title="Edit Task Details"
+                                >
+                                    <Edit size={14} />
+                                    <span>Edit</span>
+                                </button>
+                                <button
+                                    onClick={() => handleRescheduleClick(activeItem.item)}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '6px 12px',
+                                        fontSize: '12px',
+                                        borderRadius: '8px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}
+                                    title="Reschedule Task"
+                                >
+                                    <CalendarClock size={14} />
+                                    <span>Reschedule</span>
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteContent(activeItem.item.id)}
+                                    className="btn-secondary"
+                                    style={{
+                                        padding: '6px 12px',
+                                        fontSize: '12px',
+                                        borderRadius: '8px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        color: '#ef4444',
+                                        borderColor: 'rgba(239, 68, 68, 0.3)'
+                                    }}
+                                    title="Delete Content"
+                                    disabled={actionId === `delete-${activeItem.item.id}`}
+                                >
+                                    <Trash2 size={14} />
+                                    <span>Delete</span>
+                                </button>
+                                <button className="modal-close" onClick={() => setIsDetailsOpen(false)}>
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="detail-grid">
@@ -1604,30 +1891,50 @@ export default function ContentHeadDashboard() {
                                         <p className="status-value">{activeItem.item.status}</p>
                                     </div>
 
-                                    {/* Action Buttons for Content Head */}
-                                    <div className="workflow-actions-section">
-                                        {!isApprovedByContentHead(activeItem.item.status) ? (
-                                            <>
-                                                <textarea
-                                                    className="status-note-input"
-                                                    placeholder="Add an optional review note..."
-                                                    value={statusNote}
-                                                    onChange={(e) => setStatusNote(e.target.value)}
-                                                    rows={3}
-                                                />
+                                    {/* Action Buttons & Review Note for Content Head */}
+                                    <div className="workflow-actions-section" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <textarea
+                                                className="status-note-input"
+                                                placeholder="Add or update an optional review note..."
+                                                value={statusNote}
+                                                onChange={(e) => setStatusNote(e.target.value)}
+                                                rows={3}
+                                            />
+                                            {statusNote.trim() && (
                                                 <button
-                                                    className="btn-approve-content"
-                                                    onClick={() => handleApproveContent(activeItem.item.id)}
-                                                    disabled={actionId === activeItem.item.id}
+                                                    type="button"
+                                                    className="btn-secondary"
+                                                    onClick={() => handleSaveReviewNote(activeItem.item.id)}
+                                                    disabled={isSavingNote}
+                                                    style={{
+                                                        alignSelf: 'flex-end',
+                                                        padding: '6px 14px',
+                                                        fontSize: '12px',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px'
+                                                    }}
                                                 >
-                                                    {actionId === activeItem.item.id ? (
-                                                        <Loader2 size={18} className="spinner-btn-icon" />
-                                                    ) : (
-                                                        <Check size={18} />
-                                                    )}
-                                                    <span>{actionId === activeItem.item.id ? 'Approving...' : 'Approve Content'}</span>
+                                                    {isSavingNote ? <Loader2 size={14} className="spinner-btn-icon" /> : <MessageSquare size={14} />}
+                                                    <span>{isSavingNote ? 'Saving Note...' : 'Save Review Note'}</span>
                                                 </button>
-                                            </>
+                                            )}
+                                        </div>
+
+                                        {!isApprovedByContentHead(activeItem.item.status) ? (
+                                            <button
+                                                className="btn-approve-content"
+                                                onClick={() => handleApproveContent(activeItem.item.id)}
+                                                disabled={actionId === activeItem.item.id}
+                                            >
+                                                {actionId === activeItem.item.id ? (
+                                                    <Loader2 size={18} className="spinner-btn-icon" />
+                                                ) : (
+                                                    <Check size={18} />
+                                                )}
+                                                <span>{actionId === activeItem.item.id ? 'Approving...' : 'Approve Content'}</span>
+                                            </button>
                                         ) : activeItem.item.status === 'CONTENT APPROVED' ? (
                                             <button
                                                 className="btn-undo-approval"
@@ -1643,17 +1950,8 @@ export default function ContentHeadDashboard() {
                                             </button>
                                         ) : (
                                             <div className={`workflow-status-badge ${isApprovedByContentHead(activeItem.item.status) ? 'approved' : 'other'}`}>
-                                                {isApprovedByContentHead(activeItem.item.status) ? (
-                                                    <>
-                                                        <CheckCircle2 size={18} />
-                                                        <span>Content Already Approved</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Lock size={18} />
-                                                        <span>Awaiting Team Action</span>
-                                                    </>
-                                                )}
+                                                <CheckCircle2 size={18} />
+                                                <span>Content Approved ({activeItem.item.status})</span>
                                             </div>
                                         )}
                                     </div>
@@ -1825,6 +2123,110 @@ export default function ContentHeadDashboard() {
                                     })}
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Schedule / Edit Content Modal */}
+            {showAddModal && (
+                <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">
+                                {editingItem 
+                                    ? (isRescheduling ? 'Reschedule Content Task' : 'Edit Content Task')
+                                    : 'Schedule New Content Task'}
+                            </h3>
+                            <button onClick={() => setShowAddModal(false)} className="modal-close"><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleAddContent}>
+                            {!editingItem && selectedClient === 'all' && (
+                                <div className="form-group" style={{ marginBottom: '16px' }}>
+                                    <label className="form-label">Client *</label>
+                                    <select
+                                        className="form-input"
+                                        value={formData.client_id}
+                                        onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
+                                        required
+                                        style={{ width: '100%' }}
+                                    >
+                                        <option value="all" disabled>Select a Client</option>
+                                        {clients.map(c => (
+                                            <option key={c.id} value={c.id}>{c.company_name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {!editingItem && (
+                                <div className="form-group" style={{ marginBottom: '16px' }}>
+                                    <label className="form-label">Content Type *</label>
+                                    <select
+                                        className="form-input"
+                                        value={formData.content_type}
+                                        onChange={(e) => setFormData({ ...formData, content_type: e.target.value as any })}
+                                        required
+                                        style={{ width: '100%' }}
+                                    >
+                                        <option value="Post">Post (Poster)</option>
+                                        <option value="Reel">Reel</option>
+                                        <option value="YouTube">YouTube</option>
+                                        <option value="Special Poster">Special Poster</option>
+                                        <option value="Special Day Poster">Special Day Poster</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            <div className="form-group" style={{ marginBottom: '16px' }}>
+                                <label className="form-label">Scheduled Date & Time (IST) *</label>
+                                <input
+                                    type="datetime-local"
+                                    className="form-input"
+                                    required
+                                    value={formData.scheduled_datetime}
+                                    onChange={(e) => setFormData({ ...formData, scheduled_datetime: e.target.value })}
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+
+                            <div className="form-group" style={{ marginBottom: '16px' }}>
+                                <label className="form-label">Task Title *</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    required
+                                    placeholder="e.g. Product Launch Reel"
+                                    value={formData.title}
+                                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+
+                            <div className="form-group" style={{ marginBottom: '20px' }}>
+                                <label className="form-label">Description / Script Outline</label>
+                                <textarea
+                                    className="form-input"
+                                    rows={4}
+                                    placeholder="Enter copy points, details or script instructions..."
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    style={{ width: '100%', resize: 'vertical' }}
+                                />
+                            </div>
+
+                            <div className="modal-footer">
+                                <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)}>Cancel</button>
+                                <button
+                                    type="submit"
+                                    className="btn-primary"
+                                    disabled={submittingContent}
+                                    style={{ width: 'auto', padding: '10px 24px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                                >
+                                    {submittingContent && <Loader2 size={16} className="spinner-btn-icon" />}
+                                    <span>{submittingContent ? 'Saving...' : (editingItem ? 'Update Task' : 'Schedule Task')}</span>
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

@@ -111,6 +111,8 @@ export const gmApi = {
     deleteContent: (id: string) => api.delete(`/api/gm/content/${id}`),
     updateStatus: (id: string, new_status: string, note?: string, changed_by?: string) =>
         api.patch(`/api/gm/content/${id}/status`, { new_status, note, changed_by }),
+    addReviewNote: (id: string, note: string, changed_by?: string) =>
+        api.post(`/api/gm/content/${id}/review-note`, { note, changed_by }),
     getTeamLeads: () => api.get('/api/gm/team-leads'),
     assignClient: (clientId: string, teamLeadId: string) => api.patch(`/api/gm/clients/${clientId}/assign`, { team_lead_id: teamLeadId }),
     getTeamLeadClients: (teamLeadId: string) => api.get(`/api/gm/team-leads/${teamLeadId}/clients`),

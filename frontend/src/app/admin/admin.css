@@ -3265,3 +3265,17 @@
     background: rgba(99, 102, 241, 0.05) !important;
     border-color: var(--accent) !important;
 }
+
+@media (max-width: 1024px) {
+    .calendar-card {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        touch-action: pan-x pan-y !important;
+    }
+    .calendar-grid {
+        min-width: 680px !important;
+    }
+    .emergency-list {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)) !important;
+    }
+}

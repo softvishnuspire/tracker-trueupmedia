@@ -862,7 +862,7 @@ export default function TLDashboard() {
 
     return (
         <div className="dashboard-container">
-            <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
+            <div className="desktop-fixed-bell">
                 <NotificationBell />
             </div>
             {/* Mobile Sidebar Overlay */}
@@ -1556,7 +1556,7 @@ export default function TLDashboard() {
 
                 {view === 'employees' && (
                     <div className="employees-view">
-                        <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: '24px' }}>
+                        <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '24px' }}>
                             {employees.map((emp: any) => {
                                 const assignedClients = allClients.filter(c => {
                                     if (emp.role_identifier === 'REEL') {

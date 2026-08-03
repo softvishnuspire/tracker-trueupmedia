@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { adminApi, gmApi, phApi, TeamMember, Client, ContentItem } from '@/lib/api';
 import { Plus, Search, Trash2, X, Key, Edit2, Users, Briefcase, RefreshCcw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import ReviewNoteCard from '@/components/ReviewNoteCard';
 
 interface TeamLead extends TeamMember {
   clients?: Client[];
@@ -1022,6 +1023,7 @@ export default function TeamManagement() {
             </div>
             
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <ReviewNoteCard history={selectedTaskDetails.history} />
               {selectedTaskDetails.item.title && (
                 <div>
                   <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title</h4>

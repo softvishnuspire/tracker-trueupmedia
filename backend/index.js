@@ -922,7 +922,7 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
         old_status: item.status,
         new_status: new_status,
         note: note || null,
-        changed_by: changed_by || null
+        changed_by: changed_by || req.user?.id || null
     };
 
     const { error: logError } = await supabase.from('status_logs').insert([logData]);
@@ -936,6 +936,42 @@ app.patch('/api/gm/content/:id/status', requireRoles(TL_ROLES), async (req, res)
     await invalidateContentCaches(updatedData[0], item);
 
     res.json({ message: 'Status updated successfully' });
+});
+
+app.post('/api/gm/content/:id/review-note', requireRoles(TL_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { note, changed_by } = req.body;
+
+    if (!note || typeof note !== 'string' || !note.trim()) {
+        return res.status(400).json({ error: 'Review note text cannot be empty' });
+    }
+
+    try {
+        const { data: itemData, error: itemError } = await fetchContentOrFreelancerItem(id);
+        if (itemError || !itemData) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+
+        const logData = {
+            item_id: id,
+            old_status: itemData.status,
+            new_status: itemData.status,
+            note: note.trim(),
+            changed_by: changed_by || req.user?.id || null
+        };
+
+        const { error: logError } = await supabase.from('status_logs').insert([logData]);
+        if (logError) {
+            console.error('[ReviewNote] Log error:', logError);
+            return res.status(500).json({ error: 'Failed to save review note log' });
+        }
+
+        await invalidateContentCaches(itemData);
+        res.json({ message: 'Review note saved successfully' });
+    } catch (err) {
+        console.error('[ReviewNote] Exception:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/gm/content/:id/undo-status', requireRoles(TL_ROLES), async (req, res) => {

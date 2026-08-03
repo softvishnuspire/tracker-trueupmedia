@@ -4303,3 +4303,31 @@
     background: rgba(99, 102, 241, 0.05) !important;
     border-color: var(--accent) !important;
 }
+
+@media (max-width: 1024px) {
+    .calendar-card {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        touch-action: pan-x pan-y !important;
+    }
+    .calendar-grid {
+        min-width: 680px !important;
+    }
+    .page-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 16px !important;
+        width: 100% !important;
+    }
+    .header-controls {
+        width: 100% !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 10px !important;
+    }
+    .teams-grid {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)) !important;
+    }
+}

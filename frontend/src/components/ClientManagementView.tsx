@@ -398,8 +398,8 @@ export default function ClientManagementView({ role, basePath, title = "Client M
               <h3 className="modal-title">{editingClient ? 'Edit Client & Assignments' : 'Add New Client'}</h3>
               <button onClick={() => setShowModal(false)} className="modal-close"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <form onSubmit={handleSubmit} className="modal-form">
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Company Name *</label>
                   <input
@@ -424,7 +424,7 @@ export default function ClientManagementView({ role, basePath, title = "Client M
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Phone Number</label>
                   <input
@@ -448,7 +448,7 @@ export default function ClientManagementView({ role, basePath, title = "Client M
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: '16px' }}>
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Batch Cycle *</label>
                   <select
@@ -472,7 +472,7 @@ export default function ClientManagementView({ role, basePath, title = "Client M
                 </div>
               </div>
 
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Posts / Month</label>
                   <input
@@ -509,7 +509,7 @@ export default function ClientManagementView({ role, basePath, title = "Client M
                 <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>
                   Default Auto-Assignments (Optional / Legacy)
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <UserCheck size={14} color="#8b5cf6" /> Team Lead
