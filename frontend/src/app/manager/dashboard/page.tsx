@@ -85,7 +85,7 @@ import {
 } from '@/lib/api';
 import { downloadAllEmployeesReport, downloadEmployeeReport } from '@/utils/pdfExport';
 import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems, calculateCalendarStats, isReelContentType, isPostContentType } from '@/utils/calendarUtils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -898,11 +898,13 @@ function ManagerDashboardContent() {
         }
     );
 
-    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)) && !isCrossMonthRescheduled(item)).reduce(
+    const monthStatusCounts = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item))).reduce(
         (acc, item) => {
             const status = (item.status || '').toUpperCase();
             const type = (item.content_type || '').toUpperCase();
-            const isShot = shootDoneStatuses.includes(status);
+            const isReel = isReelContentType(type);
+            const isPost = isPostContentType(type);
+            const isShot = isReel ? shootDoneStatuses.includes(status) : (status === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(status));
             const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
             
             acc.total += 1;
@@ -914,11 +916,11 @@ function ManagerDashboardContent() {
             // Track status distribution for the Activity Hub
             acc.statusCounts[status] = (acc.statusCounts[status] || 0) + 1;
 
-            if (type === 'REEL' || type === 'YOUTUBE') {
+            if (isReel) {
                 acc.reels += 1;
                 if (isDone) acc.completedReels += 1;
                 if (isShot) acc.shootDone += 1;
-            } else if (type === 'POST') {
+            } else if (isPost) {
                 acc.posts += 1;
                 if (isDone) acc.completedPosts += 1;
                 if (isShot) acc.shotPosts += 1;

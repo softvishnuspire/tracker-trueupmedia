@@ -42,7 +42,7 @@ import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '
 import ScheduleExport from '@/components/ScheduleExport';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems, calculateCalendarStats } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -388,36 +388,7 @@ export default function ClientCalendarPage() {
         }
     };
 
-    const monthStatusCounts = calendarData.reduce(
-        (acc, item) => {
-            if (isCrossMonthRescheduled(item)) return acc;
-            if (!isDayInPeriod(getISTDate(item.scheduled_datetime))) return acc;
-            
-            const normalizedStatus = (item.status || '').toUpperCase();
-            const normalizedType = (item.content_type || '').toUpperCase();
-            
-            const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
-            const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
-
-            if (contentApprovedStatuses.includes(normalizedStatus)) {
-                acc.contentApproved += 1;
-            }
-
-            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
-                if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
-            } else if (normalizedType === 'POST') {
-                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
-                    acc.shootDone += 1;
-                }
-            }
-
-            if (normalizedType === 'REEL') acc.reels += 1;
-            if (normalizedType === 'POST') acc.posts += 1;
-            
-            return acc;
-        },
-        { shootDone: 0, contentApproved: 0, reels: 0, posts: 0 }
-    );
+    const monthStatusCounts = calculateCalendarStats(calendarData, isDayInPeriod, (item) => getISTDate(item.scheduled_datetime));
 
     if (!client && !loading) return <div className="p-8">Loading client info...</div>;
 

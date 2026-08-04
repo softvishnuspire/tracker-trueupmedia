@@ -50,7 +50,7 @@ import {
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { formatIST, getClientAbbreviation } from '@/lib/utils';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems, calculateCalendarStats, isReelContentType, isPostContentType } from '@/utils/calendarUtils';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -786,11 +786,13 @@ export default function ProductionHeadDashboard() {
     });
 
     const monthStatusCounts = calendarData
-        .filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)) && !isCrossMonthRescheduled(item))
+        .filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)))
         .reduce(
         (acc, item) => {
             const normalizedStatus = (item.status || '').toUpperCase();
             const normalizedType = (item.content_type || '').toUpperCase();
+            const isReel = isReelContentType(normalizedType);
+            const isPost = isPostContentType(normalizedType);
 
             // Overall Pipeline
             acc.overallTotal += 1;
@@ -799,7 +801,7 @@ export default function ProductionHeadDashboard() {
             }
 
             // Reels
-            if (normalizedType === 'REEL') {
+            if (isReel) {
                 acc.reelsTotal += 1;
                 if (shootDoneStatuses.includes(normalizedStatus)) {
                     acc.reelsCompleted += 1;
@@ -807,7 +809,7 @@ export default function ProductionHeadDashboard() {
             }
 
             // Posts
-            if (normalizedType === 'POST') {
+            if (isPost) {
                 acc.postsTotal += 1;
                 if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
                     acc.postsCompleted += 1;
@@ -815,7 +817,7 @@ export default function ProductionHeadDashboard() {
             }
 
             // Shoots (Reels + YouTube)
-            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
+            if (isReel) {
                 acc.shootsTotal += 1;
                 if (shootDoneStatuses.includes(normalizedStatus)) {
                     acc.shootsCompleted += 1;
@@ -850,21 +852,23 @@ export default function ProductionHeadDashboard() {
             (acc, item) => {
                 const normalizedStatus = (item.status || '').toUpperCase();
                 const normalizedType = (item.content_type || '').toUpperCase();
+                const isReel = isReelContentType(normalizedType);
+                const isPost = isPostContentType(normalizedType);
 
                 acc.overallTotal += 1;
                 if (shootDoneStatuses.includes(normalizedStatus)) acc.overallCompleted += 1;
 
-                if (normalizedType === 'REEL') {
+                if (isReel) {
                     acc.reelsTotal += 1;
                     if (shootDoneStatuses.includes(normalizedStatus)) acc.reelsCompleted += 1;
                 }
-                if (normalizedType === 'POST') {
+                if (isPost) {
                     acc.postsTotal += 1;
                     if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
                         acc.postsCompleted += 1;
                     }
                 }
-                if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
+                if (isReel) {
                     acc.shootsTotal += 1;
                     if (shootDoneStatuses.includes(normalizedStatus)) acc.shootsCompleted += 1;
                 }

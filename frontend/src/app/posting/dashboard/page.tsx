@@ -28,7 +28,7 @@ import NotificationBell from '@/components/NotificationBell';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
-import { get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
+import { get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems, calculateCalendarStats, isReelContentType, isPostContentType } from '@/utils/calendarUtils';
 import '../posting.css';
 
 interface ContentItem {
@@ -690,14 +690,12 @@ export default function PostingDashboard() {
             const type = (item.content_type || '').toUpperCase();
 
             // Cumulative Shoot Done Logic (Reels & YouTube)
-            if ((type === 'REEL' || type === 'YOUTUBE') && shootDoneStatuses.includes(normalizedStatus)) {
+            if (isReelContentType(type) && shootDoneStatuses.includes(normalizedStatus)) {
                 acc.shootDone += 1;
             }
 
-
-
-            if (item.content_type === 'Reel') acc.reels += 1;
-            if (item.content_type === 'Post') acc.posts += 1;
+            if (isReelContentType(type)) acc.reels += 1;
+            if (isPostContentType(type)) acc.posts += 1;
             return acc;
         },
         { shootDone: 0, reels: 0, posts: 0 }

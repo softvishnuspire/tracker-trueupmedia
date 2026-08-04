@@ -103,4 +103,143 @@ export function dedupeContentItems(items: ContentItem[]): ContentItem[] {
     return Array.from(map.values());
 }
 
+export const CONTENT_APPROVED_STATUSES = [
+    'CONTENT READY',
+    'WAITING FOR APPROVAL',
+    'CONTENT APPROVED',
+    'SHOOT DONE',
+    'EDITING IN PROGRESS',
+    'EDITED',
+    'WAITING FOR FINAL APPROVAL',
+    'APPROVED',
+    'WAITING FOR POSTING',
+    'POSTED',
+    'DESIGNING IN PROGRESS',
+    'DESIGNING COMPLETED',
+    'COMPLETED',
+    'SCHEDULED'
+];
+
+export const SHOOT_DONE_STATUSES = [
+    'SHOOT DONE',
+    'EDITING IN PROGRESS',
+    'EDITED',
+    'WAITING FOR FINAL APPROVAL',
+    'APPROVED',
+    'WAITING FOR POSTING',
+    'POSTED',
+    'COMPLETED',
+    'SCHEDULED'
+];
+
+export function isReelContentType(contentType?: string): boolean {
+    const t = (contentType || '').toUpperCase();
+    return t === 'REEL' || t === 'YOUTUBE';
+}
+
+export function isPostContentType(contentType?: string): boolean {
+    const t = (contentType || '').toUpperCase();
+    return t === 'POST' || t === 'SPECIAL POSTER' || t === 'SPECIAL DAY POSTER';
+}
+
+export interface CalendarStatsResult {
+    reels: number;
+    posts: number;
+    contentApproved: number;
+    shootDone: number;
+    posted: number;
+    total: number;
+    completedCount: number;
+    pendingCount: number;
+    completedReels: number;
+    completedPosts: number;
+    pendingReels: number;
+    pendingPosts: number;
+    shotReels: number;
+    shotPosts: number;
+}
+
+export function calculateCalendarStats(
+    items: ContentItem[],
+    isDayInPeriod: (date: Date) => boolean,
+    getDateFn?: (item: ContentItem) => Date
+): CalendarStatsResult {
+    let reels = 0;
+    let posts = 0;
+    let contentApproved = 0;
+    let shootDone = 0;
+    let posted = 0;
+    let total = 0;
+    let completedCount = 0;
+    let pendingCount = 0;
+    let completedReels = 0;
+    let completedPosts = 0;
+    let pendingReels = 0;
+    let pendingPosts = 0;
+    let shotReels = 0;
+    let shotPosts = 0;
+
+    for (const item of items) {
+        if (!item || !item.scheduled_datetime) continue;
+        const itemDate = getDateFn ? getDateFn(item) : new Date(item.scheduled_datetime);
+
+        if (!isDayInPeriod(itemDate)) continue;
+
+        total += 1;
+        const status = (item.status || '').toUpperCase();
+        const type = (item.content_type || '').toUpperCase();
+
+        const isReel = isReelContentType(type);
+        const isPost = isPostContentType(type);
+
+        if (isReel) reels += 1;
+        if (isPost) posts += 1;
+
+        if (CONTENT_APPROVED_STATUSES.includes(status)) {
+            contentApproved += 1;
+        }
+
+        const isShot = isReel 
+            ? SHOOT_DONE_STATUSES.includes(status)
+            : (status === 'DESIGNING COMPLETED' || SHOOT_DONE_STATUSES.includes(status));
+
+        if (isShot) {
+            shootDone += 1;
+            if (isReel) shotReels += 1;
+            if (isPost) shotPosts += 1;
+        }
+
+        if (status === 'POSTED') posted += 1;
+
+        const isDone = status === 'POSTED' || status === 'WAITING FOR POSTING' || status === 'COMPLETED' || status === 'SCHEDULED';
+        if (isDone) {
+            completedCount += 1;
+            if (isReel) completedReels += 1;
+            if (isPost) completedPosts += 1;
+        } else {
+            pendingCount += 1;
+            if (isReel) pendingReels += 1;
+            if (isPost) pendingPosts += 1;
+        }
+    }
+
+    return {
+        reels,
+        posts,
+        contentApproved,
+        shootDone,
+        posted,
+        total,
+        completedCount,
+        pendingCount,
+        completedReels,
+        completedPosts,
+        pendingReels,
+        pendingPosts,
+        shotReels,
+        shotPosts
+    };
+}
+
+
 

@@ -37,7 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import { formatIST } from '@/lib/utils';
-import { isCrossMonthRescheduled } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, calculateCalendarStats } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -281,34 +281,7 @@ export default function CompanyCalendar() {
         }
     };
 
-    const monthStatusCounts = calendarData.reduce(
-        (acc, item) => {
-            if (isCrossMonthRescheduled(item)) return acc;
-            const normalizedStatus = (item.status || '').toUpperCase();
-            const normalizedType = (item.content_type || '').toUpperCase();
-
-            const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
-            const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
-
-            if (contentApprovedStatuses.includes(normalizedStatus)) {
-                acc.contentApproved += 1;
-            }
-
-            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
-                if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
-            } else if (normalizedType === 'POST') {
-                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
-                    acc.shootDone += 1;
-                }
-            }
-
-            if (normalizedStatus === 'POSTED') acc.posted += 1;
-            if (normalizedType === 'REEL') acc.reels += 1;
-            if (normalizedType === 'POST') acc.posts += 1;
-            return acc;
-        },
-        { posted: 0, contentApproved: 0, shootDone: 0, reels: 0, posts: 0 }
-    );
+    const monthStatusCounts = calculateCalendarStats(calendarData, () => true, (item) => parseISO(item.scheduled_datetime));
 
     return (
         <div>

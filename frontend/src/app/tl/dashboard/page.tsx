@@ -54,7 +54,7 @@ import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems, calculateCalendarStats } from '@/utils/calendarUtils';
 
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
@@ -718,52 +718,9 @@ export default function TLDashboard() {
         return `${format(periodStart, 'd MMM')} \u2013 ${format(periodEnd, 'd MMM yyyy')}`;
     };
 
-    const filteredCalendarData = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)) && !isCrossMonthRescheduled(item));
+    const filteredCalendarData = calendarData.filter(item => isDayInPeriod(getCalendarItemDate(item)));
 
-    const isItemCompleted = (status: string) => {
-        const s = (status || '').toUpperCase();
-        return s === 'WAITING FOR POSTING' || s === 'POSTED';
-    };
-
-    const contentApprovedStatuses = ['CONTENT READY', 'WAITING FOR APPROVAL', 'CONTENT APPROVED', 'SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED', 'DESIGNING IN PROGRESS', 'DESIGNING COMPLETED'];
-    const shootDoneStatuses = ['SHOOT DONE', 'EDITING IN PROGRESS', 'EDITED', 'WAITING FOR FINAL APPROVAL', 'APPROVED', 'WAITING FOR POSTING', 'POSTED'];
-
-    const monthStatusCounts = filteredCalendarData.reduce(
-        (acc, item) => {
-            const normalizedStatus = (item.status || '').toUpperCase();
-            const normalizedType = (item.content_type || '').toUpperCase();
-
-            if (contentApprovedStatuses.includes(normalizedStatus)) acc.contentApproved += 1;
-            
-            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
-                if (shootDoneStatuses.includes(normalizedStatus)) acc.shootDone += 1;
-            }
-
-            if (normalizedStatus === 'POSTED') acc.posted += 1;
-
-            if (normalizedType === 'REEL') acc.reels += 1;
-            if (normalizedType === 'POST') acc.posts += 1;
-
-            const completed = isItemCompleted(item.status);
-            if (completed) {
-                acc.completedCount += 1;
-                if (normalizedType === 'REEL') acc.completedReels += 1;
-                if (normalizedType === 'POST') acc.completedPosts += 1;
-            } else {
-                acc.pendingCount += 1;
-                if (normalizedType === 'REEL') acc.pendingReels += 1;
-                if (normalizedType === 'POST') acc.pendingPosts += 1;
-            }
-
-            return acc;
-        },
-        { 
-            contentApproved: 0, shootDone: 0, posted: 0, reels: 0, posts: 0,
-            pendingCount: 0, completedCount: 0, 
-            pendingReels: 0, pendingPosts: 0, 
-            completedReels: 0, completedPosts: 0 
-        }
-    );
+    const monthStatusCounts = calculateCalendarStats(calendarData, (date) => isDayInPeriod(date), (item) => getCalendarItemDate(item));
 
     const monthTotal = filteredCalendarData.length;
     const monthCompleted = monthStatusCounts.posted;
@@ -797,44 +754,14 @@ export default function TLDashboard() {
         });
 
         const totalTasks = clientItems.length;
-
-        let reelsCount = 0;
-        let reelsCompleted = 0;
-        let postsCount = 0;
-        let postsCompleted = 0;
-        let shootDoneCount = 0;
-        let contentApprovedCount = 0;
-        let completedCount = 0;
-
-        clientItems.forEach(item => {
-            const normalizedStatus = (item.status || '').toUpperCase();
-            const normalizedType = (item.content_type || '').toUpperCase();
-            const isCompleted = isItemCompleted(item.status);
-
-            if (normalizedType === 'REEL') {
-                reelsCount += 1;
-                if (isCompleted) reelsCompleted += 1;
-            } else if (normalizedType === 'POST') {
-                postsCount += 1;
-                if (isCompleted) postsCompleted += 1;
-            }
-
-            if (isCompleted) {
-                completedCount += 1;
-            }
-
-            if (contentApprovedStatuses.includes(normalizedStatus)) {
-                contentApprovedCount += 1;
-            }
-
-            if (normalizedType === 'REEL' || normalizedType === 'YOUTUBE') {
-                if (shootDoneStatuses.includes(normalizedStatus)) shootDoneCount += 1;
-            } else if (normalizedType === 'POST') {
-                if (normalizedStatus === 'DESIGNING COMPLETED' || shootDoneStatuses.includes(normalizedStatus)) {
-                    shootDoneCount += 1;
-                }
-            }
-        });
+        const stats = calculateCalendarStats(clientItems, () => true, (item) => parseISO(item.scheduled_datetime));
+        const reelsCount = stats.reels;
+        const reelsCompleted = stats.completedReels;
+        const postsCount = stats.posts;
+        const postsCompleted = stats.completedPosts;
+        const shootDoneCount = stats.shootDone;
+        const contentApprovedCount = stats.contentApproved;
+        const completedCount = stats.completedCount;
 
         const completionPercentage = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
 
