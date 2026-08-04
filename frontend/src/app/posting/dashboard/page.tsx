@@ -28,7 +28,7 @@ import NotificationBell from '@/components/NotificationBell';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
-import { get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 import '../posting.css';
 
 interface ContentItem {
@@ -152,9 +152,22 @@ export default function PostingDashboard() {
             }
         }
         try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
-            setCalendarData(res.data || []);
+            const client = clients.find(c => c.id === selectedClient);
+            const is1515 = client?.batch_type === '15-15';
+            let data = [];
+            if (is1515) {
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
+                const [resStart, resEnd] = await Promise.all([
+                    postingApi.getCalendar(selectedClient, startMonthStr, 'WAITING FOR POSTING'),
+                    postingApi.getCalendar(selectedClient, endMonthStr, 'WAITING FOR POSTING')
+                ]);
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
+            } else {
+                const currentMonthStr = format(currentMonth, 'yyyy-MM');
+                const res = await postingApi.getCalendar(selectedClient, currentMonthStr, 'WAITING FOR POSTING');
+                data = res.data || [];
+            }
+            setCalendarData(data);
         } catch (err) {
             console.error(err);
             toastError('Failed to refresh client calendar.');
@@ -164,7 +177,7 @@ export default function PostingDashboard() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [selectedClient, currentMonth, calendarData.length, startLoading, stopLoading, toastError]);
+    }, [selectedClient, currentMonth, clients, calendarData.length, startLoading, stopLoading, toastError]);
 
     const fetchMasterCalendar = useCallback(async (isSilent = false) => {
         if (!isSilent) {
@@ -176,21 +189,47 @@ export default function PostingDashboard() {
             }
         }
         try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
             let asOfDate: string | undefined;
             if (view === 'company') {
                 const d = new Date();
                 d.setDate(d.getDate() - 7);
                 asOfDate = d.toISOString();
             }
-            const res = await postingApi.getMasterCalendar(
-                currentMonthStr,
-                selectedClient === 'all' ? undefined : selectedClient,
-                view === 'company' ? undefined : 'WAITING FOR POSTING',
-                undefined,
-                asOfDate
-            );
-            setCalendarData(res.data || []);
+
+            const client = clients.find(c => c.id === selectedClient);
+            let data = [];
+
+            if (client?.batch_type === '15-15') {
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
+                const [resStart, resEnd] = await Promise.all([
+                    postingApi.getMasterCalendar(
+                        startMonthStr,
+                        selectedClient,
+                        view === 'company' ? undefined : 'WAITING FOR POSTING',
+                        undefined,
+                        asOfDate
+                    ),
+                    postingApi.getMasterCalendar(
+                        endMonthStr,
+                        selectedClient,
+                        view === 'company' ? undefined : 'WAITING FOR POSTING',
+                        undefined,
+                        asOfDate
+                    )
+                ]);
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
+            } else {
+                const currentMonthStr = format(currentMonth, 'yyyy-MM');
+                const res = await postingApi.getMasterCalendar(
+                    currentMonthStr,
+                    selectedClient === 'all' ? undefined : selectedClient,
+                    view === 'company' ? undefined : 'WAITING FOR POSTING',
+                    undefined,
+                    asOfDate
+                );
+                data = res.data || [];
+            }
+            setCalendarData(data);
         } catch (err) {
             console.error('Error fetching master calendar:', err);
             toastError('Failed to refresh master calendar.');
@@ -199,7 +238,7 @@ export default function PostingDashboard() {
             setIsRefreshing(false);
             if (!isSilent) stopLoading();
         }
-    }, [view, selectedClient, currentMonth, calendarData.length, startLoading, stopLoading, toastError]);
+    }, [view, selectedClient, currentMonth, clients, calendarData.length, startLoading, stopLoading, toastError]);
 
     useEffect(() => {
         const fetchUser = async () => {

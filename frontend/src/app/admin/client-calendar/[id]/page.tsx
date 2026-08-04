@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
@@ -40,7 +42,7 @@ import { adminApi, emergencyApi, Client, ContentItem, StatusHistoryItem } from '
 import ScheduleExport from '@/components/ScheduleExport';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -99,16 +101,17 @@ export default function ClientCalendarPage() {
             setIsRefreshing(true);
         }
         try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await adminApi.getMasterCalendar(currentMonthStr, clientId);
-
             if (client?.batch_type === '15-15') {
-                // For 15-15 clients, also fetch next month since the period spans two months
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const nextRes = await adminApi.getMasterCalendar(nextMonthStr, clientId);
-                setCalendarData([...res.data, ...nextRes.data]);
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
+                const [resStart, resEnd] = await Promise.all([
+                    adminApi.getMasterCalendar(startMonthStr, clientId),
+                    adminApi.getMasterCalendar(endMonthStr, clientId)
+                ]);
+                setCalendarData(dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]));
             } else {
-                setCalendarData(res.data);
+                const currentMonthStr = format(currentMonth, 'yyyy-MM');
+                const res = await adminApi.getMasterCalendar(currentMonthStr, clientId);
+                setCalendarData(res.data || []);
             }
         } catch (err) { 
             console.error(err); 
@@ -424,8 +427,8 @@ export default function ClientCalendarPage() {
                 <div className="header-content">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div className="header-info">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <h1 className="page-title">Client Calendar</h1>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                <h1 className="page-title" style={{ whiteSpace: 'nowrap' }}>Client Calendar</h1>
                                 {client?.team_lead?.name && (
                                     <div className="tl-badge" style={{ 
                                         background: 'rgba(99, 102, 241, 0.1)', 
@@ -435,7 +438,9 @@ export default function ClientCalendarPage() {
                                         fontSize: '13px', 
                                         fontWeight: 800,
                                         border: '1px solid rgba(99, 102, 241, 0.2)',
-                                        marginTop: '4px'
+                                        marginTop: '4px',
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0
                                     }}>
                                         Team Lead: {client.team_lead.name}
                                     </div>
@@ -461,7 +466,9 @@ export default function ClientCalendarPage() {
                                 fontSize: '13px',
                                 fontWeight: 600,
                                 cursor: 'pointer',
-                                marginRight: '12px'
+                                marginRight: '12px',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0
                             }}
                         >
                             <ArrowLeft size={16} />

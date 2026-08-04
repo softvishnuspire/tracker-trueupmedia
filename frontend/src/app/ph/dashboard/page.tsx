@@ -50,7 +50,7 @@ import {
 import { phApi, emergencyApi, dashboardApi, settingsApi, ContentItem } from '@/lib/api';
 import { createClient } from '@/utils/supabase/client';
 import { formatIST, getClientAbbreviation } from '@/lib/utils';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -290,15 +290,12 @@ export default function ProductionHeadDashboard() {
 
             let data = [];
             if (is1515) {
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
-
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
                 const [resStart, resEnd] = await Promise.all([
-                    phApi.getCalendar(selectedClient, format(startMonth, 'yyyy-MM'), undefined, true),
-                    phApi.getCalendar(selectedClient, format(endMonth, 'yyyy-MM'), undefined, true)
+                    phApi.getCalendar(selectedClient, startMonthStr, undefined, true),
+                    phApi.getCalendar(selectedClient, endMonthStr, undefined, true)
                 ]);
-                data = [...(resStart.data || []), ...(resEnd.data || [])];
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
             } else {
                 const res = await phApi.getCalendar(selectedClient, format(currentMonth, 'yyyy-MM'), undefined, true);
                 data = res.data || [];
@@ -332,15 +329,12 @@ export default function ProductionHeadDashboard() {
 
             let data = [];
             if (is1515) {
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
-
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
                 const [resStart, resEnd] = await Promise.all([
-                    phApi.getViewAllClientCalendar(selectedClient, format(startMonth, 'yyyy-MM')),
-                    phApi.getViewAllClientCalendar(selectedClient, format(endMonth, 'yyyy-MM'))
+                    phApi.getViewAllClientCalendar(selectedClient, startMonthStr),
+                    phApi.getViewAllClientCalendar(selectedClient, endMonthStr)
                 ]);
-                data = [...(resStart.data || []), ...(resEnd.data || [])];
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
             } else {
                 const res = await phApi.getViewAllClientCalendar(selectedClient, format(currentMonth, 'yyyy-MM'));
                 data = res.data || [];
@@ -379,15 +373,12 @@ export default function ProductionHeadDashboard() {
             const client = clients.find(c => c.id === selectedClient);
             let data = [];
             if (client?.batch_type === '15-15') {
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
-
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
                 const [resStart, resEnd] = await Promise.all([
-                    phApi.getMasterCalendar(format(startMonth, 'yyyy-MM'), selectedClient, undefined, asOfDate),
-                    phApi.getMasterCalendar(format(endMonth, 'yyyy-MM'), selectedClient, undefined, asOfDate)
+                    phApi.getMasterCalendar(startMonthStr, selectedClient, undefined, asOfDate),
+                    phApi.getMasterCalendar(endMonthStr, selectedClient, undefined, asOfDate)
                 ]);
-                data = [...(resStart.data || []), ...(resEnd.data || [])];
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
             } else {
                 const currentMonthStr = format(currentMonth, 'yyyy-MM');
                 const res = await phApi.getMasterCalendar(currentMonthStr, selectedClient === 'all' ? undefined : selectedClient, undefined, asOfDate);
@@ -989,11 +980,11 @@ export default function ProductionHeadDashboard() {
                 <header className="page-header">
                     <div className="header-content">
                         <div className="header-info">
-                            <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                                 {view === 'dashboard' && "Production Dashboard"}
                                 {view === 'client' && (
                                     <>
-                                        <span>Client Production</span>
+                                        <span style={{ whiteSpace: 'nowrap' }}>Client Production</span>
                                         {selectedClient && selectedClient !== 'all' && (
                                             <span style={{ 
                                                 fontSize: '14px', 
@@ -1002,7 +993,9 @@ export default function ProductionHeadDashboard() {
                                                 padding: '4px 12px', 
                                                 borderRadius: '20px', 
                                                 fontWeight: 700,
-                                                border: '1px solid rgba(99, 102, 241, 0.2)'
+                                                border: '1px solid rgba(99, 102, 241, 0.2)',
+                                                whiteSpace: 'nowrap',
+                                                flexShrink: 0
                                             }}>
                                                 Team Lead: {clients.find(c => c.id === selectedClient)?.team_lead?.name || 'Not Assigned'}
                                             </span>
@@ -1011,7 +1004,7 @@ export default function ProductionHeadDashboard() {
                                 )}
                                 {view === 'viewTaskClient' && (
                                     <>
-                                        <span>View Task Client Calendar</span>
+                                        <span style={{ whiteSpace: 'nowrap' }}>View Task Client Calendar</span>
                                         {selectedClient && selectedClient !== 'all' && (
                                             <span style={{
                                                 fontSize: '14px',
@@ -1020,7 +1013,9 @@ export default function ProductionHeadDashboard() {
                                                 padding: '4px 12px',
                                                 borderRadius: '20px',
                                                 fontWeight: 700,
-                                                border: '1px solid rgba(245, 158, 11, 0.2)'
+                                                border: '1px solid rgba(245, 158, 11, 0.2)',
+                                                whiteSpace: 'nowrap',
+                                                flexShrink: 0
                                             }}>
                                                 View Only
                                             </span>

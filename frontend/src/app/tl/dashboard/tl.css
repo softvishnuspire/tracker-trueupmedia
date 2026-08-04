@@ -315,12 +315,27 @@
 .page-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 32px;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    width: 100%;
 }
 
 .page-header-safe {
     padding-right: 76px;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.header-info {
+    flex: 1;
+    min-width: 260px;
 }
 
 .page-title {
@@ -341,6 +356,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
 .client-dropdown-wrapper {

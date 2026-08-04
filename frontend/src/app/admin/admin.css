@@ -229,14 +229,15 @@
 .header-content {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     width: 100%;
-    gap: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
 .header-info {
     flex: 1;
-    min-width: 0;
+    min-width: 260px;
 }
 
 .page-title {
@@ -257,6 +258,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
 .client-dropdown-wrapper {

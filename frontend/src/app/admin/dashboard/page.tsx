@@ -15,7 +15,7 @@ import { formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/uti
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import '../../gm/dashboard/gm.css';
 
@@ -127,14 +127,12 @@ export default function AdminDashboard() {
       const is1515 = client?.batch_type === '15-15';
 
       if (is1515) {
-        const isSecondHalf = currentMonth.getDate() >= 15;
-        const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-        const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+        const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
         const [resStart, resEnd] = await Promise.all([
-          gmApi.getCalendar(clientId, format(startMonth, 'yyyy-MM')),
-          gmApi.getCalendar(clientId, format(endMonth, 'yyyy-MM')),
+          gmApi.getCalendar(clientId, startMonthStr),
+          gmApi.getCalendar(clientId, endMonthStr),
         ]);
-        return [...(resStart.data || []), ...(resEnd.data || [])];
+        return dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
       }
 
       const res = await gmApi.getCalendar(clientId, format(currentMonth, 'yyyy-MM'));

@@ -72,3 +72,35 @@ export function get15BiMonthlyPeriod(refDate: Date): { periodStart: Date; period
     return { periodStart, periodEnd };
 }
 
+/**
+ * Returns formatted yyyy-MM strings for the start and end months of a 15-15 cycle based on refDate.
+ */
+export function get15BiMonthlyMonths(refDate: Date): { startMonthStr: string; endMonthStr: string; periodStart: Date; periodEnd: Date } {
+    const period = get15BiMonthlyPeriod(refDate);
+    // formatIST or manual formatting: yyyy-MM
+    const formatMonth = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+    };
+    return {
+        ...period,
+        startMonthStr: formatMonth(period.periodStart),
+        endMonthStr: formatMonth(period.periodEnd)
+    };
+}
+
+/**
+ * Deduplicates ContentItem array by item ID.
+ */
+export function dedupeContentItems(items: ContentItem[]): ContentItem[] {
+    const map = new Map<string, ContentItem>();
+    for (const item of items) {
+        if (item && item.id) {
+            map.set(item.id, item);
+        }
+    }
+    return Array.from(map.values());
+}
+
+

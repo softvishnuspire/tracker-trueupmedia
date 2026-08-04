@@ -54,7 +54,7 @@ import { getClientAbbreviation, formatIST } from '@/lib/utils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 
 import ThemeToggle from '@/components/ThemeToggle';
 import '../../admin/admin.css'; // Using Admin Panel UI styles
@@ -220,15 +220,12 @@ export default function TLDashboard() {
 
             let data = [];
             if (is1515) {
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
-
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
                 const [resStart, resEnd] = await Promise.all([
-                    tlApi.getCalendar(selectedClient, format(startMonth, 'yyyy-MM'), user.id),
-                    tlApi.getCalendar(selectedClient, format(endMonth, 'yyyy-MM'), user.id)
+                    tlApi.getCalendar(selectedClient, startMonthStr, user.id),
+                    tlApi.getCalendar(selectedClient, endMonthStr, user.id)
                 ]);
-                data = [...(resStart.data || []), ...(resEnd.data || [])];
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
             } else {
                 const res = await tlApi.getCalendar(selectedClient, format(currentMonth, 'yyyy-MM'), user.id);
                 data = res.data || [];
@@ -258,6 +255,7 @@ export default function TLDashboard() {
         }
         try {
             const clientId = view === 'dashboard' ? undefined : (selectedClient === 'all' ? undefined : selectedClient);
+            const selectedClientData = clients.find(c => c.id === selectedClient);
             if (view === 'company') {
                 const monthWindows = [subMonths(currentMonth, 1), currentMonth, addMonths(currentMonth, 1)];
                 const responses = await Promise.all(
@@ -266,19 +264,15 @@ export default function TLDashboard() {
                     )
                 );
                 const merged = responses.flatMap((response) => response.data || []);
-                const deduped = Array.from(new Map(merged.map((item) => [item.id, item])).values());
-                setCalendarData(deduped);
+                setCalendarData(dedupeContentItems(merged));
             } else if (view === 'dashboard' || (selectedClient !== 'all' && selectedClientData?.batch_type === '15-15')) {
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
                 const responses = await Promise.all([
-                    tlApi.getMasterCalendar(format(startMonth, 'yyyy-MM'), user.id, clientId),
-                    tlApi.getMasterCalendar(format(endMonth, 'yyyy-MM'), user.id, clientId)
+                    tlApi.getMasterCalendar(startMonthStr, user.id, clientId),
+                    tlApi.getMasterCalendar(endMonthStr, user.id, clientId)
                 ]);
                 const merged = responses.flatMap((response) => response.data || []);
-                const deduped = Array.from(new Map(merged.map((item) => [item.id, item])).values());
-                setCalendarData(deduped);
+                setCalendarData(dedupeContentItems(merged));
             } else {
                 const currentMonthStr = format(currentMonth, 'yyyy-MM');
                 const res = await tlApi.getMasterCalendar(currentMonthStr, user.id, clientId);
@@ -1032,8 +1026,8 @@ export default function TLDashboard() {
 
                 <header className="page-header page-header-safe">
                     <div>
-                        <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            {view === 'master' ? 'Master Calendar' : view === 'company' ? 'Company Calendar' : view === 'poc' ? 'POC Communication' : view === 'employees' ? 'Employee Management' : 'Client Dashboard'}
+                        <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                            <span style={{ whiteSpace: 'nowrap' }}>{view === 'master' ? 'Master Calendar' : view === 'company' ? 'Company Calendar' : view === 'poc' ? 'POC Communication' : view === 'employees' ? 'Employee Management' : 'Client Dashboard'}</span>
                             {view === 'client' && selectedClient && (
                                 <span style={{ 
                                     fontSize: '14px', 
@@ -1042,7 +1036,9 @@ export default function TLDashboard() {
                                     padding: '4px 12px', 
                                     borderRadius: '20px', 
                                     fontWeight: 700,
-                                    border: '1px solid rgba(99, 102, 241, 0.2)'
+                                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0
                                 }}>
                                     Team Lead: {clients.find(c => c.id === selectedClient)?.team_lead?.name || 'Not Assigned'}
                                 </span>

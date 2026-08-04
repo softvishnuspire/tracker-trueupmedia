@@ -83,7 +83,7 @@ import {
 } from '@/lib/api';
 import { downloadAllEmployeesReport, downloadEmployeeReport } from '@/utils/pdfExport';
 import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getISTDate } from '@/lib/utils';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -315,8 +315,6 @@ function GMDashboardContent() {
         return day >= startOfDay(periodStart) && day <= endOfDay(periodEnd);
     };
 
-
-
     const fetchClientCalendar = useCallback(async (clientId: string, isSilent = false) => {
         if (!clientId) return [];
         if (!isSilent) {
@@ -333,18 +331,14 @@ function GMDashboardContent() {
 
             let data = [];
             if (is1515) {
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
-
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
                 const [resStart, resEnd] = await Promise.all([
-                    gmApi.getCalendar(clientId, format(startMonth, 'yyyy-MM')),
-                    gmApi.getCalendar(clientId, format(endMonth, 'yyyy-MM'))
+                    gmApi.getCalendar(clientId, startMonthStr),
+                    gmApi.getCalendar(clientId, endMonthStr)
                 ]);
-                data = [...(resStart.data || []), ...(resEnd.data || [])];
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
             } else {
-                const res = await gmApi.getCalendar(clientId, format(currentMonth, 'yyyy-MM'));
-                data = res.data || [];
+                data = (await gmApi.getCalendar(clientId, format(currentMonth, 'yyyy-MM'))).data || [];
             }
 
             return data;
@@ -381,7 +375,7 @@ function GMDashboardContent() {
                     )
                 );
                 const merged = responses.flatMap((response) => response.data || []);
-                return Array.from(new Map(merged.map((item) => [item.id, item])).values());
+                return dedupeContentItems(merged);
             }
 
             // For master view with a specific client selected that is 15-15
@@ -389,23 +383,20 @@ function GMDashboardContent() {
             let data = [];
 
             if (client?.batch_type === '15-15') {
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
-
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
                 const [resStart, resEnd] = await Promise.all([
                     gmApi.getMasterCalendar(
-                        format(startMonth, 'yyyy-MM'),
+                        startMonthStr,
                         selectedClient,
                         selectedType === 'all' ? undefined : selectedType
                     ),
                     gmApi.getMasterCalendar(
-                        format(endMonth, 'yyyy-MM'),
+                        endMonthStr,
                         selectedClient,
                         selectedType === 'all' ? undefined : selectedType
                     )
                 ]);
-                data = [...(resStart.data || []), ...(resEnd.data || [])];
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
             } else {
                 const monthStr = format(currentMonth, 'yyyy-MM');
                 const res = await gmApi.getMasterCalendar(
@@ -1576,8 +1567,8 @@ function GMDashboardContent() {
                             <h1 className="page-title">
                                 {view === 'dashboard' && 'Dashboard Overview'}
                                 {view === 'client' && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <span>{selectedClient ? 'Client Calendar' : 'Client Calendars'}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                        <span style={{ whiteSpace: 'nowrap' }}>{selectedClient ? 'Client Calendar' : 'Client Calendars'}</span>
                                         {selectedClient && (
                                             <span style={{
                                                 fontSize: '14px',
@@ -1586,7 +1577,9 @@ function GMDashboardContent() {
                                                 padding: '4px 12px',
                                                 borderRadius: '20px',
                                                 fontWeight: 700,
-                                                border: '1px solid rgba(99, 102, 241, 0.2)'
+                                                border: '1px solid rgba(99, 102, 241, 0.2)',
+                                                whiteSpace: 'nowrap',
+                                                flexShrink: 0
                                             }}>
                                                 Team Lead: {clients.find(c => c.id === selectedClient)?.team_lead?.name || 'Not Assigned'}
                                             </span>
@@ -1627,7 +1620,9 @@ function GMDashboardContent() {
                                         fontSize: '13px',
                                         fontWeight: 600,
                                         cursor: 'pointer',
-                                        marginRight: '12px'
+                                        marginRight: '12px',
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0
                                     }}
                                 >
                                     <ArrowRight size={16} style={{ transform: 'rotate(180deg)' }} />

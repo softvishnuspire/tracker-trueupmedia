@@ -34,7 +34,7 @@ import { useDebouncedRefresh } from '@/hooks/useDebouncedRefresh';
 import NotificationBell from '@/components/NotificationBell';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ThemeToggle from '@/components/ThemeToggle';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 import { getClientAbbreviation, formatIST, getISTDate, formatISTForm, convertISTToUTC } from '@/lib/utils';
 import './content-head.css';
 
@@ -206,15 +206,13 @@ export default function ContentHeadDashboard() {
                 items = res.data || [];
             } else if (is1515) {
                 // Load adjacent months for 15-15 clients
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
 
                 const [resStart, resEnd] = await Promise.all([
-                    gmApi.getMasterCalendar(format(startMonth, 'yyyy-MM'), selectedClient),
-                    gmApi.getMasterCalendar(format(endMonth, 'yyyy-MM'), selectedClient)
+                    gmApi.getMasterCalendar(startMonthStr, selectedClient),
+                    gmApi.getMasterCalendar(endMonthStr, selectedClient)
                 ]);
-                items = [...(resStart.data || []), ...(resEnd.data || [])];
+                items = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
             } else {
                 const res = await gmApi.getMasterCalendar(currentMonthStr, selectedClient);
                 items = res.data || [];

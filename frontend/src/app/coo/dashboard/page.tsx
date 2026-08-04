@@ -64,7 +64,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 import './coo.css';
 
 export default function CooDashboard() {
@@ -137,18 +137,12 @@ export default function CooDashboard() {
 
             let data = [];
             if (is1515) {
-                const isSecondHalf = currentMonth.getDate() >= 15;
-                const startMonth = isSecondHalf ? currentMonth : subMonths(currentMonth, 1);
-                const endMonth = isSecondHalf ? addMonths(currentMonth, 1) : currentMonth;
-
-                // local helper functions to avoid global function dependency
-                const formatMonth = (d: Date) => format(d, 'yyyy-MM');
-                
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
                 const [resStart, resEnd] = await Promise.all([
-                    gmApi.getCalendar(clientId, formatMonth(startMonth)),
-                    gmApi.getCalendar(clientId, formatMonth(endMonth))
+                    gmApi.getCalendar(clientId, startMonthStr),
+                    gmApi.getCalendar(clientId, endMonthStr)
                 ]);
-                data = [...(resStart.data || []), ...(resEnd.data || [])];
+                data = dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]);
             } else {
                 data = (await gmApi.getCalendar(clientId, format(currentMonth, 'yyyy-MM'))).data || [];
             }

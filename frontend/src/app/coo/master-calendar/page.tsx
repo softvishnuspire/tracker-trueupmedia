@@ -40,7 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import ScheduleExport from '@/components/ScheduleExport';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import { getClientAbbreviation, formatIST } from '@/lib/utils';
-import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
+import { isCrossMonthRescheduled, get15BiMonthlyPeriod, get15BiMonthlyMonths, dedupeContentItems } from '@/utils/calendarUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
 import { useOptimisticAction } from '@/hooks/useOptimisticAction';
@@ -100,23 +100,29 @@ export default function CooMasterCalendar() {
             setIsRefreshing(true);
         }
         try {
-            const currentMonthStr = format(currentMonth, 'yyyy-MM');
-            const res = await cooApi.getMasterCalendar(
-                currentMonthStr,
-                selectedClient === 'all' ? undefined : selectedClient,
-                selectedType === 'all' ? undefined : selectedType
-            );
-
             if (isBiMonthlyView) {
-                const nextMonthStr = format(addMonths(currentMonth, 1), 'yyyy-MM');
-                const nextRes = await cooApi.getMasterCalendar(
-                    nextMonthStr,
-                    selectedClient,
+                const { startMonthStr, endMonthStr } = get15BiMonthlyMonths(currentMonth);
+                const [resStart, resEnd] = await Promise.all([
+                    cooApi.getMasterCalendar(
+                        startMonthStr,
+                        selectedClient === 'all' ? undefined : selectedClient,
+                        selectedType === 'all' ? undefined : selectedType
+                    ),
+                    cooApi.getMasterCalendar(
+                        endMonthStr,
+                        selectedClient === 'all' ? undefined : selectedClient,
+                        selectedType === 'all' ? undefined : selectedType
+                    )
+                ]);
+                setCalendarData(dedupeContentItems([...(resStart.data || []), ...(resEnd.data || [])]));
+            } else {
+                const currentMonthStr = format(currentMonth, 'yyyy-MM');
+                const res = await cooApi.getMasterCalendar(
+                    currentMonthStr,
+                    selectedClient === 'all' ? undefined : selectedClient,
                     selectedType === 'all' ? undefined : selectedType
                 );
-                setCalendarData([...res.data, ...nextRes.data]);
-            } else {
-                setCalendarData(res.data);
+                setCalendarData(res.data || []);
             }
         } catch (err) {
             console.error(err);
