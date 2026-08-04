@@ -16,9 +16,9 @@ import {
     startOfDay,
     endOfDay
 } from 'date-fns';
-import { 
-    ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Globe, Calendar as CalendarIcon, 
-    FileText, Video, CheckCircle2, X, LogOut, Filter, Menu, Clock, ShieldAlert, Check, 
+import {
+    ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Globe, Calendar as CalendarIcon,
+    FileText, Video, CheckCircle2, X, LogOut, Filter, Menu, Clock, ShieldAlert, Check,
     AlertTriangle, ArrowRight, CalendarClock, Undo2, Lock, ListFilter, Play,
     Users, Plus, Search, Mail, User as UserIcon, Trophy, Target, Briefcase, Trash2, TrendingUp, Building2,
     Loader2, MessageSquare, Edit
@@ -168,9 +168,9 @@ export default function ContentHeadDashboard() {
                 adminApi.getTrackingStats()
             ]);
             setWriters(writersRes.data || []);
-            
+
             if (statsRes.data?.employees) {
-                const stats = statsRes.data.employees.filter((emp: any) => 
+                const stats = statsRes.data.employees.filter((emp: any) =>
                     (emp.role || '').toUpperCase() === 'WRITER'
                 );
                 setWriterProductivity(stats);
@@ -224,10 +224,10 @@ export default function ContentHeadDashboard() {
 
             // Filter out items for Queue (only showing tasks within the active period window)
             const filteredItems = items.filter(item => isDayInPeriod(parseISO(item.scheduled_datetime)));
-            
+
             // Queue items needing approval (All tasks that are not yet approved by Content Head)
             setPendingTasks(filteredItems.filter(item => !isApprovedByContentHead(item.status)));
-            
+
             // Queue items already approved (CONTENT APPROVED)
             setApprovedTasks(filteredItems.filter(item => (item.status || '').toUpperCase() === 'CONTENT APPROVED'));
         } catch (err) {
@@ -243,23 +243,23 @@ export default function ContentHeadDashboard() {
     useEffect(() => {
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            
+
             if (!user) {
                 router.push('/');
                 return;
             }
             setUser(user);
-            
+
             const { data: profile } = await supabase
                 .from('users')
                 .select('role, role_identifier')
                 .eq('user_id', user.id)
                 .single();
-            
+
             const role = profile?.role_identifier || profile?.role || user.user_metadata?.role;
             const upperRole = role?.toUpperCase();
             setUserRole(upperRole);
-            
+
             const allowedRoles = ['CONTENT HEAD', 'ADMIN', 'GM', 'GENERAL MANAGER'];
             if (upperRole && !allowedRoles.includes(upperRole)) {
                 console.warn(`[RoleGuard] Access denied to /content-head/dashboard for role: ${upperRole}`);
@@ -501,7 +501,7 @@ export default function ContentHeadDashboard() {
             const day = parseISO(item.scheduled_datetime);
             const sourceList = calendarData.length > 0 ? calendarData : [];
             const tasksOnDay = sourceList.filter(i => isSameDay(parseISO(i.scheduled_datetime), day));
-            
+
             if (!tasksOnDay.some(t => t.id === item.id)) {
                 tasksOnDay.push(item);
             }
@@ -526,13 +526,13 @@ export default function ContentHeadDashboard() {
 
     const navigateToTask = async (direction: 'next' | 'prev') => {
         if (!activeItem || dayTasks.length <= 1) return;
-        
+
         const currentIndex = dayTasks.findIndex(t => t.id === activeItem.item.id);
         let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-        
+
         if (nextIndex < 0) nextIndex = dayTasks.length - 1;
         if (nextIndex >= dayTasks.length) nextIndex = 0;
-        
+
         const nextTask = dayTasks[nextIndex];
         try {
             const res = await gmApi.getContentDetails(nextTask.id);
@@ -798,7 +798,7 @@ export default function ContentHeadDashboard() {
                 end: endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
             });
         }
-        
+
         return eachDayOfInterval({
             start: startOfWeek(periodStart, { weekStartsOn: 1 }),
             end: endOfWeek(periodEnd, { weekStartsOn: 1 })
@@ -841,8 +841,8 @@ export default function ContentHeadDashboard() {
 
     const reelsPercentage = stats.reelsTotal > 0 ? Math.round((stats.reelsApproved / stats.reelsTotal) * 100) : 0;
     const postsPercentage = stats.postsTotal > 0 ? Math.round((stats.postsApproved / stats.postsTotal) * 100) : 0;
-    const pipelinePercentage = (stats.reelsTotal + stats.postsTotal) > 0 
-        ? Math.round(((stats.reelsApproved + stats.postsApproved) / (stats.reelsTotal + stats.postsTotal)) * 100) 
+    const pipelinePercentage = (stats.reelsTotal + stats.postsTotal) > 0
+        ? Math.round(((stats.reelsApproved + stats.postsApproved) / (stats.reelsTotal + stats.postsTotal)) * 100)
         : 0;
 
     // ─── Per-Client Approval Stats ───
@@ -1249,7 +1249,7 @@ export default function ContentHeadDashboard() {
                                     {pendingTasks.length} Pending
                                 </span>
                             </div>
-                            
+
                             {loading && pendingTasks.length === 0 ? (
                                 <div className="posting-queue">
                                     <Skeleton className="h-14 w-full" />
@@ -1279,12 +1279,12 @@ export default function ContentHeadDashboard() {
                                                     {item.content_type === 'Post' ? <FileText size={12} /> : <Video size={12} />}
                                                     {item.content_type}
                                                 </span>
-                                                <span className="status-badge" style={{ 
-                                                    fontSize: '11px', 
-                                                    color: 'var(--text-muted)', 
-                                                    background: 'var(--bg-elevated)', 
-                                                    padding: '3px 8px', 
-                                                    borderRadius: '6px', 
+                                                <span className="status-badge" style={{
+                                                    fontSize: '11px',
+                                                    color: 'var(--text-muted)',
+                                                    background: 'var(--bg-elevated)',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '6px',
                                                     border: '1px solid var(--border)',
                                                     fontWeight: 600,
                                                     textTransform: 'uppercase',
@@ -1407,16 +1407,16 @@ export default function ContentHeadDashboard() {
                                 ))
                             ) : (
                                 days.map((day, idx) => {
-                                    const dayItems = calendarData.filter(item => 
+                                    const dayItems = calendarData.filter(item =>
                                         isSameDay(parseISO(item.scheduled_datetime), day)
                                     );
-                                    
+
                                     const isCurrentPeriod = isDayInPeriod(day);
                                     const isToday = isSameDay(day, new Date());
 
                                     return (
-                                        <div 
-                                            key={day.toISOString() || `day-${idx}`} 
+                                        <div
+                                            key={day.toISOString() || `day-${idx}`}
                                             className={`calendar-day ${!isCurrentPeriod ? 'other-month' : ''} ${isToday ? 'today' : ''}`}
                                             onClick={() => {
                                                 if (!isCurrentPeriod) return;
@@ -1438,7 +1438,7 @@ export default function ContentHeadDashboard() {
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                                 <span className="day-number">{format(day, 'd')}</span>
                                                 {isCurrentPeriod && (
-                                                    <button 
+                                                    <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             setEditingItem(null);
@@ -1476,21 +1476,21 @@ export default function ContentHeadDashboard() {
                                                     const statusUpper = (item.status || '').toUpperCase();
                                                     const isApproved = isApprovedByContentHead(statusUpper);
                                                     const isWaiting = statusUpper === 'WAITING FOR APPROVAL';
-                                                    
+
                                                     let statusBorderClass = '';
                                                     if (isWaiting) statusBorderClass = 'waiting-for-approval';
                                                     else if (isApproved) statusBorderClass = 'content-approved';
                                                     const assigneeName = item.assigned_employee?.name || 'Unassigned';
                                                     const isAssigned = !!item.assigned_to;
-                                                    const clientPrefix = item.clients?.company_name 
+                                                    const clientPrefix = item.clients?.company_name
                                                         ? `[${getClientAbbreviation(item.clients.company_name)}] `
-                                                        : item.freelancer_name 
+                                                        : item.freelancer_name
                                                             ? `[${item.freelancer_name.substring(0, 3).toUpperCase()}] `
                                                             : '';
 
                                                     return (
-                                                        <div 
-                                                            key={item.id || `day-item-${idx}-${itemIdx}`} 
+                                                        <div
+                                                            key={item.id || `day-item-${idx}-${itemIdx}`}
                                                             className={`content-item ${item.content_type.toLowerCase()} ${statusBorderClass}`}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -1558,8 +1558,8 @@ export default function ContentHeadDashboard() {
                                     <span className="unit">Clients Assigned</span>
                                 </div>
                                 <div className="progress-bar-container">
-                                    <div className="progress-bar-fill reels-fill" style={{ 
-                                        width: `${clients.length > 0 ? (clients.filter(c => c.writer_employee_id).length / clients.length) * 100 : 0}%` 
+                                    <div className="progress-bar-fill reels-fill" style={{
+                                        width: `${clients.length > 0 ? (clients.filter(c => c.writer_employee_id).length / clients.length) * 100 : 0}%`
                                     }}></div>
                                 </div>
                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>
@@ -1581,15 +1581,15 @@ export default function ContentHeadDashboard() {
                                     <span className="unit">Tasks Completed</span>
                                 </div>
                                 <div className="progress-bar-container">
-                                    <div className="progress-bar-fill posts-fill" style={{ 
-                                        width: `${writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0) > 0 
-                                            ? (writerProductivity.reduce((acc, curr) => acc + (curr.completedTasks || 0), 0) / writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0)) * 100 
-                                            : 0}%` 
+                                    <div className="progress-bar-fill posts-fill" style={{
+                                        width: `${writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0) > 0
+                                            ? (writerProductivity.reduce((acc, curr) => acc + (curr.completedTasks || 0), 0) / writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0)) * 100
+                                            : 0}%`
                                     }}></div>
                                 </div>
                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>
-                                    {writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0) > 0 
-                                        ? Math.round((writerProductivity.reduce((acc, curr) => acc + (curr.completedTasks || 0), 0) / writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0)) * 100) 
+                                    {writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0) > 0
+                                        ? Math.round((writerProductivity.reduce((acc, curr) => acc + (curr.completedTasks || 0), 0) / writerProductivity.reduce((acc, curr) => acc + (curr.assignedTasks || 0), 0)) * 100)
                                         : 0}% Completion Rate
                                 </div>
                             </div>
@@ -1637,7 +1637,7 @@ export default function ContentHeadDashboard() {
                         ) : (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                                 {writers
-                                    .filter(w => 
+                                    .filter(w =>
                                         w.name?.toLowerCase().includes(searchWriterQuery.toLowerCase()) ||
                                         w.email?.toLowerCase().includes(searchWriterQuery.toLowerCase())
                                     )
@@ -1658,7 +1658,7 @@ export default function ContentHeadDashboard() {
                                                             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{writer.email}</p>
                                                         </div>
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleDeleteWriter(writer.user_id, writer.name)}
                                                         className="btn-icon delete"
                                                         style={{ flexShrink: 0 }}
@@ -1686,7 +1686,7 @@ export default function ContentHeadDashboard() {
                                                             assignedClients.map((client, clientIdx) => (
                                                                 <div key={client.id || `assigned-${clientIdx}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(13, 148, 136, 0.08)', border: '1px solid rgba(13, 148, 136, 0.2)', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, color: '#0d9488' }}>
                                                                     <span>{client.company_name}</span>
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => handleUnassignClient(client.id, writer.user_id)}
                                                                         style={{ background: 'transparent', border: 'none', color: '#0d9488', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center', fontSize: '14px', fontWeight: 800 }}
                                                                         title="Unassign Client"
@@ -1702,7 +1702,7 @@ export default function ContentHeadDashboard() {
                                                             ))
                                                         )}
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             setSelectedWriterForAssignment(writer);
                                                             setShowAssignClientModal(true);
@@ -1723,7 +1723,7 @@ export default function ContentHeadDashboard() {
                                                             <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{stats.completedTasks}/{stats.assignedTasks}</span>
                                                         </div>
                                                         <div className="progress-bar-container" style={{ height: '4px' }}>
-                                                            <div className="progress-bar-fill" style={{ 
+                                                            <div className="progress-bar-fill" style={{
                                                                 width: `${stats.assignedTasks > 0 ? (stats.completedTasks / stats.assignedTasks) * 100 : 0}%`,
                                                                 background: '#0d9488'
                                                             }}></div>
@@ -1737,7 +1737,7 @@ export default function ContentHeadDashboard() {
                                                             <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{stats.monthlyCompleted}/{stats.monthlyTotal}</span>
                                                         </div>
                                                         <div className="progress-bar-container" style={{ height: '4px' }}>
-                                                            <div className="progress-bar-fill" style={{ 
+                                                            <div className="progress-bar-fill" style={{
                                                                 width: `${stats.monthlyTotal > 0 ? (stats.monthlyCompleted / stats.monthlyTotal) * 100 : 0}%`,
                                                                 background: '#a855f7'
                                                             }}></div>
@@ -1785,8 +1785,8 @@ export default function ContentHeadDashboard() {
                                     </span>
                                     <span className="meta-dot">•</span>
                                     {activeItem.item.clients?.company_name && (
-                                        <span 
-                                            className="meta-client client-link-hover" 
+                                        <span
+                                            className="meta-client client-link-hover"
                                             onClick={() => {
                                                 setIsDetailsOpen(false);
                                                 setView('client');
@@ -2133,7 +2133,7 @@ export default function ContentHeadDashboard() {
                     <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
                         <div className="modal-header">
                             <h3 className="modal-title">
-                                {editingItem 
+                                {editingItem
                                     ? (isRescheduling ? 'Reschedule Content Task' : 'Edit Content Task')
                                     : 'Schedule New Content Task'}
                             </h3>

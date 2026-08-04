@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import {
     format,
@@ -86,7 +86,7 @@ import { getClientAbbreviation, formatIST, formatISTForm, convertISTToUTC, getIS
 import { isCrossMonthRescheduled, get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -161,7 +161,7 @@ const isTaskActiveForRole = (task: ContentItem, roleIdentifier?: string) => {
   return !defaultCompleted.includes(status);
 };
 
-export default function GMDashboard() {
+function GMDashboardContent() {
     const DISPLAY_OFFSET_DAYS = 7;
     const { success: toastSuccess, error: toastError } = useToast();
     const { startLoading, stopLoading } = usePageLoading();
@@ -177,7 +177,20 @@ export default function GMDashboard() {
     const [calendarData, setCalendarData] = useState<ContentItem[]>([]);
     const [globalCalendarData, setGlobalCalendarData] = useState<ContentItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc' | 'tracking' | 'employees' | 'streaks'>('dashboard');
+    const searchParams = useSearchParams();
+    const initialViewParam = searchParams.get('view');
+    const [view, setView] = useState<'dashboard' | 'client' | 'master' | 'company' | 'teams' | 'poc' | 'tracking' | 'employees' | 'streaks'>(
+        (initialViewParam && ['dashboard', 'client', 'master', 'company', 'teams', 'poc', 'tracking', 'employees', 'streaks'].includes(initialViewParam))
+            ? (initialViewParam as any)
+            : 'dashboard'
+    );
+
+    useEffect(() => {
+        const v = searchParams.get('view');
+        if (v && ['dashboard', 'client', 'master', 'company', 'teams', 'poc', 'tracking', 'employees', 'streaks'].includes(v)) {
+            setView(v as any);
+        }
+    }, [searchParams]);
     const [productionEmployees, setProductionEmployees] = useState<any[]>([]);
     const [isEmployeeAssignModalOpen, setIsEmployeeAssignModalOpen] = useState(false);
     const [isTaskAssignModalOpen, setIsTaskAssignModalOpen] = useState(false);
@@ -4050,6 +4063,14 @@ function TrackingTaskItem({ task, isCompleted = false }: { task: any, isComplete
                 </div>
             )}
         </div>
+    );
+}
+
+export default function GMDashboard() {
+    return (
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-primary)', color: 'var(--accent)', fontWeight: 800 }}>Loading...</div>}>
+            <GMDashboardContent />
+        </Suspense>
     );
 }
 

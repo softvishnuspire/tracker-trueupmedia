@@ -7,6 +7,7 @@ import { get15BiMonthlyPeriod } from '@/utils/calendarUtils';
 import { Plus, Search, Edit2, Trash2, X, Calendar as CalendarIcon, UserCheck, Film, Image as ImageIcon, FileText } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format, subMonths, addMonths, startOfMonth, endOfMonth } from 'date-fns';
+import '@/app/admin/admin.css';
 
 interface ClientManagementViewProps {
   role: 'admin' | 'coo' | 'gm' | 'manager';
@@ -279,14 +280,14 @@ export default function ClientManagementView({ role, basePath, title = "Client M
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Company Name</th>
-                  <th>Batch</th>
-                  <th>Posts / Reels Target</th>
-                  <th>Team Lead</th>
-                  <th>Video Editor</th>
-                  <th>Post Designer</th>
-                  <th>Writer</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th style={{ minWidth: '180px' }}>Company Name</th>
+                  <th style={{ minWidth: '80px' }}>Batch</th>
+                  <th style={{ minWidth: '140px' }}>Posts / Reels Target</th>
+                  <th style={{ minWidth: '120px' }}>Team Lead</th>
+                  <th style={{ minWidth: '120px' }}>Video Editor</th>
+                  <th style={{ minWidth: '120px' }}>Post Designer</th>
+                  <th style={{ minWidth: '120px' }}>Writer</th>
+                  <th style={{ textAlign: 'right', minWidth: '110px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
