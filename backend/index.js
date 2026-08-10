@@ -429,22 +429,25 @@ const getRequesterRole = async (user) => {
         profileErr = byEmail.error;
     }
 
-    const metadataRole = user?.user_metadata?.role || user?.app_metadata?.role;
+    const metadataRole = user?.user_metadata?.role || user?.user_metadata?.role_identifier || user?.app_metadata?.role;
     let resolvedRole = normalizeRole(profile?.role || metadataRole);
     const resolvedIdentifier = normalizeRole(profile?.role_identifier);
 
     console.log(`[RoleResolver] User: ${userId}, RawRole: ${profile?.role}, RawID: ${profile?.role_identifier}, MetaRole: ${metadataRole}`);
 
-    // If role is generic but identifier is specific, use identifier
+    // If role is generic or specific, resolve properly
     const upperId = resolvedIdentifier.toUpperCase();
-    if (upperId === 'ADMIN') resolvedRole = 'ADMIN';
-    else if (upperId === 'GM' || upperId === 'GENERAL MANAGER') resolvedRole = 'GM';
-    else if (upperId === 'PRODUCTION HEAD' || upperId === 'PH' || resolvedRole === 'PH') resolvedRole = 'PRODUCTION HEAD';
-    else if (upperId === 'POSTING TEAM' || upperId === 'POSTING') resolvedRole = 'POSTING TEAM';
-    else if (upperId === 'CLIENT') resolvedRole = 'CLIENT';
-    else if (upperId === 'EMPLOYEE') resolvedRole = 'EMPLOYEE';
-    else if (upperId === 'CONTENT HEAD' || upperId === 'CONTENT_HEAD' || resolvedRole === 'CONTENT HEAD' || resolvedRole === 'CONTENT_HEAD') resolvedRole = 'CONTENT HEAD';
-    else if (upperId === 'MANAGER' || resolvedRole === 'MANAGER') resolvedRole = 'MANAGER';
+    const upperRole = resolvedRole.toUpperCase();
+
+    if (upperId === 'ADMIN' || upperRole === 'ADMIN') resolvedRole = 'ADMIN';
+    else if (upperId === 'GM' || upperId === 'GENERAL MANAGER' || upperRole === 'GM' || upperRole === 'GENERAL MANAGER') resolvedRole = 'GM';
+    else if (upperId.startsWith('TL') || upperId.startsWith('TEAM LEAD') || upperRole.startsWith('TL') || upperRole.startsWith('TEAM LEAD') || upperRole === 'TEAM LEAD') resolvedRole = 'TEAM LEAD';
+    else if (upperId === 'PRODUCTION HEAD' || upperId === 'PH' || upperRole === 'PH' || upperRole === 'PRODUCTION HEAD') resolvedRole = 'PRODUCTION HEAD';
+    else if (upperId === 'POSTING TEAM' || upperId === 'POSTING' || upperRole === 'POSTING' || upperRole === 'POSTING TEAM') resolvedRole = 'POSTING TEAM';
+    else if (upperId === 'CLIENT' || upperRole === 'CLIENT') resolvedRole = 'CLIENT';
+    else if (upperId === 'EMPLOYEE' || upperRole === 'EMPLOYEE') resolvedRole = 'EMPLOYEE';
+    else if (upperId === 'CONTENT HEAD' || upperId === 'CONTENT_HEAD' || upperRole === 'CONTENT HEAD' || upperRole === 'CONTENT_HEAD') resolvedRole = 'CONTENT HEAD';
+    else if (upperId === 'MANAGER' || upperRole === 'MANAGER') resolvedRole = 'MANAGER';
 
     console.log(`[RoleResolver] Final resolved role for ${userId}: "${resolvedRole}"`);
 
@@ -460,7 +463,7 @@ const ADMIN_ROLES = ['ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'PH', 'PRODUCTION 
 const GM_ROLES = ['GM', 'GENERAL MANAGER', 'ADMIN', 'CONTENT HEAD', 'COO', 'MANAGER'];
 const COO_ROLES = ['COO', 'ADMIN'];
 const PH_ROLES = ['PRODUCTION HEAD', 'PH', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER', 'TEAM LEAD', 'TL'];
-const TL_ROLES = ['TEAM LEAD', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO', 'MANAGER'];
+const TL_ROLES = ['TEAM LEAD', 'TL', 'ADMIN', 'GM', 'GENERAL MANAGER', 'CONTENT HEAD', 'COO', 'MANAGER'];
 const POSTING_ROLES = ['POSTING TEAM', 'ADMIN', 'GM', 'GENERAL MANAGER', 'COO', 'MANAGER', 'PRODUCTION HEAD', 'PH'];
 const CLIENT_ROLES = ['CLIENT', 'ADMIN', 'COO'];
 const EMPLOYEE_ROLES = ['EMPLOYEE', 'ADMIN', 'COO'];
@@ -477,7 +480,11 @@ const requireRoles = (allowedRoles) => {
                 console.warn(`[Auth] No profile/role found for user ${req.user?.id}`);
                 return res.status(403).json({ error: 'User profile not found' });
             }
-            if (!normalizedAllowed.includes(resolvedRole)) {
+
+            const isMatch = normalizedAllowed.includes(resolvedRole) ||
+                            (normalizedAllowed.includes('TEAM LEAD') && (resolvedRole.startsWith('TL') || resolvedRole.startsWith('TEAM LEAD')));
+
+            if (!isMatch) {
                 console.warn(`[Auth] Forbidden: User ${req.user?.id} with role ${resolvedRole} tried to access restricted route. Allowed: ${normalizedAllowed.join(', ')}`);
                 return res.status(403).json({ 
                     error: 'Forbidden', 
@@ -1417,7 +1424,8 @@ app.get('/api/admin/team', async (req, res) => {
 
     const teamMembers = (data || []).filter(u => {
         const normalizedRole = (u.role || '').toUpperCase().trim().replace(/_/g, ' ');
-        const isMatch = ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE', 'GM', 'GENERAL MANAGER', 'COO', 'ADMIN', 'CONTENT HEAD'].includes(normalizedRole);
+        const normalizedId = (u.role_identifier || '').toUpperCase().trim().replace(/_/g, ' ');
+        const isMatch = normalizedRole.startsWith('TL') || normalizedId.startsWith('TL') || ['TL', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE', 'GM', 'GENERAL MANAGER', 'COO', 'ADMIN', 'CONTENT HEAD', 'MANAGER'].includes(normalizedRole) || ['TL', 'TEAM LEAD'].includes(normalizedId);
         if (isMatch) console.log(`    MATCH: ${u.email} | Role: ${normalizedRole}`);
         return isMatch;
     });
@@ -1602,7 +1610,7 @@ app.get('/api/admin/tracking/productivity', requireRoles([...ADMIN_ROLES, 'EMPLO
         const teamLeads = users.filter(u => {
             const r = normalizeRole(u.role);
             const ri = normalizeRole(u.role_identifier);
-            return ri.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
+            return ri.startsWith('TL') || r.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
         });
 
         const employees = users.filter(u => {
@@ -2322,7 +2330,8 @@ app.get('/api/coo/team', requireRoles(COO_ROLES), async (req, res) => {
 
     const teamMembers = (data || []).filter(u => {
         const normalizedRole = (u.role || '').toUpperCase().trim().replace(/_/g, ' ');
-        return ['TL1', 'TL2', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE', 'GM', 'GENERAL MANAGER', 'COO', 'ADMIN', 'CONTENT HEAD'].includes(normalizedRole);
+        const normalizedId = (u.role_identifier || '').toUpperCase().trim().replace(/_/g, ' ');
+        return normalizedRole.startsWith('TL') || normalizedId.startsWith('TL') || ['TL', 'TEAM LEAD', 'PRODUCTION HEAD', 'POSTING TEAM', 'EMPLOYEE', 'GM', 'GENERAL MANAGER', 'COO', 'ADMIN', 'CONTENT HEAD', 'MANAGER'].includes(normalizedRole) || ['TL', 'TEAM LEAD'].includes(normalizedId);
     });
 
     res.json(teamMembers);
@@ -2767,7 +2776,11 @@ app.get('/api/gm/team-leads', async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
 
     // Filter in JS to avoid enum-space matching issues
-    const teamLeads = (data || []).filter(u => ['TL1', 'TL2', 'TEAM LEAD'].includes(u.role));
+    const teamLeads = (data || []).filter(u => {
+        const r = (u.role || '').toUpperCase().trim();
+        const ri = (u.role_identifier || '').toUpperCase().trim();
+        return r.startsWith('TL') || ri.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
+    });
     res.json(teamLeads);
 });
 
@@ -4530,8 +4543,8 @@ app.post('/api/notifications/send', async (req, res) => {
                 }
             } else if (targetType === 'ROLE_IDENTIFIER') {
                 const normalizedIdentifier = normalizeRole(targetValue);
-                if (!['TL1', 'TL2'].includes(normalizedIdentifier)) {
-                    return res.status(403).json({ error: 'GM can only target TL1 or TL2 role identifiers' });
+                if (!normalizedIdentifier.startsWith('TL') && !['TEAM LEAD', 'TL'].includes(normalizedIdentifier)) {
+                    return res.status(403).json({ error: 'GM can only target Team Lead role identifiers' });
                 }
             } else if (targetType === 'USER') {
                 const { data: receiver } = await supabase
@@ -4543,7 +4556,9 @@ app.post('/api/notifications/send', async (req, res) => {
                 const receiverIdentifier = normalizeRole(receiver?.role_identifier);
                 const allowedDirectTargets = receiverRole === 'TEAM LEAD'
                     || receiverRole === 'POSTING TEAM'
-                    || ['TL1', 'TL2'].includes(receiverIdentifier);
+                    || receiverRole.startsWith('TL')
+                    || receiverIdentifier.startsWith('TL')
+                    || ['TEAM LEAD', 'TL'].includes(receiverIdentifier);
 
                 if (!allowedDirectTargets) {
                     return res.status(403).json({ error: 'GM can only message TL1/TL2/Posting Team users' });
@@ -5185,7 +5200,7 @@ async function syncMonthlyStreaks(monthStr) {
     const teamLeads = users.filter(u => {
         const r = normalizeRole(u.role);
         const ri = normalizeRole(u.role_identifier);
-        return ri.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
+        return ri.startsWith('TL') || r.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
     });
 
     const employees = users.filter(u => {
@@ -5400,7 +5415,7 @@ app.get('/api/admin/streaks', requireRoles(ADMIN_ROLES), async (req, res) => {
         const teamLeads = users.filter(u => {
             const r = normalizeRole(u.role);
             const ri = normalizeRole(u.role_identifier);
-            return ri.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
+            return ri.startsWith('TL') || r.startsWith('TL') || ['TEAM LEAD', 'TL'].includes(r) || ['TEAM LEAD', 'TL'].includes(ri);
         });
 
         const employees = users.filter(u => {

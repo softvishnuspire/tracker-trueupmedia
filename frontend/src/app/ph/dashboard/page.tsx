@@ -59,6 +59,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import FreelancerTaskModal from '@/components/FreelancerTaskModal';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
+import ScheduleExport from '@/components/ScheduleExport';
 import './ph.css';
 
 // Using imported ContentItem from @/lib/api
@@ -1114,6 +1115,16 @@ export default function ProductionHeadDashboard() {
                                 >
                                     <Plus size={20} />
                                 </button>
+                            )}
+
+                            {(view === 'client' || view === 'viewTaskClient' || view === 'master' || view === 'company') && (
+                                <ScheduleExport 
+                                    data={view === 'viewTaskClient' ? viewTaskCalendarData : calendarData}
+                                    clientName={(selectedClient && selectedClient !== 'all') ? clients.find(c => c.id === selectedClient)?.company_name || 'Client' : 'TrueUp Media'}
+                                    month={currentMonth}
+                                    batchType={(selectedClient && selectedClient !== 'all') ? selectedClientData?.batch_type : '1-1'}
+                                    summaryOnly={view === 'master' || view === 'company'}
+                                />
                             )}
                         </div>
                     </div>

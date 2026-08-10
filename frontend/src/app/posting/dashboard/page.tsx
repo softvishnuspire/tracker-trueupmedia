@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePageLoading } from '@/components/ui/TopProgressBar';
+import ScheduleExport from '@/components/ScheduleExport';
 import NotificationBell from '@/components/NotificationBell';
 import ReviewNoteCard from '@/components/ReviewNoteCard';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -886,17 +887,26 @@ export default function PostingDashboard() {
                             )}
 
                             {view !== 'dashboard' && (
-                                <div className="month-nav">
-                                    <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn"><ChevronLeft size={20} /></button>
-                                    <span className="month-label">{getPeriodLabel()}</span>
-                                    <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn"><ChevronRight size={20} /></button>
-                                    {isRefreshing && (
-                                        <div className="refreshing-banner" style={{ marginLeft: '12px' }}>
-                                            <Loader2 size={12} className="spinner-btn-icon" />
-                                            <span>Refreshing...</span>
-                                        </div>
-                                    )}
-                                </div>
+                                <>
+                                    <div className="month-nav">
+                                        <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="month-btn"><ChevronLeft size={20} /></button>
+                                        <span className="month-label">{getPeriodLabel()}</span>
+                                        <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="month-btn"><ChevronRight size={20} /></button>
+                                        {isRefreshing && (
+                                            <div className="refreshing-banner" style={{ marginLeft: '12px' }}>
+                                                <Loader2 size={12} className="spinner-btn-icon" />
+                                                <span>Refreshing...</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <ScheduleExport 
+                                        data={calendarData}
+                                        clientName={(selectedClient && selectedClient !== 'all') ? clients.find(c => c.id === selectedClient)?.company_name || 'Client' : 'TrueUp Media'}
+                                        month={currentMonth}
+                                        batchType={(selectedClient && selectedClient !== 'all') ? clients.find(c => c.id === selectedClient)?.batch_type : '1-1'}
+                                        summaryOnly={view === 'master' || view === 'company'}
+                                    />
+                                </>
                             )}
                         </div>
                     </div>

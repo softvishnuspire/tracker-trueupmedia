@@ -86,7 +86,7 @@ const canonicalizeRole = (role?: string | null) => {
   if (['admin', 'administrator'].includes(normalized)) return 'admin';
   if (['coo'].includes(normalized)) return 'coo';
   if (['gm', 'general manager'].includes(normalized)) return 'gm';
-  if (['tl', 'tl1', 'tl2', 'team lead'].includes(normalized)) return 'tl';
+  if (normalized === 'tl' || normalized.startsWith('tl') || normalized.startsWith('team lead')) return 'tl';
   if (['posting', 'posting team'].includes(normalized)) return 'posting';
   if (['ph', 'production head'].includes(normalized)) return 'ph';
   if (['client'].includes(normalized)) return 'client';
@@ -144,12 +144,12 @@ export default function Login() {
       // Fetch true DB role if metadata is missing
       const { data: dbUser } = await supabase
         .from('users')
-        .select('role')
+        .select('role, role_identifier')
         .eq('user_id', data.user.id)
         .single();
 
       // Resolve role from metadata, fallback to DB, and normalize role aliases
-      const metadataRole = data.user?.user_metadata?.role || data.user?.app_metadata?.role || dbUser?.role;
+      const metadataRole = data.user?.user_metadata?.role || data.user?.user_metadata?.role_identifier || data.user?.app_metadata?.role || dbUser?.role_identifier || dbUser?.role;
       const userRole = canonicalizeRole(metadataRole);
       const selectedRoleCanonical = canonicalizeRole(selectedRole);
 

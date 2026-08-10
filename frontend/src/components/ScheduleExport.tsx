@@ -1,11 +1,12 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
 import { get15BiMonthlyPeriod, isCrossMonthRescheduled } from '@/utils/calendarUtils';
 import { ContentItem } from '@/lib/api';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { Loader2 } from 'lucide-react';
 
 interface ScheduleExportProps {
     data: ContentItem[];
@@ -18,21 +19,33 @@ interface ScheduleExportProps {
 
 const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month, batchType = '1-1', clientLogo, summaryOnly }) => {
     const exportRef = React.useRef<HTMLDivElement>(null);
+    const [isExporting, setIsExporting] = useState(false);
 
     const handleDownload = async () => {
-        if (!exportRef.current) return;
+        if (!exportRef.current || isExporting) return;
+        setIsExporting(true);
 
         const element = exportRef.current;
         element.style.display = 'block';
 
         try {
             const canvas = await html2canvas(element, {
-                scale: 3, // Increased scale for high-definition clarity
+                scale: 2,
                 useCORS: true,
                 backgroundColor: '#ffffff',
                 logging: false,
                 allowTaint: true,
-                imageTimeout: 0
+                imageTimeout: 0,
+                onclone: (clonedDoc: Document) => {
+                    const clonedEl = clonedDoc.querySelector('[data-export-template]') as HTMLElement;
+                    if (clonedEl) {
+                        clonedEl.style.display = 'block';
+                        clonedEl.style.position = 'static';
+                        clonedEl.style.left = '0';
+                        clonedEl.style.top = '0';
+                        clonedEl.style.transform = 'none';
+                    }
+                }
             } as any);
             const imgData = canvas.toDataURL('image/png', 1.0);
 
@@ -44,11 +57,18 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
             });
 
             pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, undefined, 'NONE');
-            pdf.save(filename);
+            
+            const sanitizedClientName = (clientName || 'Client').trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
+            const downloadFilename = isBiMonthly
+                ? `${sanitizedClientName}_Schedule_${format(periodStart, 'dd_MMM')}_to_${format(periodEnd, 'dd_MMM_yyyy')}.pdf`
+                : `${sanitizedClientName}_Schedule_${format(month, 'MMM_yyyy')}.pdf`;
+
+            pdf.save(downloadFilename);
         } catch (error) {
             console.error('Export failed:', error);
         } finally {
             element.style.display = 'none';
+            setIsExporting(false);
         }
     };
 
@@ -103,7 +123,9 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
         <>
             <button
                 onClick={handleDownload}
+                disabled={isExporting}
                 className="export-btn"
+                title={isExporting ? "Generating PDF..." : "Download Calendar PDF"}
                 style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -115,7 +137,8 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     borderRadius: '12px',
                     fontSize: '14px',
                     fontWeight: 800,
-                    cursor: 'pointer',
+                    cursor: isExporting ? 'not-allowed' : 'pointer',
+                    opacity: isExporting ? 0.7 : 1,
                     boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     width: '45px',
@@ -123,16 +146,21 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     flexShrink: 0
                 }}
             >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
+                {isExporting ? (
+                    <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                )}
             </button>
 
             {/* Premium Export Template */}
             <div
                 ref={exportRef}
+                data-export-template="true"
                 style={{
                     display: 'none',
                     position: 'absolute',

@@ -459,10 +459,11 @@ export default function TLDashboard() {
                     .single();
 
                 const role = normalizeRole(profileData?.role);
-                const isTeamLead = ['tl', 'tl1', 'tl2', 'team lead'].includes(role);
+                const roleId = normalizeRole(profileData?.role_identifier);
+                const isTeamLead = role.startsWith('tl') || role.startsWith('team lead') || roleId.startsWith('tl') || roleId.startsWith('team lead') || ['tl', 'team lead'].includes(role) || ['tl', 'team lead'].includes(roleId);
 
                 if (profileError || !profileData || !isTeamLead) {
-                    console.warn('Profile validation check:', { role: profileData?.role, isTeamLead });
+                    console.warn('Profile validation check:', { role: profileData?.role, role_identifier: profileData?.role_identifier, isTeamLead });
                 }
 
                 setUser(authUser);
@@ -1025,9 +1026,9 @@ export default function TLDashboard() {
                             {(view === 'client' || view === 'master' || view === 'company') && (
                                 <ScheduleExport 
                                     data={calendarData}
-                                    clientName={selectedClient ? clients.find(c => c.id === selectedClient)?.company_name || 'Client' : 'TrueUp Media'}
+                                    clientName={(selectedClient && selectedClient !== 'all') ? clients.find(c => c.id === selectedClient)?.company_name || 'Client' : 'TrueUp Media'}
                                     month={currentMonth}
-                                    batchType={selectedClient ? getClientBatchType(selectedClient) : '1-1'}
+                                    batchType={(selectedClient && selectedClient !== 'all') ? getClientBatchType(selectedClient) : '1-1'}
                                     summaryOnly={view === 'master' || view === 'company'}
                                 />
                             )}

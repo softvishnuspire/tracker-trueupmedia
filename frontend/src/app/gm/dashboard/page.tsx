@@ -1756,9 +1756,10 @@ function GMDashboardContent() {
 
                                     <ScheduleExport
                                         data={view === 'poc' ? [] : calendarData}
-                                        clientName={selectedClient === 'all' ? 'TrueUp Media' : selectedClientData?.company_name || 'Client'}
+                                        clientName={(!selectedClient || selectedClient === 'all') ? 'TrueUp Media' : selectedClientData?.company_name || 'Client'}
                                         month={currentMonth}
                                         batchType={selectedClientData?.batch_type || '1-1'}
+                                        summaryOnly={view === 'master' || view === 'company'}
                                     />
                                 </>
                             )}
