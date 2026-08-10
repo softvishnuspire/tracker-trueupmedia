@@ -10,13 +10,28 @@ const api = axios.create({
     baseURL: API_BASE_URL,
 });
 
-api.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+const attachAuthInterceptor = (instance: typeof api) => {
+    instance.interceptors.request.use(async (config) => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            let token = session?.access_token;
+            if (session && session.expires_at && session.expires_at - Math.floor(Date.now() / 1000) < 60) {
+                const { data: refreshed } = await supabase.auth.refreshSession();
+                if (refreshed?.session?.access_token) {
+                    token = refreshed.session.access_token;
+                }
+            }
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+        } catch (err) {
+            console.error('[API Interceptor] Auth session error:', err);
+        }
+        return config;
+    });
+};
+
+attachAuthInterceptor(api);
 
 export interface Client {
     id: string;
@@ -125,13 +140,7 @@ const adminBase = axios.create({
     baseURL: API_BASE_URL,
 });
 
-adminBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+attachAuthInterceptor(adminBase);
 
 export interface TeamMember {
     user_id: string; // The primary key from Supabase 'users' table
@@ -281,13 +290,7 @@ const cooBase = axios.create({
     baseURL: API_BASE_URL,
 });
 
-cooBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+attachAuthInterceptor(cooBase);
 
 export const cooApi = {
     getClients: () => cooBase.get<Client[]>('/api/coo/clients'),
@@ -319,13 +322,7 @@ const phBase = axios.create({
     baseURL: API_BASE_URL,
 });
 
-phBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+attachAuthInterceptor(phBase);
 
 export const phApi = {
     getToday: () => phBase.get<ContentItem[]>('/api/ph/today'),
@@ -359,13 +356,7 @@ const employeeBase = axios.create({
     baseURL: API_BASE_URL,
 });
 
-employeeBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+attachAuthInterceptor(employeeBase);
 
 export const employeeApi = {
     getTasks: (month?: string) => employeeBase.get<ContentItem[]>(`/api/employee/tasks${month ? `?month=${month}` : ''}`),
@@ -377,13 +368,7 @@ const tlBase = axios.create({
     baseURL: `${API_BASE_URL}/api/tl/`,
 });
 
-tlBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+attachAuthInterceptor(tlBase);
 
 export const tlApi = {
     getClients: (tlId: string) => tlBase.get<Client[]>(`clients?tlId=${tlId}`),
@@ -406,13 +391,7 @@ const postingBase = axios.create({
     baseURL: `${API_BASE_URL}/api/posting/`,
 });
 
-postingBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+attachAuthInterceptor(postingBase);
 
 export const postingApi = {
     getToday: () => postingBase.get<ContentItem[]>('today'),
@@ -436,13 +415,7 @@ const contentHeadBase = axios.create({
     baseURL: API_BASE_URL,
 });
 
-contentHeadBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+attachAuthInterceptor(contentHeadBase);
 
 export const contentHeadApi = {
     getWriters: () => contentHeadBase.get<TeamMember[]>('/api/content-head/writers'),
@@ -457,13 +430,7 @@ const notificationBase = axios.create({
     baseURL: API_BASE_URL,
 });
 
-notificationBase.interceptors.request.use(async (config) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
-    return config;
-});
+attachAuthInterceptor(notificationBase);
 
 export interface NotificationItem {
     id: string;

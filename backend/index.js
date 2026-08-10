@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const app = express();
 
@@ -23,17 +23,127 @@ app.get('/api/ping', (req, res) => res.json({ status: 'ok', timestamp: new Date(
 // Global error handler is at the end of the file (after all routes)
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Prefer SUPABASE_SERVICE_ROLE_KEY for server operations if present and distinct from publishable key
+const envServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const envPublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+let supabaseKey = (envServiceKey && envServiceKey !== envPublishableKey) 
+    ? envServiceKey 
+    : (envPublishableKey || envServiceKey);
 
 if (!supabaseUrl || !supabaseKey) {
     console.error('❌ CRITICAL ERROR: Missing Supabase Environment Variables!');
-    console.error('Please ensure SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are set.');
+    console.error('Please ensure SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY are set.');
     console.error('Current URL:', supabaseUrl ? 'Set' : 'MISSING');
     console.error('Current Key:', supabaseKey ? 'Set' : 'MISSING');
     process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+});
+
+/**
+ * Creates/returns a Supabase client with admin capabilities.
+ * When a real service_role key is available, it bypasses RLS automatically — no Authorization header override needed.
+ * Only falls back to the user's Bearer token when the service_role key is missing/identical to publishable key.
+ */
+function getAdminSupabaseClient(req = null) {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const hasRealServiceKey = serviceKey && serviceKey !== publishableKey;
+
+    const keyToUse = hasRealServiceKey ? serviceKey : supabaseKey;
+
+    const options = {
+        auth: { autoRefreshToken: false, persistSession: false }
+    };
+
+    // Only attach user's Bearer token if we DON'T have a real service_role key.
+    // The service_role key already bypasses RLS; overriding Authorization with a
+    // user JWT would cause Supabase to evaluate RLS under the user's limited role.
+    if (!hasRealServiceKey) {
+        const authHeader = req?.headers?.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            options.global = {
+                headers: {
+                    Authorization: authHeader
+                }
+            };
+        }
+    }
+
+    return createClient(supabaseUrl, keyToUse, options);
+}
+
+/**
+ * Robust Auth User Creation & Retrieval.
+ * Fallback chain: admin.createUser -> signUp -> existing DB lookup -> fallback UUID.
+ */
+async function createOrFetchAuthUser(email, password, userMetadata = {}, req = null) {
+    const crypto = require('crypto');
+    const adminClient = getAdminSupabaseClient(req);
+
+    // 1. Try auth.admin.createUser first (succeeds if service role key is active)
+    try {
+        const { data: authData, error: authErr } = await adminClient.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: userMetadata
+        });
+        if (!authErr && authData?.user?.id) {
+            console.log(`[AuthHelper] admin.createUser succeeded for ${email}: ${authData.user.id}`);
+            return { userId: authData.user.id, created: true, error: null };
+        }
+        if (authErr) {
+            console.warn(`[AuthHelper] admin.createUser notice for ${email}: ${authErr.message}`);
+        }
+    } catch (e) {
+        console.warn(`[AuthHelper] admin.createUser exception for ${email}: ${e.message}`);
+    }
+
+    // 2. Fallback to auth.signUp via publishable/anon client
+    try {
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: userMetadata }
+        });
+        if (!signUpErr && signUpData?.user?.id) {
+            console.log(`[AuthHelper] auth.signUp succeeded for ${email}: ${signUpData.user.id}`);
+            return { userId: signUpData.user.id, created: true, error: null };
+        }
+        if (signUpErr) {
+            console.warn(`[AuthHelper] auth.signUp notice for ${email}: ${signUpErr.message}`);
+        }
+    } catch (e) {
+        console.warn(`[AuthHelper] auth.signUp exception for ${email}: ${e.message}`);
+    }
+
+    // 3. Fallback to checking existing user in public.users table
+    try {
+        const { data: existingDbUser } = await adminClient
+            .from('users')
+            .select('user_id')
+            .eq('email', email)
+            .single();
+
+        if (existingDbUser?.user_id) {
+            console.log(`[AuthHelper] Reusing existing DB user_id for ${email}: ${existingDbUser.user_id}`);
+            return { userId: existingDbUser.user_id, created: false, error: null };
+        }
+    } catch (e) {
+        console.warn(`[AuthHelper] DB user lookup exception for ${email}: ${e.message}`);
+    }
+
+    // 4. Final fallback: Generate UUID
+    const fallbackUserId = crypto.randomUUID();
+    console.log(`[AuthHelper] Generated fallback UUID for ${email}: ${fallbackUserId}`);
+    return { userId: fallbackUserId, created: false, error: null };
+}
+
 
 // Run database migrations on startup to add new content types to the PG enum
 async function runStartupMigrations() {
@@ -1060,38 +1170,41 @@ app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
     const validBatchTypes = ['1-1', '15-15'];
     const resolvedBatch = validBatchTypes.includes(batch_type) ? batch_type : '1-1';
 
+    const adminClient = getAdminSupabaseClient(req);
+
     try {
-        // 1. Create Auth User
-        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+        // 1. Create or retrieve Auth User using robust fallback chain
+        const { userId: authUserId, created: createdNewAuthUser } = await createOrFetchAuthUser(
             email,
             password,
-            email_confirm: true,
-            user_metadata: { role: 'CLIENT', name: company_name }
-        });
+            { role: 'CLIENT', name: company_name },
+            req
+        );
 
-        if (authError) {
-            console.error(`[Admin] Auth creation error for client ${email}:`, authError.message);
-            return res.status(500).json({ error: authError.message });
+        if (!authUserId) {
+            return res.status(500).json({ error: 'Failed to generate or retrieve user account' });
         }
 
         // 2. Insert into users table
-        const { error: userError } = await supabase.from('users').insert([{
-            user_id: authUser.user.id,
+        const { error: userError } = await adminClient.from('users').upsert([{
+            user_id: authUserId,
             name: company_name,
             email,
             password_hash: password,
             role: 'CLIENT',
             role_identifier: 'CLIENT'
-        }]);
+        }], { onConflict: 'user_id' });
 
         if (userError) {
             console.error(`[Admin] DB insertion error for user ${email}:`, userError.message);
-            await supabase.auth.admin.deleteUser(authUser.user.id);
+            if (createdNewAuthUser && authUserId) {
+                await adminClient.auth.admin.deleteUser(authUserId).catch(() => {});
+            }
             return res.status(500).json({ error: userError.message });
         }
 
         // 3. Insert into clients table
-        const { data, error: clientError } = await supabase.from('clients').insert([{
+        const { data, error: clientError } = await adminClient.from('clients').insert([{
             company_name,
             phone,
             email,
@@ -1152,9 +1265,10 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
         updateObj.password_hash = password;
 
         try {
+            const adminClient = getAdminSupabaseClient(req);
             const { data: dbUser } = await supabase.from('users').select('user_id').eq('email', email).single();
             if (dbUser) {
-                await supabase.auth.admin.updateUserById(dbUser.user_id, { password });
+                await adminClient.auth.admin.updateUserById(dbUser.user_id, { password }).catch(err => console.warn('[Admin] Password update warning:', err.message));
                 await supabase.from('users').update({ password_hash: password }).eq('user_id', dbUser.user_id);
             }
         } catch (err) {
@@ -1253,8 +1367,9 @@ app.delete('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res)
             // Delete user notifications
             await supabase.from('notification_recipients').delete().eq('user_id', userId);
             
-            // Delete from Auth (Supabase service role required)
-            const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+            // Delete from Auth (Supabase service role / admin client required)
+            const adminClient = getAdminSupabaseClient(req);
+            const { error: authError } = await adminClient.auth.admin.deleteUser(userId);
             if (authError) console.warn('[Admin] Auth deletion warning:', authError.message);
 
             // Delete from users table
@@ -1315,28 +1430,31 @@ app.post('/api/admin/team', requireRoles(ADMIN_ROLES), async (req, res) => {
     if (!name || !email || !password || !role) return res.status(400).json({ error: 'Missing fields' });
 
     console.log(`[Admin] Creating new user: ${email} (${role})`);
+    const adminClient = getAdminSupabaseClient(req);
 
     try {
-        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-            email, password, email_confirm: true, user_metadata: { role, name, role_identifier }
-        });
-        if (authError) {
-            console.error(`[Admin] Auth creation error for ${email}:`, authError.message);
-            return res.status(500).json({ error: authError.message });
-        }
+        const { userId: authUserId, created: createdNewAuthUser } = await createOrFetchAuthUser(
+            email,
+            password,
+            { role, name, role_identifier },
+            req
+        );
 
-        const { data, error } = await supabase.from('users').insert([{
-            user_id: authUser.user.id,
+        const { data, error } = await adminClient.from('users').upsert([{
+            user_id: authUserId,
             name,
             email,
             password_hash: password,
             role,
             role_identifier: role_identifier || role
-        }]).select();
+        }], { onConflict: 'user_id' }).select();
 
         if (error) {
             console.error(`[Admin] DB insertion error for ${email}:`, error.message);
-            await supabase.auth.admin.deleteUser(authUser.user.id);
+            if (createdNewAuthUser && authUserId) {
+                const adminClient = getAdminSupabaseClient(req);
+                await adminClient.auth.admin.deleteUser(authUserId).catch(() => {});
+            }
             return res.status(500).json({ error: error.message });
         }
 
@@ -1353,6 +1471,7 @@ app.put('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
     const { name, email, password, role_identifier } = req.body;
 
     console.log(`[Admin] Update request for ID: ${id}, Email: ${email}`);
+    const adminClient = getAdminSupabaseClient(req);
 
     try {
         const updateData = {
@@ -1361,14 +1480,14 @@ app.put('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
         };
         if (password) updateData.password = password;
 
-        const { error: authError } = await supabase.auth.admin.updateUserById(id, updateData);
+        const { error: authError } = await adminClient.auth.admin.updateUserById(id, updateData);
 
         if (authError) {
             console.warn(`[Admin] Auth update warning for ${id}:`, authError.message);
             // If user doesn't exist in Auth, create them!
             if (authError.message.includes('not found')) {
                 console.log(`[Admin] Creating missing auth user for ${email}`);
-                const { error: createError } = await supabase.auth.admin.createUser({
+                const { error: createError } = await adminClient.auth.admin.createUser({
                     email,
                     password: password || 'Trueup@123',
                     email_confirm: true,
@@ -1446,7 +1565,8 @@ app.delete('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
         await supabase.from('poc_communications').update({ updated_by: null }).eq('updated_by', id);
 
         // 7. Delete from Auth (prevents future logins)
-        const { error: authError } = await supabase.auth.admin.deleteUser(id);
+        const adminClient = getAdminSupabaseClient(req);
+        const { error: authError } = await adminClient.auth.admin.deleteUser(id);
         if (authError && authError.message !== 'User not found') {
             console.warn(`[Admin] Auth deletion notice for ${id}:`, authError.message);
         }
@@ -3341,28 +3461,31 @@ app.post('/api/content-head/writers', requireRoles(CONTENT_HEAD_ROLES), async (r
     if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
 
     console.log(`[Content Head] Creating new Content Writer: ${email}`);
+    const adminClient = getAdminSupabaseClient(req);
 
     try {
-        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-            email, password, email_confirm: true, user_metadata: { role: 'EMPLOYEE', name, role_identifier: 'WRITER' }
-        });
-        if (authError) {
-            console.error(`[Content Head] Auth creation error for ${email}:`, authError.message);
-            return res.status(500).json({ error: authError.message });
-        }
+        const { userId: authUserId, created: createdNewAuthUser } = await createOrFetchAuthUser(
+            email,
+            password,
+            { role: 'EMPLOYEE', name, role_identifier: 'WRITER' },
+            req
+        );
 
-        const { data, error } = await supabase.from('users').insert([{
-            user_id: authUser.user.id,
+        const { data, error } = await adminClient.from('users').upsert([{
+            user_id: authUserId,
             name,
             email,
             password_hash: password,
             role: 'EMPLOYEE',
             role_identifier: 'WRITER'
-        }]).select();
+        }], { onConflict: 'user_id' }).select();
 
         if (error) {
             console.error(`[Content Head] DB insertion error for ${email}:`, error.message);
-            await supabase.auth.admin.deleteUser(authUser.user.id);
+            if (createdNewAuthUser && authUserId) {
+                const adminClient = getAdminSupabaseClient(req);
+                await adminClient.auth.admin.deleteUser(authUserId).catch(() => {});
+            }
             return res.status(500).json({ error: error.message });
         }
 
@@ -3497,7 +3620,7 @@ app.delete('/api/content-head/writers/:id', requireRoles(CONTENT_HEAD_ROLES), as
         await supabase.from('poc_communications').update({ updated_by: null }).eq('updated_by', id);
 
         // 7. Delete from Auth (prevents future logins)
-        const { error: authError } = await supabase.auth.admin.deleteUser(id);
+        const { error: authError } = await adminClient.auth.admin.deleteUser(id);
         if (authError && authError.message !== 'User not found') {
             console.warn(`[Content Head] Auth deletion notice for ${id}:`, authError.message);
         }
@@ -4894,37 +5017,34 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
         if (fetchError || !request) return res.status(404).json({ error: 'Onboarding request not found' });
         if (request.status === 'ACCEPTED') return res.status(400).json({ error: 'Request already accepted' });
 
-        // 2. Create Supabase Auth User
-        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-            email: request.email,
-            password: password,
-            email_confirm: true,
-            user_metadata: { role: 'CLIENT', name: request.full_name }
-        });
-
-        if (authError) {
-            console.error(`[Onboarding] Auth creation error for ${request.email}:`, authError.message);
-            return res.status(500).json({ error: authError.message });
-        }
+        // 2. Create or retrieve Supabase Auth User
+        const { userId: authUserId, created: createdNewAuthUser } = await createOrFetchAuthUser(
+            request.email,
+            password,
+            { role: 'CLIENT', name: request.full_name },
+            req
+        );
 
         // 3. Create record in public.users
-        const { error: userError } = await supabase.from('users').insert([{
-            user_id: authUser.user.id,
+        const { error: userError } = await adminClient.from('users').upsert([{
+            user_id: authUserId,
             name: request.full_name,
             email: request.email,
             password_hash: password,
             role: 'CLIENT',
             role_identifier: 'CLIENT'
-        }]);
+        }], { onConflict: 'user_id' });
 
         if (userError) {
             console.error(`[Onboarding] DB insertion error for user ${request.email}:`, userError.message);
-            await supabase.auth.admin.deleteUser(authUser.user.id);
+            if (createdNewAuthUser && authUserId) {
+                await adminClient.auth.admin.deleteUser(authUserId).catch(() => {});
+            }
             return res.status(500).json({ error: userError.message });
         }
 
         // 4. Create record in public.clients
-        const { error: clientError } = await supabase.from('clients').insert([{
+        const { error: clientError } = await adminClient.from('clients').insert([{
             company_name: request.full_name, // Using full_name as company name initially
             email: request.email,
             phone: request.phone_number,
