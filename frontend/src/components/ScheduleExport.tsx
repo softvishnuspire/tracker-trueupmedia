@@ -40,7 +40,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                     const clonedEl = clonedDoc.querySelector('[data-export-template]') as HTMLElement;
                     if (clonedEl) {
                         clonedEl.style.display = 'block';
-                        clonedEl.style.position = 'static';
+                        clonedEl.style.position = 'relative';
                         clonedEl.style.left = '0';
                         clonedEl.style.top = '0';
                         clonedEl.style.transform = 'none';
@@ -163,7 +163,7 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 data-export-template="true"
                 style={{
                     display: 'none',
-                    position: 'absolute',
+                    position: 'relative',
                     left: '-9999px',
                     top: '-9999px',
                     width: '1000px',
