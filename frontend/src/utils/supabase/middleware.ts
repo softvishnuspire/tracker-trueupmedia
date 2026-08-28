@@ -31,9 +31,16 @@ export async function updateSession(request: NextRequest) {
   // supabase.auth.getUser(). A simple mistake can make it very hard to debug
   // issues with users being logged out.
 
-  const {
-    data: { user: _user },
-  } = await supabase.auth.getUser()
+  try {
+    const authPromise = supabase.auth.getUser()
+    const timeoutPromise = new Promise<{ data: { user: null }; error: any }>((resolve) =>
+      setTimeout(() => resolve({ data: { user: null }, error: new Error('Middleware auth timeout') }), 2500)
+    )
+
+    await Promise.race([authPromise, timeoutPromise])
+  } catch (_err) {
+    // Fail-safe handling to ensure request is never blocked if Supabase Auth is slow or unresponsive
+  }
 
   return supabaseResponse
 }

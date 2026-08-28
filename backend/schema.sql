@@ -140,3 +140,14 @@ CREATE TABLE public.users (
   role_identifier text,
   CONSTRAINT users_pkey PRIMARY KEY (user_id)
 );
+
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_content_items_client_sched ON public.content_items (client_id, scheduled_datetime);
+CREATE INDEX IF NOT EXISTS idx_content_items_assigned_status ON public.content_items (assigned_to, employee_task_status);
+CREATE INDEX IF NOT EXISTS idx_content_items_sched_status ON public.content_items (scheduled_datetime, status);
+CREATE INDEX IF NOT EXISTS idx_status_logs_item_changed ON public.status_logs (item_id, changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_clients_lead_active ON public.clients (team_lead_id, is_active, is_deleted);
+CREATE INDEX IF NOT EXISTS idx_clients_employee ON public.clients (employee_id, is_active, is_deleted);
+CREATE INDEX IF NOT EXISTS idx_notification_recipients_user_read ON public.notification_recipients (user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_poc_comms_client_date ON public.poc_communications (client_id, note_date DESC);
+CREATE INDEX IF NOT EXISTS idx_users_role_identifier ON public.users (role_identifier);

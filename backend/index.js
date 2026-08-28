@@ -8,6 +8,29 @@ const app = express();
 
 app.use(compression());
 
+// Performance Diagnostics & Request Duration Tracking
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        if (duration > 1000) {
+            console.warn(`[SLOW_REQUEST] ${req.method} ${req.originalUrl} took ${duration}ms (Status: ${res.statusCode})`);
+        }
+    });
+    next();
+});
+
+// Request Timeout Safeguard (15 seconds) to prevent hanging connections
+app.use((req, res, next) => {
+    res.setTimeout(15000, () => {
+        if (!res.headersSent) {
+            console.warn(`[TIMEOUT_WARNING] Server request timeout reached (15s): ${req.method} ${req.originalUrl}`);
+            res.status(504).json({ error: 'Gateway Timeout: Request processing exceeded 15 second limit.' });
+        }
+    });
+    next();
+});
+
 app.use(cors({
     origin: true,
     credentials: true,
@@ -5510,9 +5533,27 @@ async function backfillAllStreaks() {
 setTimeout(backfillAllStreaks, 3000);
 
 app.use((err, req, res, next) => {
-    console.error('Unhandled Error:', err);
-    res.status(500).json({ error: 'Internal Server Error', message: err.message });
+    console.error('Unhandled Error:', err.message || err);
+    if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal Server Error', message: err.message });
+    }
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// Graceful process shutdown handling
+const gracefulShutdown = (signal) => {
+    console.log(`Received ${signal}. Shutting down HTTP server gracefully...`);
+    server.close(() => {
+        console.log('HTTP server closed cleanly. Process exiting.');
+        process.exit(0);
+    });
+    setTimeout(() => {
+        console.error('Forced shutdown after 10s timeout.');
+        process.exit(1);
+    }, 10000).unref();
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
