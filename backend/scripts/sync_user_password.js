@@ -1,4 +1,5 @@
 require('dotenv').config();
+const bcrypt = require('bcryptjs');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,9 +20,11 @@ async function syncPassword(email, newPassword) {
 
   console.log(`Attempting to sync password for: ${email}`);
 
+  // Never store plaintext. The real password lives in Supabase Auth; this only
+  // keeps a bcrypt hash in the reference column.
   const { error } = await supabase
     .from('users')
-    .update({ password_hash: newPassword })
+    .update({ password_hash: bcrypt.hashSync(String(newPassword), 10) })
     .eq('email', email);
 
   if (error) {
