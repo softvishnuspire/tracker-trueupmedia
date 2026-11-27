@@ -158,8 +158,14 @@ export default function AdminDashboard() {
       let currentClients = clients;
       if (currentClients.length === 0) {
         const clientsRes = await gmApi.getClients();
-        currentClients = clientsRes.data;
-        setClients(currentClients);
+        currentClients = clientsRes.data || [];
+        // Only update state when we actually have clients. Setting a fresh
+        // empty array here would change the `clients` reference, recreate
+        // fetchDashboardData, and re-trigger its effect in an infinite loop
+        // whenever the client list is empty.
+        if (currentClients.length > 0) {
+          setClients(currentClients);
+        }
       }
 
       const currentMonthStr = format(currentMonth, 'yyyy-MM');

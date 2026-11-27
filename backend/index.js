@@ -1,8 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
+const bcrypt = require('bcryptjs');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ override: true });
+
+// Passwords are authenticated via Supabase Auth (auth.users). We keep an
+// optional bcrypt hash in public.users for reference only; never store plaintext.
+const hashPassword = (plain) => (plain ? bcrypt.hashSync(String(plain), 10) : null);
 
 const app = express();
 
@@ -168,24 +173,9 @@ async function createOrFetchAuthUser(email, password, userMetadata = {}, req = n
 }
 
 
-// Run database migrations on startup to add new content types to the PG enum
-async function runStartupMigrations() {
-    try {
-        console.log('🔄 Running startup SQL migrations...');
-        // Alter enum type to add 'Special Poster' and 'Special Day Poster'
-        const alterEnum1 = "ALTER TYPE content_type ADD VALUE IF NOT EXISTS 'Special Poster';";
-        const alterEnum2 = "ALTER TYPE content_type ADD VALUE IF NOT EXISTS 'Special Day Poster';";
-        const alterRoleEnum = "ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'MANAGER';";
-        
-        await supabase.rpc('exec_sql', { sql: alterEnum1 });
-        await supabase.rpc('exec_sql', { sql: alterEnum2 });
-        await supabase.rpc('exec_sql', { sql: alterRoleEnum });
-        console.log('✅ Startup SQL migrations completed successfully.');
-    } catch (err) {
-        console.error('⚠️ Warning: Startup migrations failed (probably exec_sql not allowed or values already exist):', err.message);
-    }
-}
-runStartupMigrations();
+// Schema/enum changes are applied via versioned migrations in backend/migrations
+// (see migrations/*.sql), not at runtime. The previous startup code executed
+// arbitrary SQL through an exec_sql RPC, which has been removed for security.
 function enrichContentItem(item) {
     if (!item) return item;
     let is_cross_month_rescheduled = false;
@@ -1220,7 +1210,7 @@ app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
             user_id: authUserId,
             name: company_name,
             email,
-            password_hash: password,
+            password_hash: hashPassword(password),
             role: 'CLIENT',
             role_identifier: 'CLIENT'
         }], { onConflict: 'user_id' });
@@ -1249,7 +1239,7 @@ app.post('/api/admin/clients', requireRoles(ADMIN_ROLES), async (req, res) => {
             writer_employee_id: writer_employee_id || null,
             is_active: true,
             is_deleted: false,
-            password_hash: password
+            password_hash: hashPassword(password)
         }]).select('*, team_lead:team_lead_id (name), reel_employee:reel_employee_id (name), post_employee:post_employee_id (name), writer_employee:writer_employee_id (name)');
 
         if (clientError) {
@@ -1292,14 +1282,14 @@ app.put('/api/admin/clients/:id', requireRoles(ADMIN_ROLES), async (req, res) =>
     Object.keys(updateObj).forEach(key => updateObj[key] === undefined && delete updateObj[key]);
 
     if (password) {
-        updateObj.password_hash = password;
+        updateObj.password_hash = hashPassword(password);
 
         try {
             const adminClient = getAdminSupabaseClient(req);
             const { data: dbUser } = await supabase.from('users').select('user_id').eq('email', email).single();
             if (dbUser) {
                 await adminClient.auth.admin.updateUserById(dbUser.user_id, { password }).catch(err => console.warn('[Admin] Password update warning:', err.message));
-                await supabase.from('users').update({ password_hash: password }).eq('user_id', dbUser.user_id);
+                await supabase.from('users').update({ password_hash: hashPassword(password) }).eq('user_id', dbUser.user_id);
             }
         } catch (err) {
             console.error('[Admin] Error updating client password in auth/users:', err);
@@ -1475,7 +1465,7 @@ app.post('/api/admin/team', requireRoles(ADMIN_ROLES), async (req, res) => {
             user_id: authUserId,
             name,
             email,
-            password_hash: password,
+            password_hash: hashPassword(password),
             role,
             role_identifier: role_identifier || role
         }], { onConflict: 'user_id' }).select();
@@ -1531,7 +1521,7 @@ app.put('/api/admin/team/:id', requireRoles(ADMIN_ROLES), async (req, res) => {
         }
 
         const updatePayload = { name, email, role_identifier };
-        if (password) updatePayload.password_hash = password;
+        if (password) updatePayload.password_hash = hashPassword(password);
 
         const { data, error } = await supabase
             .from('users')
@@ -3511,7 +3501,7 @@ app.post('/api/content-head/writers', requireRoles(CONTENT_HEAD_ROLES), async (r
             user_id: authUserId,
             name,
             email,
-            password_hash: password,
+            password_hash: hashPassword(password),
             role: 'EMPLOYEE',
             role_identifier: 'WRITER'
         }], { onConflict: 'user_id' }).select();
@@ -5068,7 +5058,7 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
             user_id: authUserId,
             name: request.full_name,
             email: request.email,
-            password_hash: password,
+            password_hash: hashPassword(password),
             role: 'CLIENT',
             role_identifier: 'CLIENT'
         }], { onConflict: 'user_id' });
@@ -5086,7 +5076,7 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
             company_name: request.full_name, // Using full_name as company name initially
             email: request.email,
             phone: request.phone_number,
-            password_hash: password,
+            password_hash: hashPassword(password),
             is_active: true,
             is_deleted: false,
             batch_type: '1-1'
