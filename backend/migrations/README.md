@@ -22,8 +22,16 @@ missing). Do not run it. To build a database from scratch, apply the files below
    users, backend uses the service-role key which bypasses RLS), drops the
    `exec_sql`/`run_sql` helper functions, and clears plaintext passwords.
 
-Because `local_init.sql` already contains the cumulative schema, a fresh setup
-only needs step 1 then step 3.
+4. `101_fix_user_role_enum.sql` — adds the role names the app writes
+   (`GM`, `TEAM LEAD`, `POSTING TEAM`, `PRODUCTION HEAD`, `CONTENT HEAD`, …).
+   Without it "Add Team Member" fails for most roles.
+5. `102_add_missing_columns.sql` — `reschedule_history` (content_items,
+   freelancer_tasks), `original_scheduled_datetime` (freelancer_tasks) and
+   POC-note edit history columns. Without it rescheduling and editing POC notes fail.
+
+`local_init.sql` already contains the cumulative schema (including 101/102),
+so a fresh setup only needs step 1 then step 3. An existing database that was
+built before these were added needs 101 and 102 applied.
 
 ## Applying with psql
 

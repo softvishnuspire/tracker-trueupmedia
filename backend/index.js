@@ -409,7 +409,18 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-app.use('/api', authenticateUser);
+// Routes that must be reachable without a login (exact method + path).
+// The public client-onboarding form posts here before the applicant has an account.
+const PUBLIC_API_ROUTES = new Set([
+    'POST /api/onboarding/submit',
+]);
+
+app.use('/api', (req, res, next) => {
+    if (PUBLIC_API_ROUTES.has(`${req.method} ${req.baseUrl}${req.path}`.replace(/\/+$/, ''))) {
+        return next();
+    }
+    return authenticateUser(req, res, next);
+});
 
 const normalizeRole = (role) => (role || '').toString().trim().toUpperCase().replace(/[_\s]+/g, ' ');
 
@@ -3593,6 +3604,7 @@ app.patch('/api/content-head/clients/:id/assign-writer', requireRoles(CONTENT_HE
 app.delete('/api/content-head/writers/:id', requireRoles(CONTENT_HEAD_ROLES), async (req, res) => {
     const { id } = req.params;
     console.log(`[Content Head] Delete request for content writer: ${id}`);
+    const adminClient = getAdminSupabaseClient(req);
 
     try {
         // 1. Check if the user is indeed a WRITER to avoid arbitrary deletion
@@ -4967,9 +4979,16 @@ app.get('/api/emergency/month', async (req, res) => {
 
 // ─── Public: Client Onboarding Submission ───
 app.post('/api/onboarding/submit', async (req, res) => {
-    const { full_name, email, phone_number } = req.body;
+    const full_name = typeof req.body?.full_name === 'string' ? req.body.full_name.trim() : '';
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const phone_number = typeof req.body?.phone_number === 'string' ? req.body.phone_number.trim() : '';
     if (!full_name || !email) {
         return res.status(400).json({ error: 'Full name and email are required.' });
+    }
+    // Public endpoint: basic shape/size validation.
+    if (full_name.length > 200 || email.length > 254 || phone_number.length > 40 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Please enter a valid name, email and phone number.' });
     }
 
     try {
@@ -5033,6 +5052,7 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
     const { password } = req.body;
 
     if (!password) return res.status(400).json({ error: 'Password is required to create client account' });
+    const adminClient = getAdminSupabaseClient(req);
 
     try {
         // 1. Fetch request details
@@ -5084,16 +5104,18 @@ app.post('/api/admin/onboarding-requests/:id/accept', requireRoles(ADMIN_ROLES),
 
         if (clientError) {
             console.error(`[Onboarding] DB insertion error for client ${request.email}:`, clientError.message);
-            // Rollback auth and public.users record
+            // Rollback the public.users record, and the auth user only if we created it here
             try {
-                await supabase.auth.admin.deleteUser(authUser.user.id);
-                await supabase.from('users').delete().eq('user_id', authUser.user.id);
+                await adminClient.from('users').delete().eq('user_id', authUserId);
+                if (createdNewAuthUser && authUserId) {
+                    await adminClient.auth.admin.deleteUser(authUserId);
+                }
             } catch (rollbackErr) {
                 console.error('[Onboarding] Rollback failed:', rollbackErr.message);
             }
 
             // Provide specific error for duplicate company name which is common
-            if (clientError.message.includes('unique_violation') || clientError.message.includes('already exists')) {
+            if (clientError.code === '23505' || /duplicate key|unique_violation|already exists/i.test(clientError.message)) {
                 return res.status(400).json({ error: `A client with company name "${request.full_name}" already exists.` });
             }
             return res.status(500).json({ error: clientError.message });
@@ -5530,7 +5552,15 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-const server = app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// Express 5 passes listen errors (e.g. EADDRINUSE) to this callback; without
+// checking it the process prints "running" and then silently exits.
+const server = app.listen(PORT, (err) => {
+    if (err) {
+        console.error(`❌ Failed to start server on port ${PORT}: ${err.message}`);
+        process.exit(1);
+    }
+    console.log(`🚀 Server running on port ${PORT}`);
+});
 
 // Graceful process shutdown handling
 const gracefulShutdown = (signal) => {

@@ -156,8 +156,8 @@ export default function GmLayout({
                 </div>
             </aside>
 
-            <main className="main-content">
-                <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 2100 }}>
+            <main className="main-content with-desktop-bell">
+                <div className="desktop-notification-bell">
                     <NotificationBell />
                 </div>
                 {children}

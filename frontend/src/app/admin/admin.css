@@ -3280,4 +3280,23 @@
     .emergency-list {
         grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)) !important;
     }
-}
+}
+/* Desktop notification bell: the mobile header (which holds the bell) is only
+   shown at <=1200px, so render a fixed top-right bell above that width. */
+.desktop-notification-bell {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 2100;
+}
+@media (max-width: 1200px) {
+    .desktop-notification-bell {
+        display: none !important;
+    }
+}
+/* Keep page header actions (e.g. "Add New Client") clear of the fixed bell. */
+@media (min-width: 1201px) {
+    .main-content.with-desktop-bell {
+        padding-right: 80px;
+    }
+}

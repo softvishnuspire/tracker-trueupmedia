@@ -53,10 +53,12 @@ const ScheduleExport: React.FC<ScheduleExportProps> = ({ data, clientName, month
                 orientation: 'p',
                 unit: 'mm',
                 format: 'a4',
-                compress: false // Disable overall PDF compression for clarity
+                // Lossless (Flate) compression: identical pixels/clarity, but the
+                // file drops from ~17 MB (raw uncompressed image) to a small fraction.
+                compress: true
             });
 
-            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, undefined, 'NONE');
+            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
             
             const sanitizedClientName = (clientName || 'Client').trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
             const downloadFilename = isBiMonthly

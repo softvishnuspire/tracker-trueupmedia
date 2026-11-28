@@ -165,7 +165,10 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content with-desktop-bell">
+        <div className="desktop-notification-bell">
+          <NotificationBell />
+        </div>
         {children}
       </main>
     </div>

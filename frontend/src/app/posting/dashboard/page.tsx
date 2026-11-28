@@ -65,6 +65,9 @@ export default function PostingDashboard() {
     const [statusNote, setStatusNote] = useState('');
     const [user, setUser] = useState<any>(null);
     const [todayStats, setTodayStats] = useState({ total: 0, completed: 0, percentage: 0, remaining: 0 });
+    // All-status items for the current week + month. The progress cards need
+    // POSTED items too, which calendarData (WAITING FOR POSTING only) never has.
+    const [progressData, setProgressData] = useState<ContentItem[]>([]);
     const [emergencyTasks, setEmergencyTasks] = useState<ContentItem[]>([]);
     const [dayTasks, setDayTasks] = useState<ContentItem[]>([]);
     const [showCompanyCalendar, setShowCompanyCalendar] = useState(true);
@@ -109,8 +112,21 @@ export default function PostingDashboard() {
         }
         try {
             // Calculate today's progress stats
-            const res = await postingApi.getMasterCalendar(format(new Date(), 'yyyy-MM'), undefined, undefined, true);
-            const data = res.data as ContentItem[];
+            // Fetch every month the current week touches (a week can span two months),
+            // with all statuses, so today/week/period progress can count POSTED items.
+            const now = new Date();
+            const monthsToFetch = Array.from(new Set([
+                format(now, 'yyyy-MM'),
+                format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM'),
+                format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM'),
+            ]));
+            const responses = await Promise.all(
+                monthsToFetch.map(m => postingApi.getMasterCalendar(m, undefined, undefined, true))
+            );
+            const byId = new Map<string, ContentItem>();
+            responses.forEach(r => (r.data as ContentItem[]).forEach(item => byId.set(item.id, item)));
+            const data = Array.from(byId.values());
+            setProgressData(data);
             const today = new Date();
             const todayItems = data.filter(item => isSameDay(parseISO(item.scheduled_datetime), today));
             const totalToday = todayItems.length;
@@ -417,9 +433,11 @@ export default function PostingDashboard() {
         const previousPendingTasks = [...pendingTasks];
         const previousEmergencyTasks = [...emergencyTasks];
         const previousTodayStats = { ...todayStats };
+        const previousProgressData = [...progressData];
         const previousActiveItem = activeItem ? { ...activeItem } : null;
 
         // Optimistic updates
+        setProgressData(prev => prev.map(item => item.id === id ? { ...item, status: 'POSTED' } : item));
         setCalendarData(prev => prev.map(item => item.id === id ? { ...item, status: 'POSTED' } : item));
         setPendingTasks(prev => prev.map(item => item.id === id ? { ...item, status: 'POSTED' } : item));
         setEmergencyTasks(prev => prev.map(item => item.id === id ? { ...item, status: 'POSTED' } : item));
@@ -465,6 +483,7 @@ export default function PostingDashboard() {
             setPendingTasks(previousPendingTasks);
             setEmergencyTasks(previousEmergencyTasks);
             setTodayStats(previousTodayStats);
+            setProgressData(previousProgressData);
             if (previousActiveItem) setActiveItem(previousActiveItem);
             toastError(err.response?.data?.error || 'Failed to mark as posted');
         } finally {
@@ -479,9 +498,11 @@ export default function PostingDashboard() {
         const previousPendingTasks = [...pendingTasks];
         const previousEmergencyTasks = [...emergencyTasks];
         const previousTodayStats = { ...todayStats };
+        const previousProgressData = [...progressData];
         const previousActiveItem = activeItem ? { ...activeItem } : null;
 
         // Optimistic updates
+        setProgressData(prev => prev.map(item => item.id === id ? { ...item, status: 'WAITING FOR POSTING' } : item));
         setCalendarData(prev => prev.map(item => item.id === id ? { ...item, status: 'WAITING FOR POSTING' } : item));
         setPendingTasks(prev => prev.map(item => item.id === id ? { ...item, status: 'WAITING FOR POSTING' } : item));
         setEmergencyTasks(prev => prev.map(item => item.id === id ? { ...item, status: 'WAITING FOR POSTING' } : item));
@@ -523,6 +544,7 @@ export default function PostingDashboard() {
             setPendingTasks(previousPendingTasks);
             setEmergencyTasks(previousEmergencyTasks);
             setTodayStats(previousTodayStats);
+            setProgressData(previousProgressData);
             if (previousActiveItem) setActiveItem(previousActiveItem);
             toastError(err.response?.data?.error || 'Failed to undo status');
         } finally {
@@ -661,12 +683,12 @@ export default function PostingDashboard() {
 
     const days = getDays();
 
-    const monthTotal = calendarData.filter(i => isDayInPeriod(parseISO(i.scheduled_datetime))).length;
-    const monthCompleted = calendarData.filter(i => isDayInPeriod(parseISO(i.scheduled_datetime)) && (i.status || '').toUpperCase() === 'POSTED').length;
+    const monthTotal = progressData.filter(i => isDayInPeriod(parseISO(i.scheduled_datetime))).length;
+    const monthCompleted = progressData.filter(i => isDayInPeriod(parseISO(i.scheduled_datetime)) && (i.status || '').toUpperCase() === 'POSTED').length;
     const monthPercentage = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-    const weekItems = calendarData.filter(item => {
+    const weekItems = progressData.filter(item => {
         const itemDate = parseISO(item.scheduled_datetime);
         return itemDate >= weekStart && itemDate <= weekEnd;
     });

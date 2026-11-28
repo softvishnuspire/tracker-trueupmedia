@@ -17,7 +17,9 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   CREATE TYPE public.user_role AS ENUM
-    ('ADMIN','COO','MANAGER','TL','EMPLOYEE','WRITER','CLIENT','CONTENT_HEAD');
+    ('ADMIN','COO','MANAGER','TL','EMPLOYEE','WRITER','CLIENT','CONTENT_HEAD',
+     'GM','GENERAL MANAGER','TEAM LEAD','POSTING TEAM','POSTING_TEAM',
+     'PRODUCTION HEAD','CONTENT HEAD');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -84,6 +86,7 @@ CREATE TABLE IF NOT EXISTS public.content_items (
   employee_task_status public.employee_task_status DEFAULT 'PENDING',
   assigned_at timestamptz DEFAULT now(),
   original_scheduled_datetime timestamptz,
+  reschedule_history jsonb NOT NULL DEFAULT '[]'::jsonb,
   freelancer_name text,
   freelancer_phone text,
   freelancer_email text,
@@ -118,6 +121,9 @@ CREATE TABLE IF NOT EXISTS public.poc_communications (
   note_date date NOT NULL,
   note_text text NOT NULL,
   created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  history jsonb NOT NULL DEFAULT '[]'::jsonb,
+  updated_at timestamptz,
+  updated_by uuid REFERENCES public.users(user_id) ON DELETE SET NULL,
   CONSTRAINT poc_communications_pkey PRIMARY KEY (id)
 );
 
@@ -154,6 +160,8 @@ CREATE TABLE IF NOT EXISTS public.freelancer_tasks (
   assigned_to uuid REFERENCES public.users(user_id),
   employee_task_status varchar DEFAULT 'PENDING',
   assigned_at timestamptz,
+  original_scheduled_datetime timestamptz,
+  reschedule_history jsonb NOT NULL DEFAULT '[]'::jsonb,
   CONSTRAINT freelancer_tasks_pkey PRIMARY KEY (id)
 );
 
